@@ -5,8 +5,8 @@
 *.swift text diff=swift
 # Xcode files
 *.pbxproj text merge=union
-*.xcworkspacedata binary merge=union
-*.xcscheme binary merge=union
+*.xcworkspacedata text diff
+*.xcscheme text diff
 # Documentation
 *.md text
 *.txt text

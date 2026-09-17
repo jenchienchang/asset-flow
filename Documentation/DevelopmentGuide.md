@@ -62,6 +62,7 @@ Before you begin development, ensure you have the following installed:
 
    - In Xcode: Cmd+R
    - Target platform: macOS only
+   - Debug builds produce `AssetFlow-Debug.app`; Release builds produce `AssetFlow.app`, allowing both builds to coexist in separate locations.
 
 ______________________________________________________________________
 
@@ -538,7 +539,7 @@ ______________________________________________________________________
 ### Build Configuration
 
 - **Debug**: Full symbols, assertions enabled
-- **Release**: Optimized, symbols stripped
+- **Release**: Optimized, symbols stripped, Hardened Runtime enabled
 
 ### macOS Distribution
 

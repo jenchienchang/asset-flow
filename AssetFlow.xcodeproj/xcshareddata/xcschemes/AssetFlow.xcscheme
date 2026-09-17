@@ -41,17 +41,6 @@
                ReferencedContainer = "container:AssetFlow.xcodeproj">
             </BuildableReference>
          </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "FF5D35C52E9A9D1700C50B81"
-               BuildableName = "AssetFlowUITests.xctest"
-               BlueprintName = "AssetFlowUITests"
-               ReferencedContainer = "container:AssetFlow.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
