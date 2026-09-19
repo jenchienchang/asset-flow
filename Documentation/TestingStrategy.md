@@ -433,7 +433,7 @@ ______________________________________________________________________
 
 - **CalculationService**: Growth rate, Modified Dietz return (no cash flows, with cash flows, time-weighting), cumulative TWR (chaining returns), CAGR (multi-year, fractional year), category allocation, edge cases (zero/negative values, divide-by-zero)
 - **CSVParsingService**: Valid files, malformed files, encoding, number formats, within-CSV duplicate detection (assets by name+platform, cash flows by description)
-- **BackupService**: Export format, restore validation, foreign key reference validation across files (every assetID in snapshot_asset_values exists in assets, every snapshotID exists in snapshots, etc.), error handling for corrupted archives, round-trip integrity
+- **BackupService**: Export and version compatibility; record-aware CSV round trips; archive, scalar, identity, and relationship validation; localized diagnostics; complete-graph rollback and settings preservation; round-trip integrity
 - **RebalancingCalculator**: Balanced portfolio, unbalanced, no target, uncategorized assets, adjustment calculations
 - **ChartDataService**: Time range filtering, abbreviated axis labels (K/M/B)
 

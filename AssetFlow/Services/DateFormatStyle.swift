@@ -21,7 +21,7 @@ import Foundation
 ///
 /// Maps to `Date.FormatStyle.DateStyle` for rendering. Uses stable `String` raw
 /// values for UserDefaults persistence.
-enum DateFormatStyle: String, CaseIterable {
+enum DateFormatStyle: String, CaseIterable, Sendable {
   case numeric
   case abbreviated
   case long

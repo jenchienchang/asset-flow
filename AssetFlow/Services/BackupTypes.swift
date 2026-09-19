@@ -18,10 +18,32 @@
 import Foundation
 
 /// Metadata stored in `manifest.json` inside a backup archive.
-struct BackupManifest: Codable {
+struct BackupManifest: Codable, Sendable {
   let formatVersion: Int
   let exportTimestamp: String
   let appVersion: String
+}
+
+enum BackupFormatVersion: Int, CaseIterable, Sendable {
+  case v1 = 1
+  case v2 = 2
+  case v3 = 3
+
+  static let current = BackupFormatVersion.v3
+}
+
+struct BackupValidationIssue: Sendable {
+  let file: String
+  let row: Int?
+  let column: String?
+  let detail: String
+
+  var formattedDescription: String {
+    var location = file
+    if let row { location += ":\(row)" }
+    if let column { location += " [\(column)]" }
+    return "\(location): \(detail)"
+  }
 }
 
 /// Errors that can occur during backup export, validation, or restore.
@@ -30,6 +52,9 @@ enum BackupError: LocalizedError {
   case missingFile(String)
   case invalidCSVHeaders(file: String, expected: [String], got: [String])
   case invalidForeignKey(file: String, column: String, value: String)
+  case unsupportedFormatVersion(Int)
+  case validationFailed([BackupValidationIssue])
+  case restoreFailed(String)
   case corruptedData(String)
 
   var errorDescription: String? {
@@ -53,11 +78,94 @@ enum BackupError: LocalizedError {
           "Invalid reference in \(file): \(column) '\(value)' not found.",
         table: "Services")
 
+    case .unsupportedFormatVersion(let version):
+      String(
+        localized: "Unsupported backup format version: \(version).",
+        table: "Services")
+
+    case .validationFailed(let issues):
+      String(
+        localized:
+          "Backup validation failed:\n\(issues.map(\.formattedDescription).joined(separator: "\n"))",
+        table: "Services")
+
+    case .restoreFailed(let detail):
+      String(
+        localized: "The backup could not be restored: \(detail)",
+        table: "Services")
+
     case .corruptedData(let detail):
       String(
         localized: "Corrupted data: \(detail)", table: "Services")
     }
   }
+}
+
+// MARK: - Validated Transfer Types
+
+struct ValidatedBackup: Sendable {
+  let manifest: BackupManifest
+  let categories: [BackupCategoryRecord]
+  let assets: [BackupAssetRecord]
+  let snapshots: [BackupSnapshotRecord]
+  let snapshotAssetValues: [BackupSnapshotAssetValueRecord]
+  let cashFlowOperations: [BackupCashFlowRecord]
+  let exchangeRates: [BackupExchangeRateRecord]
+  let settings: BackupSettingsRecord
+}
+
+struct BackupCategoryRecord: Sendable {
+  let id: UUID
+  let name: String
+  let targetAllocationPercentage: Decimal?
+  let displayOrder: Int
+}
+
+struct BackupAssetRecord: Sendable {
+  let id: UUID
+  let name: String
+  let platform: String
+  let categoryID: UUID?
+  let currency: String
+}
+
+struct BackupSnapshotRecord: Sendable {
+  let id: UUID
+  let date: Date
+  let createdAt: Date
+}
+
+struct BackupSnapshotAssetValueRecord: Sendable {
+  let snapshotID: UUID
+  let assetID: UUID
+  let marketValue: Decimal
+}
+
+struct BackupCashFlowRecord: Sendable {
+  let id: UUID
+  let snapshotID: UUID
+  let description: String
+  let amount: Decimal
+  let currency: String
+}
+
+struct BackupExchangeRateRecord: Sendable {
+  let snapshotID: UUID
+  let baseCurrency: String
+  let fetchDate: Date
+  let isFallback: Bool
+  let ratesJSON: Data
+}
+
+struct BackupSettingsRecord: Sendable {
+  let mainCurrency: String
+  let dateFormat: DateFormatStyle
+  let defaultPlatform: String
+}
+
+enum BackupRestoreCheckpoint: Sendable {
+  case afterDeletion
+  case afterCategoryInsertion
 }
 
 // MARK: - CSV Column Constants

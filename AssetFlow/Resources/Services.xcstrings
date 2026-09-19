@@ -13,6 +13,466 @@
         }
       }
     },
+    "Backup validation failed:\n%@" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備份驗證失敗：\n%@"
+          }
+        }
+      }
+    },
+    "Asset ID '%@' was not found." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到資產 ID「%@」。"
+          }
+        }
+      }
+    },
+    "Category ID '%@' was not found." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到類別 ID「%@」。"
+          }
+        }
+      }
+    },
+    "Duplicate entity ID '%@'." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "實體 ID「%@」重複。"
+          }
+        }
+      }
+    },
+    "Duplicate normalized asset identity." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正規化後的資產識別重複。"
+          }
+        }
+      }
+    },
+    "Duplicate normalized cash-flow description for this snapshot." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此快照中正規化後的現金流描述重複。"
+          }
+        }
+      }
+    },
+    "Duplicate normalized category name." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正規化後的類別名稱重複。"
+          }
+        }
+      }
+    },
+    "Duplicate normalized snapshot date." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正規化後的快照日期重複。"
+          }
+        }
+      }
+    },
+    "Duplicate settings key '%@'." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定鍵「%@」重複。"
+          }
+        }
+      }
+    },
+    "Duplicate snapshot and asset relationship." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快照與資產的關聯重複。"
+          }
+        }
+      }
+    },
+    "Expected %lld fields but found %lld." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期有 %1$lld 個欄位，但實際有 %2$lld 個。"
+          }
+        }
+      }
+    },
+    "Expected 'true' or 'false'." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為「true」或「false」。"
+          }
+        }
+      }
+    },
+    "Expected a decimal from 0 through 100, or an empty value." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為 0 至 100 的十進位數值，或留空。"
+          }
+        }
+      }
+    },
+    "Expected a decimal value." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為十進位數值。"
+          }
+        }
+      }
+    },
+    "Expected a nonnegative integer." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為非負整數。"
+          }
+        }
+      }
+    },
+    "Expected a regular file." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為一般檔案。"
+          }
+        }
+      }
+    },
+    "Expected a UUID." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為 UUID。"
+          }
+        }
+      }
+    },
+    "Expected a valid ISO 8601 timestamp." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為有效的 ISO 8601 時間戳記。"
+          }
+        }
+      }
+    },
+    "Expected an encoded exchange-rate dictionary." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為已編碼的匯率字典。"
+          }
+        }
+      }
+    },
+    "Expected an ISO 8601 date." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為 ISO 8601 日期。"
+          }
+        }
+      }
+    },
+    "Expected UTF-8 encoded text." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為 UTF-8 編碼文字。"
+          }
+        }
+      }
+    },
+    "Expected valid base64 data." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為有效的 Base64 資料。"
+          }
+        }
+      }
+    },
+    "Failed to create ZIP: %@" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建立 ZIP 失敗：%@"
+          }
+        }
+      }
+    },
+    "Invalid manifest.json: %@" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "manifest.json 無效：%@"
+          }
+        }
+      }
+    },
+    "Missing required settings key '%@'." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少必要的設定鍵「%@」。"
+          }
+        }
+      }
+    },
+    "Only one exchange-rate record is allowed per snapshot." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個快照只允許一筆匯率記錄。"
+          }
+        }
+      }
+    },
+    "Rates must be a nonempty dictionary of positive finite values." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯率必須是包含正有限數值的非空字典。"
+          }
+        }
+      }
+    },
+    "Snapshot ID '%@' was not found." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到快照 ID「%@」。"
+          }
+        }
+      }
+    },
+    "The app version must not be empty." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 版本不得為空。"
+          }
+        }
+      }
+    },
+    "The base currency must not be empty." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基準貨幣不得為空。"
+          }
+        }
+      }
+    },
+    "The description must not be empty." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描述不得為空。"
+          }
+        }
+      }
+    },
+    "The display currency must not be empty." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示貨幣不得為空。"
+          }
+        }
+      }
+    },
+    "The file exceeds the supported size limit." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案超過支援的大小上限。"
+          }
+        }
+      }
+    },
+    "The name must not be empty." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名稱不得為空。"
+          }
+        }
+      }
+    },
+    "This file is not supported by backup format version %lld." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備份格式版本 %lld 不支援此檔案。"
+          }
+        }
+      }
+    },
+    "Unexpected character after a closing quote." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結束引號後出現非預期字元。"
+          }
+        }
+      }
+    },
+    "Unexpected quote in an unquoted field." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未加引號的欄位中出現非預期引號。"
+          }
+        }
+      }
+    },
+    "Unknown date format '%@'." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知的日期格式「%@」。"
+          }
+        }
+      }
+    },
+    "Unknown ditto error" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知的 ditto 錯誤"
+          }
+        }
+      }
+    },
+    "Unknown settings key '%@'." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知的設定鍵「%@」。"
+          }
+        }
+      }
+    },
+    "Unterminated quoted field." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加引號的欄位未正確結束。"
+          }
+        }
+      }
+    },
+    "Validated asset ID was not available during value insertion." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插入數值時找不到已驗證的資產 ID。"
+          }
+        }
+      }
+    },
+    "Validated category ID was not available during insertion." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插入時找不到已驗證的類別 ID。"
+          }
+        }
+      }
+    },
+    "Validated snapshot ID was not available during cash-flow insertion." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插入現金流時找不到已驗證的快照 ID。"
+          }
+        }
+      }
+    },
+    "Validated snapshot ID was not available during exchange-rate insertion." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插入匯率時找不到已驗證的快照 ID。"
+          }
+        }
+      }
+    },
+    "Validated snapshot ID was not available during value insertion." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插入數值時找不到已驗證的快照 ID。"
+          }
+        }
+      }
+    },
     "Corrupted data: %@" : {
       "comment" : "An error message that describes a data corruption issue. The argument is a human-readable description of the nature of the corruption.",
       "isCommentAutoGenerated" : true,
@@ -139,6 +599,16 @@
         }
       }
     },
+    "The backup could not be restored: %@" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法還原備份：%@"
+          }
+        }
+      }
+    },
     "Unable to Open Database" : {
       "comment" : "Title of an alert that appears when the app cannot open its database.",
       "isCommentAutoGenerated" : true,
@@ -147,6 +617,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法開啟資料庫"
+          }
+        }
+      }
+    },
+    "Unsupported backup format version: %lld." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援的備份格式版本：%lld。"
           }
         }
       }

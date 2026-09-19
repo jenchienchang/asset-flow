@@ -56,7 +56,7 @@ enum BackupService {
 
     // Write manifest
     let manifest = BackupManifest(
-      formatVersion: 3,
+      formatVersion: BackupFormatVersion.current.rawValue,
       exportTimestamp: ISO8601DateFormatter().string(from: Date()),
       appVersion: Constants.AppInfo.version
     )
@@ -108,7 +108,8 @@ enum BackupService {
   static func restoreFromBackup(
     at url: URL,
     modelContext: ModelContext,
-    settingsService: SettingsService
+    settingsService: SettingsService,
+    checkpoint: ((BackupRestoreCheckpoint) throws -> Void)? = nil
   ) throws {
     // Extract once and validate
     let tempDir = FileManager.default.temporaryDirectory
@@ -118,29 +119,49 @@ enum BackupService {
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
     try extractZip(from: url, to: tempDir)
-    _ = try validateExtractedBackup(at: tempDir)
+    let backup = try loadValidatedBackup(at: tempDir)
 
-    // Delete all existing data (reverse dependency order)
-    try deleteAllData(modelContext: modelContext)
+    // Establish a clean rollback point before the destructive transaction.
+    // If this save fails, no restore mutation has occurred.
+    if modelContext.hasChanges {
+      try modelContext.save()
+    }
 
-    // Parse and insert in dependency order
-    let categoryIDMap = try restoreCategories(
-      from: tempDir, modelContext: modelContext)
-    let assetIDMap = try restoreAssets(
-      from: tempDir, modelContext: modelContext,
-      categoryIDMap: categoryIDMap)
-    let snapshotIDMap = try restoreSnapshots(
-      from: tempDir, modelContext: modelContext)
-    try restoreSnapshotAssetValues(
-      from: tempDir, modelContext: modelContext,
-      snapshotIDMap: snapshotIDMap, assetIDMap: assetIDMap)
-    try restoreCashFlowOperations(
-      from: tempDir, modelContext: modelContext,
-      snapshotIDMap: snapshotIDMap)
-    try restoreExchangeRates(
-      from: tempDir, modelContext: modelContext,
-      snapshotIDMap: snapshotIDMap)
-    try restoreSettings(
-      from: tempDir, settingsService: settingsService)
+    let wasAutosaveEnabled = modelContext.autosaveEnabled
+    modelContext.autosaveEnabled = false
+    defer { modelContext.autosaveEnabled = wasAutosaveEnabled }
+
+    do {
+      try modelContext.transaction {
+        try deleteAllData(modelContext: modelContext)
+        try checkpoint?(.afterDeletion)
+
+        let categoryIDMap = restoreCategories(
+          backup.categories, modelContext: modelContext)
+        try checkpoint?(.afterCategoryInsertion)
+        let assetIDMap = try restoreAssets(
+          backup.assets, modelContext: modelContext,
+          categoryIDMap: categoryIDMap)
+        let snapshotIDMap = restoreSnapshots(
+          backup.snapshots, modelContext: modelContext)
+        try restoreSnapshotAssetValues(
+          backup.snapshotAssetValues, modelContext: modelContext,
+          snapshotIDMap: snapshotIDMap, assetIDMap: assetIDMap)
+        try restoreCashFlowOperations(
+          backup.cashFlowOperations, modelContext: modelContext,
+          snapshotIDMap: snapshotIDMap)
+        try restoreExchangeRates(
+          backup.exchangeRates, modelContext: modelContext,
+          snapshotIDMap: snapshotIDMap)
+      }
+    } catch {
+      modelContext.rollback()
+      if let backupError = error as? BackupError {
+        throw backupError
+      }
+      throw BackupError.restoreFailed(error.localizedDescription)
+    }
+
+    restoreSettings(backup.settings, settingsService: settingsService)
   }
 }

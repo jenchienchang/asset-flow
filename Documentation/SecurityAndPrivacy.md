@@ -109,9 +109,11 @@ ______________________________________________________________________
 
 **Restore Security**:
 
-- Restore operation validates file integrity before modifying data
-- Validation includes CSV structure, column headers, and foreign key references
-- If validation fails, no data is modified
+- Restore parses the complete archive into typed transfer records before modifying data
+- Validation includes supported manifest versions, version-specific headers, row arity, scalar values, duplicate and normalized identities, settings, and all relationship keys
+- Database replacement runs in one SwiftData transaction and rolls back on any failure
+- Settings are applied only after the database transaction succeeds
+- If validation or persistence fails, the original data and settings remain unchanged
 - Restore requires explicit confirmation: "Restoring from backup will replace ALL existing data. This cannot be undone."
 
 ### App Lock (Optional)

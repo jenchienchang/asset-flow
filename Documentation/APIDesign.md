@@ -332,18 +332,20 @@ struct BackupManifest: Codable {
 }
 ```
 
-**File Organization**: The BackupService implementation is split across extension files: `BackupService+Export.swift` (CSV writing and export helpers), `BackupService+Restore.swift` (restore and delete methods), and `BackupService+Validation.swift` (validation, FK checks, CSV parsing, ZIP operations).
+**File Organization**: The BackupService implementation is split across extension files: `BackupService+Export.swift` (CSV writing and export helpers), `BackupService+Parsing.swift` (typed loading and file validation), `BackupService+EntityParsing.swift` and `BackupService+SupplementalParsing.swift` (typed entity validation), `BackupService+ParsingSupport.swift` (strict scalar parsing and validation helpers), `BackupService+GraphValidation.swift` (cross-file relationship validation), `BackupCSVParser.swift` (record-aware CSV parsing), `BackupService+Restore.swift` (typed insertion and deletion), and `BackupService+Validation.swift` (validation entry point and ZIP operations).
 
 **Export Format**: ZIP archive containing:
 
 - `manifest.json` -- format version (currently 3), export timestamp, app version
 - `categories.csv` -- all Category records (v2+ adds `displayOrder` column; v1 backups without it are supported on restore with default `displayOrder = 0`)
-- `assets.csv` -- all Asset records including `currency` column (v3+; v2 backups without it default to display currency on restore)
+- `assets.csv` -- all Asset records including `currency` column (v3+; v1/v2 backups without it restore an empty currency so display-currency inheritance remains active)
 - `snapshots.csv` -- all Snapshot records
 - `snapshot_asset_values.csv` -- all SnapshotAssetValue records
-- `cash_flow_operations.csv` -- all CashFlowOperation records including `currency` column (v3+; v2 backups without it default to display currency on restore)
+- `cash_flow_operations.csv` -- all CashFlowOperation records including `currency` column (v3+; v1/v2 backups without it restore an empty currency so display-currency inheritance remains active)
 - `exchange_rates.csv` -- all ExchangeRate records (optional; absent in v2 backups). Columns: `snapshotID`, `baseCurrency`, `fetchDate`, `isFallback`, `ratesJSON` (base64-encoded JSON)
 - `settings.csv` -- user preferences with columns: `key`, `value`. Keys: `displayCurrency` (e.g., "USD"), `dateFormat` (e.g., "abbreviated"), `defaultPlatform` (e.g., "" or "Interactive Brokers")
+
+Format versions 1 through 3 contain only those three settings. Preferences not represented by the format, such as platform ordering and stale-asset visibility, remain unchanged during restore.
 
 **ZIP Implementation**: Uses `/usr/bin/ditto` via `Process` for ZIP creation (`-c -k --sequesterRsrc`) and extraction (`-x -k`). No external dependencies required — `ditto` is built into macOS.
 
@@ -352,23 +354,40 @@ struct BackupManifest: Codable {
 - Column headers match data model field names (see [DataModel.md](DataModel.md))
 - UUID fields: standard UUID string format
 - Decimal fields: full precision (no rounding)
-- Date fields: ISO 8601 format (YYYY-MM-DD)
+- Date fields: ISO 8601 timestamps
 - Optional/nullable fields: empty string for null
+- Records follow RFC 4180 quoting, including escaped quotes, CRLF, embedded newlines, and trailing empty fields
+- Size limits: 1 MiB for `manifest.json` and 128 MiB per CSV file
 - These CSV files are internal to the backup format, not intended for user editing
+
+**Supported Restore Versions**:
+
+| Version | Categories                                | Assets                 | Cash flows             | Exchange rates |
+| ------- | ----------------------------------------- | ---------------------- | ---------------------- | -------------- |
+| 1       | 3 columns; `displayOrder` defaults to `0` | 4 columns; no currency | 4 columns; no currency | Not supported  |
+| 2       | 4 columns                                 | 4 columns; no currency | 4 columns; no currency | Not supported  |
+| 3       | 4 columns                                 | 5 columns              | 5 columns              | Optional       |
+
+Headers must match the manifest version. Unsupported versions and mixed-version schemas are rejected.
 
 **Restore Validation**:
 
 Before modifying any data, the restore operation validates:
 
-1. All expected CSV files are present in the archive
-1. All CSV files are parseable with correct column headers
+1. All expected CSV files are present, regular files, UTF-8 encoded, and within the documented size limits
+1. The manifest version is supported and all headers match that exact version
+1. Every logical CSV record has the required arity and valid UUID, date, decimal, integer, Boolean, base64, and JSON values
+1. Required strings are nonempty and category target allocations are between 0 and 100
+1. Entity IDs, normalized category/asset identities, normalized snapshot dates, snapshot/asset pairs, per-snapshot cash-flow descriptions, and per-snapshot exchange rates are unique
 1. All foreign key references are valid across files:
    - Every `assetID` in `snapshot_asset_values.csv` exists in `assets.csv`
    - Every `snapshotID` in `snapshot_asset_values.csv` exists in `snapshots.csv`
    - Every `snapshotID` in `cash_flow_operations.csv` exists in `snapshots.csv`
    - Every `categoryID` in `assets.csv` references an existing Category or is null
 
-If validation fails, the restore is rejected with a detailed error listing all violations. No data is modified.
+Validation produces immutable typed transfer records. Raw CSV fields are never indexed or parsed by the mutation phase. If validation fails, the restore is rejected with detailed file, row, and column diagnostics. Semantic row issues are aggregated across files when parsing can continue; archive, file, encoding, and header failures may stop validation immediately. No data or settings are modified.
+
+After validation, existing pending model-context changes are saved to establish a rollback point. Autosave is suspended while deletion and typed insertion run in a single `ModelContext.transaction`. Any deletion, insertion, or save failure rolls the context back to that point. Validated `UserDefaults` settings are applied only after the SwiftData transaction succeeds.
 
 **Error Cases**:
 
@@ -376,9 +395,12 @@ If validation fails, the restore is rejected with a detailed error listing all v
 enum BackupError: LocalizedError {
     case invalidArchive
     case missingFile(String)
-    case invalidCSVHeaders(file: String, expected: [String], found: [String])
-    case invalidForeignKey(file: String, row: Int, field: String, value: String)
-    case corruptedData(details: String)
+    case invalidCSVHeaders(file: String, expected: [String], got: [String])
+    case invalidForeignKey(file: String, column: String, value: String)
+    case unsupportedFormatVersion(Int)
+    case validationFailed([BackupValidationIssue])
+    case restoreFailed(String)
+    case corruptedData(String)
 }
 ```
 
