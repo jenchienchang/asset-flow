@@ -154,7 +154,9 @@ class SnapshotListViewModel {
       performLoadRowData(snapshots: snapshots)
     } onChange: { [weak self] in
       Task { @MainActor [weak self] in
-        self?.loadRowData(snapshots: snapshots)
+        // Re-fetch the current collection instead of capturing SwiftData models
+        // in the sendable task closure.
+        self?.loadRowData()
       }
     }
   }
