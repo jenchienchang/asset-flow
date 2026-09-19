@@ -6,8 +6,8 @@
 
 Before you begin development, ensure you have the following installed:
 
-- **Xcode 26.3+** (with Command Line Tools)
-- **macOS 15.0+** (for development and running the app)
+- **Xcode 27.0+** (Swift 6.4 compiler, with Command Line Tools)
+- **macOS Tahoe 26.6+** (for development; the app supports macOS 15.0+)
 - **Git** (for version control)
 - **[Git LFS](https://git-lfs.com/)** (for documentation screenshot images)
 - **Homebrew** (recommended for tool installation)

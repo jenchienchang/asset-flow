@@ -28,7 +28,7 @@ struct AuthenticationServiceTests {
   // MARK: - Mock LAContext
 
   /// Mock LAContext subclass for testing without real biometric hardware.
-  private class MockLAContext: LAContext {
+  private nonisolated class MockLAContext: LAContext {
     var canEvaluateResult = true
     var evaluateResult = true
     var evaluatedPolicy: LAPolicy?

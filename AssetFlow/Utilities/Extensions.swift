@@ -197,7 +197,7 @@ extension ModelContext {
 extension String {
   /// Trims leading/trailing whitespace and collapses internal whitespace runs to a single space.
   /// Preserves original casing — suitable for display normalization.
-  var collapsingWhitespace: String {
+  nonisolated var collapsingWhitespace: String {
     let trimmed = self.trimmingCharacters(in: .whitespacesAndNewlines)
     var result = ""
     result.reserveCapacity(trimmed.count)
@@ -218,7 +218,7 @@ extension String {
 
   /// Normalizes a string for identity comparison (SPEC 6.1):
   /// trims whitespace, collapses internal runs of whitespace, lowercases.
-  var normalizedForIdentity: String {
+  nonisolated var normalizedForIdentity: String {
     collapsingWhitespace.lowercased()
   }
 }

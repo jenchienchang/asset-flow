@@ -4,6 +4,8 @@
 
 AssetFlow is a macOS desktop application (macOS 15.0+) for snapshot-based portfolio management and asset allocation tracking. It is built with SwiftUI, SwiftData, and Swift Charts, following a local-first architecture with optional network access limited to exchange rate fetching.
 
+The project uses the Swift 6 language mode and the Swift 6.4 compiler supplied by Xcode 27. The app target uses default MainActor isolation with approachable concurrency enabled. Pure value-only helpers that are used from nonisolated contexts are explicitly marked `nonisolated`; SwiftData models and model contexts remain on the main actor.
+
 ## Architecture Pattern
 
 ### MVVM (Model-View-ViewModel)

@@ -38,7 +38,7 @@ struct BackupValidationIssue: Sendable {
   let column: String?
   let detail: String
 
-  var formattedDescription: String {
+  nonisolated var formattedDescription: String {
     var location = file
     if let row { location += ":\(row)" }
     if let column { location += " [\(column)]" }

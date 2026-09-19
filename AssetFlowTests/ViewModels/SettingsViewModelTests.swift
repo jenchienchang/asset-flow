@@ -144,7 +144,7 @@ struct SettingsViewModelTests {
   // MARK: - App Lock (Authentication)
 
   /// Mock LAContext for testing biometric availability.
-  private class MockLAContext: LAContext {
+  private nonisolated class MockLAContext: LAContext {
     var canEvaluateResult = true
     var evaluateResult = true
 

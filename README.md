@@ -67,8 +67,8 @@ AssetFlow/
 
 #### Prerequisites
 
-- Xcode 26.3 or later
-- macOS 15.0 or later (for development)
+- Xcode 27.0 or later (Swift 6.4 compiler)
+- macOS Tahoe 26.6 or later (for development; the app supports macOS 15.0+)
 - [swift-format](https://github.com/swiftlang/swift-format/tree/main)
 - [SwiftLint](https://github.com/realm/SwiftLint/tree/main)
 

@@ -6,6 +6,8 @@ This document outlines the testing strategy for AssetFlow, which prioritizes **u
 
 The project uses the **Swift Testing** framework (`import Testing`) for all tests, with `@Suite`, `@Test`, `#expect()`, and `#require()` macros. XCTest is NOT used.
 
+The app and test targets use the Swift 6 language mode with complete concurrency checking. A successful test run requires both compilation without Swift concurrency diagnostics and passing Swift Testing assertions; tests are run on macOS because SwiftData and the application target are macOS-only.
+
 After careful consideration, the project has opted to **forgo UI testing**. A comprehensive suite of tests at the ViewModel and Service layers provides sufficient confidence in application behavior while avoiding the brittleness and maintenance overhead of UI tests.
 
 ______________________________________________________________________

@@ -304,7 +304,7 @@ class AuthenticationService {
 #if TESTING
   /// An `LAContext` subclass that always succeeds without showing any system dialog.
   /// Only compiled into the Testing build configuration.
-  private class PassthroughLAContext: LAContext {
+  private nonisolated class PassthroughLAContext: LAContext {
     override func canEvaluatePolicy(_: LAPolicy, error _: NSErrorPointer) -> Bool { true }
     override func evaluatePolicy(_: LAPolicy, localizedReason _: String) async throws -> Bool {
       true

@@ -167,6 +167,8 @@ For Swift 6 strict concurrency compatibility, all data types passed across isola
 
 - Service data types (structs used as inputs/outputs, such as `CSVParseResult`, `RebalancingAction`) should conform to `Sendable`
 - Using `enum` for stateless services naturally avoids actor isolation issues
+- Pure helpers that access only their value-type inputs should be marked `nonisolated` when they are used from nonisolated code
+- Avoid `@unchecked Sendable` and `nonisolated(unsafe)` unless the shared-state invariant is documented and tested
 
 ### Properties
 

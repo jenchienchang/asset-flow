@@ -577,7 +577,7 @@ The app uses `VersionedSchema` for schema management:
 
 ```swift
 enum SchemaV1: VersionedSchema {
-    static var versionIdentifier = Schema.Version(1, 0, 0)
+    static let versionIdentifier = Schema.Version(1, 0, 0)
     static var models: [any PersistentModel.Type] = [
         Category.self, Asset.self, Snapshot.self,
         SnapshotAssetValue.self, CashFlowOperation.self, ExchangeRate.self,
