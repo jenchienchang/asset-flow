@@ -9,10 +9,6 @@ permissions:
   contents: write
   pull-requests: write
 
-env:
-  SWIFTLINT_VERSION: 0.63.2
-  SWIFT_FORMAT_VERSION: 602.0.0
-
 jobs:
   release-please:
     runs-on: ubuntu-24.04
@@ -39,26 +35,81 @@ jobs:
         with:
           ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
 
+      - name: Resolve SwiftLint release
+        id: swiftlint
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          METADATA_FILE=$(mktemp)
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/realm/SwiftLint/releases/latest" \
+            --output "$METADATA_FILE"
+          SWIFTLINT_VERSION=$(python3 -c \
+            "import json,sys; print(json.load(open(sys.argv[1]))['tag_name'])" \
+            "$METADATA_FILE")
+          SWIFTLINT_ASSET_URL=$(python3 -c \
+            "import json,sys; print(next(asset['browser_download_url'] for asset in json.load(open(sys.argv[1]))['assets'] if asset['name'] == 'swiftlint_linux_amd64.zip'))" \
+            "$METADATA_FILE")
+          SWIFTLINT_ASSET_DIGEST=$(python3 -c \
+            "import json,sys; print(next(asset['digest'] for asset in json.load(open(sys.argv[1]))['assets'] if asset['name'] == 'swiftlint_linux_amd64.zip'))" \
+            "$METADATA_FILE")
+          if [[ "$SWIFTLINT_ASSET_DIGEST" != sha256:* ]]; then
+            echo "SwiftLint release has no SHA-256 digest" >&2
+            exit 1
+          fi
+          echo "version=$SWIFTLINT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "url=$SWIFTLINT_ASSET_URL" >> "$GITHUB_OUTPUT"
+          echo "sha256=${SWIFTLINT_ASSET_DIGEST#sha256:}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve swift-format bottle
+        id: swift-format
+        run: |
+          METADATA_FILE=$(mktemp)
+          curl --fail --silent --show-error --location \
+            "https://formulae.brew.sh/api/formula/swift-format.json" \
+            --output "$METADATA_FILE"
+          SWIFT_FORMAT_VERSION=$(python3 -c \
+            "import json,sys; print(json.load(open(sys.argv[1]))['versions']['stable'])" \
+            "$METADATA_FILE")
+          SWIFT_FORMAT_BOTTLE_URL=$(python3 -c \
+            "import json,sys; print(json.load(open(sys.argv[1]))['bottle']['stable']['files']['x86_64_linux']['url'])" \
+            "$METADATA_FILE")
+          echo "version=$SWIFT_FORMAT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "url=$SWIFT_FORMAT_BOTTLE_URL" >> "$GITHUB_OUTPUT"
+
       - name: Cache lint tools
         id: cache-tools
         uses: actions/cache@v4
         with:
           path: ~/lint-tools
-          key: lint-tools-swiftlint-${{ env.SWIFTLINT_VERSION }}-swift-format-${{ env.SWIFT_FORMAT_VERSION }}
+          key: lint-tools-swiftlint-${{ steps.swiftlint.outputs.version }}-swift-format-${{ steps.swift-format.outputs.version }}
 
       - name: Install SwiftLint and swift-format
         if: steps.cache-tools.outputs.cache-hit != 'true'
+        env:
+          SWIFTLINT_ASSET_URL: ${{ steps.swiftlint.outputs.url }}
+          SWIFTLINT_SHA256: ${{ steps.swiftlint.outputs.sha256 }}
+          SWIFT_FORMAT_BOTTLE_URL: ${{ steps.swift-format.outputs.url }}
+          SWIFT_FORMAT_VERSION: ${{ steps.swift-format.outputs.version }}
         run: |
           mkdir -p ~/lint-tools
 
           # SwiftLint: download pre-built binary from GitHub Releases
-          curl -sL "https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/swiftlint_linux_amd64.zip" -o /tmp/swiftlint.zip
+          curl --fail --silent --show-error --location \
+            "$SWIFTLINT_ASSET_URL" \
+            -o /tmp/swiftlint.zip
+          echo "$SWIFTLINT_SHA256  /tmp/swiftlint.zip" | sha256sum --check -
           unzip -o /tmp/swiftlint.zip swiftlint -d ~/lint-tools/
           chmod +x ~/lint-tools/swiftlint
 
           # swift-format: download pre-built bottle from Homebrew registry
-          SWIFT_FORMAT_BOTTLE_URL=$(curl -s "https://formulae.brew.sh/api/formula/swift-format.json" | python3 -c "import sys,json; print(json.load(sys.stdin)['bottle']['stable']['files']['x86_64_linux']['url'])")
-          curl -sL -H "Authorization: Bearer QQ==" "$SWIFT_FORMAT_BOTTLE_URL" -o /tmp/swift-format-bottle.tar.gz
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer QQ==" \
+            "$SWIFT_FORMAT_BOTTLE_URL" \
+            -o /tmp/swift-format-bottle.tar.gz
           tar xzf /tmp/swift-format-bottle.tar.gz -C /tmp/
           cp /tmp/swift-format/${SWIFT_FORMAT_VERSION}/bin/swift-format ~/lint-tools/swift-format
           chmod +x ~/lint-tools/swift-format
