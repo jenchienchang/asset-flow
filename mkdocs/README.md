@@ -1,6 +1,6 @@
 # Documentation Site
 
-This directory contains the source files for the [AssetFlow documentation site](https://jench2103.github.io/asset-flow/), built with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/).
+This directory contains the source files for the [AssetFlow documentation site](https://jenchienchang.github.io/asset-flow/), built with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/).
 
 ## Prerequisites
 

@@ -47,7 +47,7 @@ AssetFlow/
 
 ### Download & Install
 
-1. Go to the [Releases](https://github.com/Jench2103/asset-flow/releases) page and download the latest `AssetFlow-x.y.z.zip`.
+1. Go to the [Releases](https://github.com/jenchienchang/asset-flow/releases) page and download the latest `AssetFlow-x.y.z.zip`.
 
 1. Unzip the file and move `AssetFlow.app` to your `/Applications` folder.
 
@@ -77,7 +77,7 @@ AssetFlow/
 1. Clone the repository:
 
    ```bash
-   git clone git@github.com:Jench2103/asset-flow.git AssetFlow
+   git clone git@github.com:jenchienchang/asset-flow.git AssetFlow
    cd AssetFlow
    ```
 

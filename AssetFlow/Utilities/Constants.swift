@@ -28,11 +28,11 @@ enum Constants {
     static let developerName = "Jen-Chien Chang"
     static let copyright = "Copyright © 2026 Jen-Chien Chang"
     static let license = "GNU General Public License v3.0"
-    static let repositoryURL = URL(string: "https://github.com/Jench2103/asset-flow")!
+    static let repositoryURL = URL(string: "https://github.com/jenchienchang/asset-flow")!
     static let issuesURL = repositoryURL.appending(path: "issues")
 
     static var documentationURL: URL {
-      let baseURL = "https://Jench2103.github.io/asset-flow"
+      let baseURL = "https://jenchienchang.github.io/asset-flow"
       let versionPath = version.contains("-dev") ? "/dev/" : "/v\(version)/"
       let localePath: String
       switch Locale.current.language.languageCode?.identifier {

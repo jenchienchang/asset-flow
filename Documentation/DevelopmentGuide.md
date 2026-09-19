@@ -26,7 +26,7 @@ Before you begin development, ensure you have the following installed:
 1. **Clone the Repository**
 
    ```bash
-   git clone git@github.com:Jench2103/asset-flow.git AssetFlow
+   git clone git@github.com:jenchienchang/asset-flow.git AssetFlow
    cd AssetFlow
    ```
 

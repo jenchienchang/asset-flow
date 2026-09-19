@@ -17,7 +17,7 @@
 
 ## 安裝
 
-1. 前往 GitHub 上的 [Releases](https://github.com/Jench2103/asset-flow/releases) 頁面，下載最新的 **AssetFlow-x.y.z.zip**。
+1. 前往 GitHub 上的 [Releases](https://github.com/jenchienchang/asset-flow/releases) 頁面，下載最新的 **AssetFlow-x.y.z.zip**。
 1. 解壓縮檔案，將 **AssetFlow.app** 移至**應用程式**資料夾。
 1. 從**應用程式**或 Spotlight（++cmd+space++ 輸入「AssetFlow」）啟動 AssetFlow。
 

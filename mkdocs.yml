@@ -1,8 +1,8 @@
 site_name: AssetFlow
 site_description: A macOS app for snapshot-based portfolio management and asset allocation tracking.
-site_url: https://Jench2103.github.io/asset-flow/
-repo_url: https://github.com/Jench2103/asset-flow
-repo_name: Jench2103/AssetFlow
+site_url: https://jenchienchang.github.io/asset-flow/
+repo_url: https://github.com/jenchienchang/asset-flow
+repo_name: jenchienchang/asset-flow
 docs_dir: mkdocs/
 exclude_docs: |
   CLAUDE.md

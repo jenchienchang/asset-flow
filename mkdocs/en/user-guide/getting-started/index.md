@@ -17,7 +17,7 @@ Welcome to AssetFlow! This page walks you through system requirements, installat
 
 ## Installation
 
-1. Go to the [Releases](https://github.com/Jench2103/asset-flow/releases) page on GitHub and download the latest **AssetFlow-x.y.z.zip**.
+1. Go to the [Releases](https://github.com/jenchienchang/asset-flow/releases) page on GitHub and download the latest **AssetFlow-x.y.z.zip**.
 1. Unzip the file and move **AssetFlow.app** into your **Applications** folder.
 1. Launch AssetFlow from **Applications** or Spotlight (++cmd+space++ and type "AssetFlow").
 
