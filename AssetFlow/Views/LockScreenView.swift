@@ -30,8 +30,7 @@ struct LockScreenView: View {
     VStack(spacing: 20) {
       if let appIcon = NSApplication.shared.applicationIconImage {
         Image(nsImage: appIcon)
-          .resizable()
-          .aspectRatio(contentMode: .fit)
+          .resizable().scaledToFit()
           .frame(width: 128, height: 128)
       }
 
