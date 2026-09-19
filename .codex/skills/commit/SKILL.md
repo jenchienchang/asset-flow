@@ -1,11 +1,11 @@
 ---
 name: commit
-description: Use when the user asks Codex to commit staged changes, optionally with a rationale or message guidance, using the repository's conventional commit style.
+description: Use when the user asks Codex to prepare a commit from staged changes; show the full conventional commit message and wait for approval before committing.
 ---
 
 # Commit Staged Changes
 
-Commit only the changes that are already staged.
+Commit only the changes that are already staged, and only after the user approves the exact proposed commit message.
 
 ## Workflow
 
@@ -23,13 +23,15 @@ Commit only the changes that are already staged.
 
    - Format: `<type>(<scope>): <subject>`
    - Use the repository's allowed types from `AGENTS.md`.
-   - Include a body when it helps explain motivation or summarize multiple changes.
+   - Include a body in every commit, explaining the motivation and summarizing meaningful included changes.
    - In the generated commit message, wrap long body paragraphs or bullets onto continuation lines so each commit-message body line is 72 characters or fewer.
    - If the user supplied a rationale, incorporate it as the "why".
    - Describe the concept-level purpose and list meaningful included changes.
    - Do not describe the iterative workflow of implementation, review, or revision.
 
-1. Run `git commit` with the drafted message.
+1. Show the complete proposed commit message, including the subject and entire body, to the user in a code block. Stop and wait for explicit approval of that exact message. The initial request to commit authorizes preparation only; it does not authorize running `git commit`.
+
+1. After approval, run `git commit` with exactly the approved message. Do not stage or unstage files, and do not include changes that were not already staged.
 
 1. Report the resulting commit hash and subject.
 
@@ -46,4 +48,4 @@ Use this shape when a body is warranted:
 - <included change>
 ```
 
-For very small changes, a one-line conventional commit is acceptable. In the generated commit message, body paragraphs and bullets may contain more than 72 characters of content, but split them across multiple commit-message lines so no individual body line exceeds 72 characters.
+Every generated commit message must include a body. Body paragraphs and bullets may contain more than 72 characters of content, but split them across multiple commit-message lines so no individual body line exceeds 72 characters.

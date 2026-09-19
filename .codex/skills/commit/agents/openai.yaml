@@ -1,4 +1,4 @@
 interface:
   display_name: "Commit Staged Changes"
   short_description: "Create a conventional commit from staged changes"
-  default_prompt: "Use $commit to commit the staged changes with a concise conventional commit message."
+  default_prompt: "Use $commit to prepare a concise conventional commit message, show it for approval, and commit only after approval."
