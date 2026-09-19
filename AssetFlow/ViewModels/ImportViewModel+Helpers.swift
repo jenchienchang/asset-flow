@@ -70,15 +70,11 @@ extension ImportViewModel {
     )
     snapshotDescriptor.fetchLimit = 1
     if let existingSnapshot = ((try? modelContext.fetch(snapshotDescriptor)) ?? []).first {
-      let existingValues = existingSnapshot.assetValues ?? []
+      let snapshotValueLookup = SnapshotAssetValueLookup(
+        values: existingSnapshot.assetValues ?? [])
       for (index, row) in assetPreviewRows.enumerated() where row.isIncluded {
-        let normalizedName = row.csvRow.assetName.normalizedForIdentity
-        let normalizedPlatform = row.csvRow.platform.normalizedForIdentity
-        let matchingSAV = existingValues.first { sav in
-          guard let asset = sav.asset else { return false }
-          return asset.normalizedName == normalizedName
-            && asset.normalizedPlatform == normalizedPlatform
-        }
+        let matchingSAV = snapshotValueLookup.value(
+          forAssetNamed: row.csvRow.assetName, platform: row.csvRow.platform)
         if let matchingSAV {
           if matchingSAV.marketValue == 0 {
             // Zero-value SAVs are placeholders (e.g., from bulk entry pending rows).
@@ -139,15 +135,10 @@ extension ImportViewModel {
     )
     snapshotDescriptor.fetchLimit = 1
     if let existingSnapshot = ((try? modelContext.fetch(snapshotDescriptor)) ?? []).first {
-      let existingOps = existingSnapshot.cashFlowOperations ?? []
+      let cashFlowLookup = CashFlowDescriptionLookup(
+        operations: existingSnapshot.cashFlowOperations ?? [])
       for (index, row) in cashFlowPreviewRows.enumerated() where row.isIncluded {
-        let normalizedDesc = row.csvRow.description.trimmingCharacters(in: .whitespaces)
-          .lowercased()
-        let isDuplicate = existingOps.contains {
-          $0.cashFlowDescription.trimmingCharacters(in: .whitespaces).lowercased()
-            == normalizedDesc
-        }
-        if isDuplicate {
+        if cashFlowLookup.contains(row.csvRow.description) {
           cashFlowPreviewRows[index].snapshotDuplicateError = String(
             localized:
               "Cash flow '\(row.csvRow.description)' already exists in the snapshot for this date.",
@@ -183,10 +174,13 @@ extension ImportViewModel {
 
   func executeAssetImport(snapshot: Snapshot) {
     let includedRows = assetPreviewRows.filter { $0.isIncluded }
+    var assetLookup = AssetResolutionLookup(assets: fetchAllAssets())
+    var snapshotValueLookup = SnapshotAssetValueLookup(values: snapshot.assetValues ?? [])
 
     for previewRow in includedRows {
       let row = previewRow.csvRow
-      let asset = modelContext.findOrCreateAsset(name: row.assetName, platform: row.platform)
+      let asset = assetLookup.resolve(
+        name: row.assetName, platform: row.platform, in: modelContext)
 
       // Assign currency only when the CSV explicitly provides one
       let rowCurrency = row.currency
@@ -211,19 +205,23 @@ extension ImportViewModel {
       // Zero-value SAVs are treated as placeholders — the app assumes value=0 means
       // the asset is not yet recorded, so CSV import overwrites them in-place rather
       // than creating a duplicate entry.
-      let existingSAV = (snapshot.assetValues ?? []).first { sav in
-        guard let savAsset = sav.asset else { return false }
-        return savAsset.normalizedName == asset.normalizedName
-          && savAsset.normalizedPlatform == asset.normalizedPlatform
-          && sav.marketValue == 0
-      }
+      let existingSAV = snapshotValueLookup.value(for: asset)
       if let existingSAV {
-        existingSAV.marketValue = row.marketValue
+        if existingSAV.marketValue == 0 {
+          existingSAV.marketValue = row.marketValue
+        } else {
+          let sav = SnapshotAssetValue(marketValue: row.marketValue)
+          sav.snapshot = snapshot
+          sav.asset = asset
+          modelContext.insert(sav)
+          snapshotValueLookup.register(sav)
+        }
       } else {
         let sav = SnapshotAssetValue(marketValue: row.marketValue)
         sav.snapshot = snapshot
         sav.asset = asset
         modelContext.insert(sav)
+        snapshotValueLookup.register(sav)
       }
     }
 

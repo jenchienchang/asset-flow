@@ -500,17 +500,14 @@ class ImportViewModel {
   /// Rebuilds asset preview rows from base parse data, applying current
   /// platform/category settings and preserving exclusion state.
   func rebuildAssetPreviewRows() {
-    let allAssets = fetchAllAssets()
+    let assetLookup = AssetResolutionLookup(assets: fetchAllAssets())
     var hasAnyCategorized = false
     var hasAnyUncategorized = false
 
     assetPreviewRows = baseAssetRows.enumerated().map { index, baseRow in
       let effectiveRow = effectiveAssetRow(baseRow: baseRow)
-      let normalizedName = effectiveRow.assetName.normalizedForIdentity
-      let normalizedPlatform = effectiveRow.platform.normalizedForIdentity
-      let existingAsset = allAssets.first {
-        $0.normalizedName == normalizedName && $0.normalizedPlatform == normalizedPlatform
-      }
+      let existingAsset = assetLookup.asset(
+        named: effectiveRow.assetName, platform: effectiveRow.platform)
 
       let effectiveCurrency: String
       if !effectiveRow.currency.isEmpty {
@@ -539,7 +536,7 @@ class ImportViewModel {
         categoryWarning: categoryWarning(
           for: effectiveRow, existingAsset: existingAsset),
         currencyWarning: currError == nil
-          ? currencyWarning(for: effectiveRow, existingAssets: allAssets) : nil,
+          ? currencyWarning(for: effectiveRow, existingAsset: existingAsset) : nil,
         currencyError: currError,
         effectiveCurrency: effectiveCurrency,
         effectiveCategory: effectiveCategory,
@@ -572,20 +569,11 @@ class ImportViewModel {
     return nil
   }
 
-  private func currencyWarning(for row: AssetCSVRow, existingAssets: [Asset]) -> String? {
+  private func currencyWarning(for row: AssetCSVRow, existingAsset: Asset?) -> String? {
     let csvCurrency = row.currency
     guard !csvCurrency.isEmpty else { return nil }
 
-    let normalizedName = row.assetName.normalizedForIdentity
-    let normalizedPlatform = row.platform.normalizedForIdentity
-
-    guard
-      let existingAsset = existingAssets.first(where: {
-        $0.normalizedName == normalizedName
-          && $0.normalizedPlatform == normalizedPlatform
-      })
-    else { return nil }
-
+    guard let existingAsset else { return nil }
     let existingCurrency = existingAsset.currency
     guard !existingCurrency.isEmpty else { return nil }
 

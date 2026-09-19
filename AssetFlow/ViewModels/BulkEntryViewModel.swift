@@ -409,6 +409,30 @@ final class BulkEntryViewModel {
       seenDescriptions[key] = cfRow.cashFlowDescription
     }
 
+    let hasNewAssets = includedRows.contains { $0.asset == nil }
+    let existingAssets: [Asset]
+    if hasNewAssets {
+      let assetDescriptor = FetchDescriptor<Asset>()
+      existingAssets = (try? modelContext.fetch(assetDescriptor)) ?? []
+    } else {
+      existingAssets = []
+    }
+    var assetLookup = AssetResolutionLookup(
+      assets: existingAssets)
+
+    let hasNewAssetCategories = includedRows.contains { row in
+      guard row.asset == nil, let categoryName = row.categoryName else { return false }
+      return !categoryName.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+    var categoryLookup: CategoryResolutionLookup
+    if hasNewAssetCategories {
+      let categoryDescriptor = FetchDescriptor<Category>()
+      let categories = (try? modelContext.fetch(categoryDescriptor)) ?? []
+      categoryLookup = CategoryResolutionLookup(categories: categories)
+    } else {
+      categoryLookup = CategoryResolutionLookup(categories: [])
+    }
+
     let snapshot = Snapshot(date: snapshotDate)
     modelContext.insert(snapshot)
 
@@ -417,13 +441,13 @@ final class BulkEntryViewModel {
       if let existingAsset = row.asset {
         asset = existingAsset
       } else {
-        asset = modelContext.findOrCreateAsset(
-          name: row.assetName, platform: row.platform)
+        asset = assetLookup.resolve(
+          name: row.assetName, platform: row.platform, in: modelContext)
         asset.currency = row.currency
         if let categoryName = row.categoryName?.trimmingCharacters(in: .whitespaces),
           !categoryName.isEmpty
         {
-          asset.category = modelContext.resolveCategory(name: categoryName)
+          asset.category = categoryLookup.resolve(name: categoryName, in: modelContext)
         }
       }
 

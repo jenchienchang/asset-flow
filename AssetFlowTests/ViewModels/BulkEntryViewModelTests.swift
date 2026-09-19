@@ -719,6 +719,42 @@ struct BulkEntryViewModelTests {
     #expect(values[0].asset?.category?.name == "Equities")
   }
 
+  @Test("saveSnapshot reuses categories and assigns sequential display orders")
+  func saveSnapshotReusesCategoriesAndAssignsDisplayOrders() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let existing = Category(name: "Existing")
+    existing.displayOrder = 7
+    context.insert(existing)
+
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+    viewModel.addManualRow(forPlatform: "Fidelity")
+    viewModel.addManualRow(forPlatform: "Fidelity")
+    viewModel.addManualRow(forPlatform: "Fidelity")
+
+    viewModel.updateRowAssetName(viewModel.rows[0].id, to: "Fund A")
+    viewModel.updateRowValue(viewModel.rows[0].id, to: "100")
+    viewModel.updateRowCategoryName(viewModel.rows[0].id, to: "New Category")
+    viewModel.updateRowAssetName(viewModel.rows[1].id, to: "Fund B")
+    viewModel.updateRowValue(viewModel.rows[1].id, to: "200")
+    viewModel.updateRowCategoryName(viewModel.rows[1].id, to: " new category ")
+    viewModel.updateRowAssetName(viewModel.rows[2].id, to: "Fund C")
+    viewModel.updateRowValue(viewModel.rows[2].id, to: "300")
+    viewModel.updateRowCategoryName(viewModel.rows[2].id, to: "Other Category")
+
+    let snapshot = try viewModel.saveSnapshot()
+    let categories = try context.fetch(FetchDescriptor<AssetFlow.Category>())
+    let values = snapshot.assetValues ?? []
+
+    #expect(categories.count == 3)
+    #expect(values.count == 3)
+    #expect(values.filter { $0.asset?.category?.name == "New Category" }.count == 2)
+    #expect(values.first { $0.asset?.name == "Fund C" }?.asset?.category?.name == "Other Category")
+    #expect(categories.first { $0.name == "New Category" }?.displayOrder == 8)
+    #expect(categories.first { $0.name == "Other Category" }?.displayOrder == 9)
+  }
+
   @Test("importCSV matches against manualNew rows by normalized name")
   func importCSVMatchesManualNewRows() {
     let container = TestDataManager.createInMemoryContainer()

@@ -686,6 +686,38 @@ struct ImportViewModelTests {
     #expect(aaplRow?.snapshotDuplicateError != nil)
   }
 
+  @Test("Zero-value snapshot placeholders are overwritten in place")
+  func zeroValuePlaceholderIsOverwrittenInPlace() throws {
+    let tc = createTestContext()
+    let date = makeDate(year: 2025, month: 6, day: 15)
+    let snapshot = Snapshot(date: date)
+    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let placeholder = SnapshotAssetValue(marketValue: 0)
+    placeholder.snapshot = snapshot
+    placeholder.asset = asset
+    tc.context.insert(snapshot)
+    tc.context.insert(asset)
+    tc.context.insert(placeholder)
+
+    let viewModel = ImportViewModel(modelContext: tc.context)
+    viewModel.snapshotDate = date
+    viewModel.copyForwardEnabled = false
+    viewModel.loadCSVData(
+      csvData(
+        """
+        Asset Name,Market Value,Platform
+        aapl,15000,interactive brokers
+        """))
+
+    #expect(viewModel.assetPreviewRows[0].snapshotDuplicateError == nil)
+    let importedSnapshot = viewModel.executeImport()
+    let values = importedSnapshot?.assetValues ?? []
+
+    #expect(values.count == 1)
+    #expect(values[0] === placeholder)
+    #expect(values[0].marketValue == Decimal(15000))
+  }
+
   @Test("Duplicate cash flow between CSV and existing snapshot produces per-row error")
   func duplicateCashFlowWithExistingSnapshot() {
     let tc = createTestContext()
@@ -927,6 +959,47 @@ struct ImportViewModelTests {
     // Verify values
     let aaplSav = allSavs.first { $0.asset?.normalizedName == "aapl" }
     #expect(aaplSav?.marketValue == Decimal(15000))
+  }
+
+  @Test("Large asset import preserves identity reuse and final counts")
+  func largeAssetImportPreservesIdentityReuseAndCounts() throws {
+    let tc = createTestContext()
+    let existingCount = 60
+    let importedCount = 120
+
+    for index in 0..<existingCount {
+      let asset = Asset(name: "Existing \(index)", platform: "Broker")
+      tc.context.insert(asset)
+    }
+
+    var csvLines = ["Asset Name,Market Value,Platform"]
+    for index in 0..<importedCount {
+      let name = index < existingCount ? "existing \(index)" : "New \(index)"
+      let platform = index < existingCount ? "BROKER" : "Exchange"
+      csvLines.append("\(name),\(index + 1),\(platform)")
+    }
+
+    let viewModel = ImportViewModel(modelContext: tc.context)
+    viewModel.snapshotDate = makeDate(year: 2025, month: 7, day: 15)
+    viewModel.copyForwardEnabled = false
+    viewModel.loadCSVData(csvData(csvLines.joined(separator: "\n")))
+    #expect(viewModel.assetPreviewRows.count == importedCount)
+    #expect(viewModel.validationErrors.isEmpty)
+    #expect(viewModel.isImportDisabled == false)
+    let snapshot = viewModel.executeImport()
+
+    let assetDescriptor = FetchDescriptor<Asset>()
+    let assets = try tc.context.fetch(assetDescriptor)
+    let valueDescriptor = FetchDescriptor<SnapshotAssetValue>()
+    let values = try tc.context.fetch(valueDescriptor)
+
+    #expect(snapshot != nil)
+    #expect(assets.count == importedCount)
+    #expect(values.count == importedCount)
+    #expect(assets.first(where: { $0.name == "Existing 0" })?.platform == "Broker")
+    #expect(
+      values.first(where: { $0.asset?.normalizedName == "new 119" })?.marketValue
+        == Decimal(120))
   }
 
   @Test("Importing assigns category to all assets when category selected")

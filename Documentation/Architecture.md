@@ -137,6 +137,10 @@ ViewModels that compute aggregate or currency-converted values use `withObservat
 
 **Not applied to:** `ImportViewModel`, `BulkEntryViewModel`, `SettingsViewModel` (do not display converted aggregate values). `BulkEntryViewModel` uses `private(set)` rows with centralized mutation methods and a stored `toolbarStats` property maintained via O(1) delta updates instead.
 
+##### Operation-Scoped Persistence Lookups
+
+Multi-row CSV work uses short-lived lookup indexes in `Utilities/ModelResolutionLookup.swift`. `ImportViewModel` builds asset and snapshot-value indexes once per preview rebuild, validation pass, or import execution. `BulkEntryViewModel` builds asset and category indexes once per save only when new records require them. The indexes are updated immediately after inserting records, preserve first-match behavior for unexpected duplicate normalized identities, and are discarded when the operation finishes. The shared `ModelContext` resolution helpers remain available for isolated single-record operations and do not retain process-wide caches.
+
 #### Model Layer (SwiftData)
 
 - **Purpose**: Data structure and persistence
