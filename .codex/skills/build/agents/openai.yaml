@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build AssetFlow"
+  short_description: "Build AssetFlow with concise output and saved logs"
+  default_prompt: "Use $build to build AssetFlow and summarize the result."

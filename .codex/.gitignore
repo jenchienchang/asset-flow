@@ -1,0 +1,4 @@
+# Keep the repository-local build skill visible despite the generic top-level
+# build-artifact ignore rule.
+!skills/build/
+!skills/build/**
