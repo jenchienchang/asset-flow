@@ -47,6 +47,16 @@
         }
       }
     },
+    "Dropped CSV" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖放的 CSV"
+          }
+        }
+      }
+    },
     "Expected %lld fields but found %lld." : {
       "localizations" : {
         "zh-Hant" : {

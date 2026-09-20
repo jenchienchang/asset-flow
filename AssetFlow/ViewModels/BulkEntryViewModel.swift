@@ -37,7 +37,7 @@ final class BulkEntryViewModel {
   var pendingCashFlowSampleRows: [[String]] = []
   var pendingCashFlowPartialMapping: [CanonicalColumn: Int] = [:]
   var pendingCashFlowCSVData: Data?
-  var lastCashFlowImportResult: CashFlowCSVImportResult?
+  var lastImportFeedback: CSVImportFeedback?
 
   private let modelContext: ModelContext
 
@@ -84,7 +84,6 @@ final class BulkEntryViewModel {
   var pendingPartialMapping: [CanonicalColumn: Int] = [:]
   var pendingCSVData: Data?
   var pendingCSVPlatform: String = ""
-  var lastImportResult: CSVImportResult?
 
   var hasUnsavedChanges: Bool {
     rows.contains { !$0.newValueText.isEmpty }
@@ -329,19 +328,22 @@ final class BulkEntryViewModel {
   @discardableResult
   func importCashFlowCSV(data: Data) -> CashFlowCSVImportResult {
     let parseResult = CSVParsingService.parseCashFlowCSV(data: data)
-    return importCashFlowCSVFromParsedRows(parseResult)
+    let result = importCashFlowCSVFromParsedRows(parseResult)
+    lastImportFeedback = result.feedback
+    return result
   }
 
   func loadCashFlowCSVForMapping(data: Data) {
+    lastImportFeedback = nil
     let headers = CSVParsingService.extractHeaders(from: data)
     guard !headers.isEmpty else {
-      _ = importCashFlowCSV(data: data)
+      lastImportFeedback = importCashFlowCSV(data: data).feedback
       return
     }
     let detectResult = CSVParsingService.autoDetectMapping(headers: headers, schema: .cashFlow)
     switch detectResult {
     case .matched:
-      lastCashFlowImportResult = importCashFlowCSV(data: data)
+      lastImportFeedback = importCashFlowCSV(data: data).feedback
 
     case .needsUserMapping(let rawHeaders, let partialMap):
       pendingCashFlowCSVData = data
@@ -358,12 +360,17 @@ final class BulkEntryViewModel {
     guard let data = pendingCashFlowCSVData else { return nil }
     let parseResult = CSVParsingService.parseCashFlowCSV(data: data, mapping: mapping)
     let result = importCashFlowCSVFromParsedRows(parseResult)
-    lastCashFlowImportResult = result
+    lastImportFeedback = result.feedback
     pendingCashFlowCSVData = nil
     pendingCashFlowRawHeaders = []
     pendingCashFlowSampleRows = []
     pendingCashFlowPartialMapping = [:]
     return result
+  }
+
+  /// Stores a file-loading failure for the view to present to the user.
+  func reportImportFailure(_ message: String) {
+    lastImportFeedback = .failure(message)
   }
 
   func saveSnapshot() throws -> Snapshot {
@@ -474,7 +481,9 @@ final class BulkEntryViewModel {
   @discardableResult
   func importCSV(data: Data, forPlatform platform: String) -> CSVImportResult {
     let result = CSVParsingService.parseAssetCSV(data: data, importPlatform: nil)
-    return importCSVFromParsedRows(result, forPlatform: platform)
+    let importResult = importCSVFromParsedRows(result, forPlatform: platform)
+    lastImportFeedback = importResult.feedback
+    return importResult
   }
 
   // MARK: - Column Mapping
@@ -484,11 +493,12 @@ final class BulkEntryViewModel {
   /// If headers match, calls `importCSV` directly. Otherwise, populates
   /// mapping state and sets `showColumnMappingSheet = true`.
   func loadCSVForMapping(data: Data, forPlatform platform: String) {
+    lastImportFeedback = nil
     let headers = CSVParsingService.extractHeaders(from: data)
 
     // Empty/invalid files — import directly to get proper error reporting
     guard !headers.isEmpty else {
-      _ = importCSV(data: data, forPlatform: platform)
+      lastImportFeedback = importCSV(data: data, forPlatform: platform).feedback
       return
     }
 
@@ -497,7 +507,7 @@ final class BulkEntryViewModel {
 
     switch detectResult {
     case .matched:
-      lastImportResult = importCSV(data: data, forPlatform: platform)
+      lastImportFeedback = importCSV(data: data, forPlatform: platform).feedback
 
     case .needsUserMapping(let rawHeaders, let partialMap):
       pendingCSVData = data
@@ -519,7 +529,7 @@ final class BulkEntryViewModel {
     let parseResult = CSVParsingService.parseAssetCSV(
       data: data, mapping: mapping, importPlatform: nil)
     let result = importCSVFromParsedRows(parseResult, forPlatform: platform)
-    lastImportResult = result
+    lastImportFeedback = result.feedback
 
     pendingCSVData = nil
     pendingCSVPlatform = ""
@@ -535,6 +545,21 @@ final class BulkEntryViewModel {
     _ parseResult: CSVParseResult<AssetCSVRow>,
     forPlatform platform: String
   ) -> CSVImportResult {
+    let errors = parseResult.errors.map(\.message)
+    let parserWarnings = parseResult.warnings.map(\.message)
+
+    // Any parser error rejects the replacement before existing CSV values are
+    // changed, so a mixed-validity file cannot partially update the import.
+    guard !parseResult.hasErrors else {
+      return CSVImportResult(
+        matchedCount: 0,
+        newCount: 0,
+        errors: errors,
+        parserWarnings: parserWarnings,
+        platformMismatches: [],
+        currencyMismatches: [])
+    }
+
     // Clear previous CSV values for this platform
     for index in rows.indices
     where rows[index].platform == platform && rows[index].source == .csv {
@@ -545,8 +570,6 @@ final class BulkEntryViewModel {
     }
     rows.removeAll { $0.platform == platform && $0.source == .csv && $0.asset == nil }
 
-    let errors = parseResult.errors.map(\.message)
-    let parserWarnings = parseResult.warnings.map(\.message)
     let mainCurrency = SettingsService.shared.mainCurrency
 
     // Pre-build lookup: normalizedName → row index for the target platform.
@@ -617,6 +640,17 @@ final class BulkEntryViewModel {
   private func importCashFlowCSVFromParsedRows(
     _ parseResult: CSVParseResult<CashFlowCSVRow>
   ) -> CashFlowCSVImportResult {
+    let errors = parseResult.errors.map(\.message)
+    let parserWarnings = parseResult.warnings.map(\.message)
+
+    // Any parser error rejects the replacement before existing CSV rows are
+    // changed, so a mixed-validity file cannot partially update the import.
+    guard !parseResult.hasErrors else {
+      return CashFlowCSVImportResult(
+        matchedCount: 0, newCount: 0,
+        errors: errors, parserWarnings: parserWarnings)
+    }
+
     // Clear previous CSV cash flow rows: revert CSV-sourced to manual, remove empty ones
     for index in cashFlowRows.indices where cashFlowRows[index].source == .csv {
       cashFlowRows[index].amountText = ""
@@ -627,14 +661,7 @@ final class BulkEntryViewModel {
         && $0.amountText.isEmpty
     }
 
-    let errors = parseResult.errors.map(\.message)
-    let parserWarnings = parseResult.warnings.map(\.message)
     let mainCurrency = SettingsService.shared.mainCurrency
-
-    guard !parseResult.hasErrors else {
-      return CashFlowCSVImportResult(
-        matchedCount: 0, newCount: 0, errors: errors, parserWarnings: parserWarnings)
-    }
 
     // Pre-build lookup: normalizedDescription → row index.
     // Avoids O(m×c) repeated normalization inside the CSV row loop.

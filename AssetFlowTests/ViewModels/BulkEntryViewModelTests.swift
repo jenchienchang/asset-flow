@@ -775,27 +775,25 @@ struct BulkEntryViewModelTests {
     #expect(viewModel.rows[0].source == .csv)
   }
 
-  @Test("importCSV second new row matches first via updated name index")
-  func importCSVSecondNewRowMatchesViaIndex() {
+  @Test("importCSV rejects normalized duplicate rows without partial import")
+  func importCSVRejectsNormalizedDuplicateRowsWithoutPartialImport() {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
     let viewModel = BulkEntryViewModel(
       modelContext: context, date: makeDate(2026, 3, 15))
 
-    // CSV has "New Fund" then "new fund" — different strings but same
-    // normalizedForIdentity. The first row appends and updates nameIndex;
-    // the second must hit the index (not create a duplicate).
+    // CSV has "New Fund" then "new fund" — different strings but the same
+    // normalizedForIdentity. Duplicate detection rejects the entire import.
     let csvData =
       "Asset Name,Market Value\nNew Fund,1000\nnew fund,2000\n"
       .data(using: .utf8)!  // swiftlint:disable:this force_unwrapping
-    viewModel.importCSV(data: csvData, forPlatform: "Vanguard")
+    let result = viewModel.importCSV(data: csvData, forPlatform: "Vanguard")
 
-    let matchingRows = viewModel.rows.filter {
-      $0.assetName.lowercased() == "new fund"
-    }
-    #expect(matchingRows.count == 1)
-    #expect(matchingRows[0].newValueText == "2000")
+    #expect(result.hasErrors)
+    #expect(result.matchedCount == 0)
+    #expect(result.newCount == 0)
+    #expect(viewModel.rows.isEmpty)
   }
 
   // MARK: - advanceFocus / nextFocusRowID Tests
@@ -1085,6 +1083,80 @@ struct BulkEntryViewModelTests {
     let importResult = try #require(result)
     #expect(importResult.matchedCount == 1)
     #expect(importResult.newCount == 1)
+  }
+
+  @Test("loadCSVForMapping reports malformed asset CSV syntax")
+  func testLoadCSVForMappingReportsMalformedAssetSyntax() {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+
+    let csvData = "Asset Name,Market Value\nA\"APL,1500\n".data(using: .utf8)!
+    viewModel.loadCSVForMapping(data: csvData, forPlatform: "Vanguard")
+
+    #expect(viewModel.lastImportFeedback?.severity == .error)
+    #expect(viewModel.lastImportFeedback?.message.isEmpty == false)
+  }
+
+  @Test("Malformed asset CSV preserves the previous CSV values")
+  func malformedAssetCSVPreservesPreviousValues() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+
+    createSnapshotWithAssets(
+      context: context, date: makeDate(2026, 3, 1),
+      assets: [
+        TestAssetData(
+          name: "Stock A", platform: "Vanguard", currency: "USD", value: Decimal(1000))
+      ])
+
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+    let validCSV = "Asset Name,Market Value\nStock A,1500\n".data(using: .utf8)!
+    viewModel.importCSV(data: validCSV, forPlatform: "Vanguard")
+
+    let malformedCSV = "Asset Name,Market Value\nA\"APL,2000\n".data(using: .utf8)!
+    viewModel.loadCSVForMapping(data: malformedCSV, forPlatform: "Vanguard")
+
+    let row = try #require(viewModel.rows.first)
+    #expect(row.newValueText == "1500")
+    #expect(row.source == .csv)
+    #expect(viewModel.lastImportFeedback?.severity == .error)
+  }
+
+  @Test("Mixed-validity asset CSV preserves the previous import")
+  func mixedValidityAssetCSVPreservesPreviousImport() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+
+    createSnapshotWithAssets(
+      context: context, date: makeDate(2026, 3, 1),
+      assets: [
+        TestAssetData(
+          name: "Stock A", platform: "Vanguard", currency: "USD", value: Decimal(1000))
+      ])
+
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+    let previousCSV = "Asset Name,Market Value\nStock A,1500\nBond B,2500\n".data(
+      using: .utf8)!
+    viewModel.importCSV(data: previousCSV, forPlatform: "Vanguard")
+
+    let mixedCSV =
+      "Asset Name,Market Value\nStock A,2000\nNew Fund,not-a-number\n".data(using: .utf8)!
+    let result = viewModel.importCSV(data: mixedCSV, forPlatform: "Vanguard")
+
+    #expect(result.hasErrors)
+    #expect(viewModel.lastImportFeedback?.severity == .error)
+    let stockRow = try #require(viewModel.rows.first(where: { $0.assetName == "Stock A" }))
+    let bondRow = try #require(viewModel.rows.first(where: { $0.assetName == "Bond B" }))
+    #expect(stockRow.newValueText == "1500")
+    #expect(stockRow.source == .csv)
+    #expect(bondRow.newValueText == "2500")
+    #expect(bondRow.source == .csv)
+    #expect(viewModel.rows.contains(where: { $0.assetName == "New Fund" }) == false)
   }
 
   // MARK: - Cash Flow State Tests
@@ -1454,6 +1526,71 @@ struct BulkEntryViewModelTests {
     #expect(viewModel.showCashFlowColumnMappingSheet)
     #expect(viewModel.pendingCashFlowRawHeaders == ["Label", "Value"])
     #expect(viewModel.cashFlowRows.isEmpty)
+  }
+
+  @Test("loadCashFlowCSVForMapping reports malformed CSV syntax")
+  func loadCashFlowCSVForMappingReportsMalformedSyntax() {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+
+    let csvData = "Description,Amount\nSalary,50000\"\n".data(using: .utf8)!
+    viewModel.loadCashFlowCSVForMapping(data: csvData)
+
+    #expect(viewModel.lastImportFeedback?.severity == .error)
+    #expect(viewModel.lastImportFeedback?.message.isEmpty == false)
+  }
+
+  @Test("Malformed cash-flow CSV preserves the previous CSV rows")
+  func malformedCashFlowCSVPreservesPreviousRows() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+    let validCSV = "Description,Amount\nSalary,50000\n".data(using: .utf8)!
+    viewModel.importCashFlowCSV(data: validCSV)
+
+    let malformedCSV = "Description,Amount\nSalary,50000\"\n".data(using: .utf8)!
+    viewModel.loadCashFlowCSVForMapping(data: malformedCSV)
+
+    let row = try #require(viewModel.cashFlowRows.first)
+    #expect(row.amountText == "50000")
+    #expect(row.source == .csv)
+    #expect(viewModel.lastImportFeedback?.severity == .error)
+  }
+
+  @Test("Mixed-validity cash-flow CSV preserves the previous import")
+  func mixedValidityCashFlowCSVPreservesPreviousImport() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+    let previousCSV =
+      "Description,Amount\nSalary,50000\nExisting Bonus,10000\n".data(using: .utf8)!
+    viewModel.importCashFlowCSV(data: previousCSV)
+
+    let mixedCSV =
+      "Description,Amount\nSalary,60000\nNew Bonus,not-a-number\n".data(using: .utf8)!
+    let result = viewModel.importCashFlowCSV(data: mixedCSV)
+
+    #expect(result.hasErrors)
+    #expect(viewModel.lastImportFeedback?.severity == .error)
+    let salaryRow = try #require(
+      viewModel.cashFlowRows.first(where: { $0.cashFlowDescription == "Salary" }))
+    let bonusRow = try #require(
+      viewModel.cashFlowRows.first(where: { $0.cashFlowDescription == "Existing Bonus" }))
+    #expect(salaryRow.amountText == "50000")
+    #expect(salaryRow.source == .csv)
+    #expect(bonusRow.amountText == "10000")
+    #expect(bonusRow.source == .csv)
+    #expect(
+      viewModel.cashFlowRows.contains {
+        $0.cashFlowDescription == "New Bonus"
+      } == false)
   }
 
   @Test("confirmCashFlowColumnMapping imports rows and dismisses sheet")

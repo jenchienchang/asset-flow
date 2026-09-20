@@ -287,6 +287,7 @@ extension ImportViewModel {
     validationWarnings = []
     parsingErrors = []
     selectedFileURL = nil
+    selectedFileName = nil
     selectedFileData = nil
     importError = nil
     platformApplyMode = .overrideAll

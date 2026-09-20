@@ -52,6 +52,9 @@ class ImportViewModel {
   /// Selected file URL (for display purposes).
   var selectedFileURL: URL?
 
+  /// Display name for a selected file, including files supplied as drop data.
+  var selectedFileName: String?
+
   /// Cached file data from the last successful file load.
   /// Used by the View to re-parse CSV when import settings change,
   /// avoiding re-reads that fail after security-scoped resource access ends.
@@ -258,21 +261,42 @@ class ImportViewModel {
   /// Loads a CSV file from a URL.
   func loadFile(_ url: URL) {
     selectedFileURL = url
+    selectedFileName = url.lastPathComponent
+    selectedFileData = nil
     guard let data = try? Data(contentsOf: url) else {
-      validationErrors = [
-        CSVError(
-          row: 0, column: nil,
-          message: String(
-            localized: "Could not open file. Please check the file is a valid CSV.",
-            table: "Import"))
-      ]
-      assetPreviewRows = []
-      cashFlowPreviewRows = []
-      hasUnsavedChanges = false
+      reportFileLoadFailure()
       return
     }
-    selectedFileData = data
     loadCSVData(data)
+  }
+
+  /// Loads CSV data supplied by a drag-and-drop provider.
+  func loadDroppedData(_ data: Data, fileName: String?) {
+    selectedFileURL = nil
+    selectedFileName = fileName ?? String(localized: "Dropped CSV", table: "Import")
+    loadCSVData(data)
+  }
+
+  /// Records a user-visible failure when a dropped or selected file cannot be read.
+  func reportFileLoadFailure() {
+    selectedFileData = nil
+    assetPreviewRows = []
+    cashFlowPreviewRows = []
+    validationWarnings = []
+    parsingErrors = []
+    baseAssetRows = []
+    baseAssetParsingErrors = []
+    baseAssetWarnings = []
+    baseCashFlowWarnings = []
+    copyForwardPlatforms = []
+    validationErrors = [
+      CSVError(
+        row: 0, column: nil,
+        message: String(
+          localized: "Could not open file. Please check the file is a valid CSV.",
+          table: "Import"))
+    ]
+    hasUnsavedChanges = false
   }
 
   // MARK: - Row Removal

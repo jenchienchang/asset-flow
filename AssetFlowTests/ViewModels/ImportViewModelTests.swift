@@ -177,6 +177,34 @@ struct ImportViewModelTests {
     #expect(!viewModel.validationErrors.isEmpty)
   }
 
+  @Test("Loading dropped CSV data retains its name and surfaces parse errors")
+  func loadDroppedCSVDataSurfacesParseErrors() {
+    let tc = createTestContext()
+    let viewModel = ImportViewModel(modelContext: tc.context)
+
+    let csv = csvData("Asset Name,Market Value\nA\"APL,15000\n")
+    viewModel.loadDroppedData(csv, fileName: "malformed.csv")
+
+    #expect(viewModel.selectedFileName == "malformed.csv")
+    #expect(viewModel.selectedFileData != nil)
+    #expect(!viewModel.validationErrors.isEmpty)
+  }
+
+  @Test("File load failure clears preview and exposes an error")
+  func fileLoadFailureSurfacesError() {
+    let tc = createTestContext()
+    let viewModel = ImportViewModel(modelContext: tc.context)
+
+    viewModel.loadCSVData(validAssetCSVData())
+    #expect(!viewModel.assetPreviewRows.isEmpty)
+
+    viewModel.reportFileLoadFailure()
+
+    #expect(viewModel.assetPreviewRows.isEmpty)
+    #expect(viewModel.cashFlowPreviewRows.isEmpty)
+    #expect(!viewModel.validationErrors.isEmpty)
+  }
+
   // MARK: - File Loading: Cash Flow CSV
 
   @Test("Loading valid cash flow CSV populates preview rows")

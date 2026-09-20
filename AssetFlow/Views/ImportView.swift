@@ -50,7 +50,9 @@ struct ImportView: View {
       VStack(alignment: .leading, spacing: 20) {
         importTypeSelector
         fileSelector
-        if viewModel.selectedFileURL != nil || !previewRowsEmpty {
+        if viewModel.selectedFileName != nil || viewModel.selectedFileData != nil
+          || !previewRowsEmpty || !viewModel.validationErrors.isEmpty
+        {
           configurationSection
           copyForwardSection
           validationSummary
@@ -131,11 +133,11 @@ struct ImportView: View {
         .font(.headline)
 
       VStack(spacing: 12) {
-        if let url = viewModel.selectedFileURL {
+        if let fileName = viewModel.selectedFileName {
           HStack {
             Image(systemName: "doc.text")
               .foregroundStyle(.secondary)
-            Text(url.lastPathComponent)
+            Text(fileName)
               .lineLimit(1)
             Spacer()
             Button("Change") {

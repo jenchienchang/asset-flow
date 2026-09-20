@@ -15,6 +15,7 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+import Foundation
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
@@ -78,25 +79,48 @@ struct BulkEntryView: View {
       ) { result in
         let target = csvImportTarget
         csvImportTarget = nil
-        guard let target, let url = try? result.get() else { return }
-        if url.startAccessingSecurityScopedResource() {
-          defer { url.stopAccessingSecurityScopedResource() }
-          guard let data = try? Data(contentsOf: url) else { return }
-          switch target {
-          case .asset(let platform):
-            viewModel.loadCSVForMapping(data: data, forPlatform: platform)
-            if !viewModel.showColumnMappingSheet {
-              showImportResultAlert(for: viewModel.lastImportResult?.formattedResult())
-              viewModel.lastImportResult = nil
-            }
+        guard let target else { return }
 
-          case .cashFlow:
-            viewModel.loadCashFlowCSVForMapping(data: data)
-            if !viewModel.showCashFlowColumnMappingSheet {
-              showImportResultAlert(
-                for: viewModel.lastCashFlowImportResult?.formattedResult())
-              viewModel.lastCashFlowImportResult = nil
+        switch result {
+        case .failure(let error):
+          guard !isUserCancellation(error) else { return }
+          viewModel.reportImportFailure(
+            String(
+              localized: "Could not open file. Please check the file is a valid CSV.",
+              table: "Import"))
+          showImportResultAlert(for: viewModel.lastImportFeedback)
+          viewModel.lastImportFeedback = nil
+
+        case .success(let url):
+          let accessing = url.startAccessingSecurityScopedResource()
+          defer {
+            if accessing { url.stopAccessingSecurityScopedResource() }
+          }
+
+          do {
+            let data = try Data(contentsOf: url)
+            switch target {
+            case .asset(let platform):
+              viewModel.loadCSVForMapping(data: data, forPlatform: platform)
+              if !viewModel.showColumnMappingSheet {
+                showImportResultAlert(for: viewModel.lastImportFeedback)
+                viewModel.lastImportFeedback = nil
+              }
+
+            case .cashFlow:
+              viewModel.loadCashFlowCSVForMapping(data: data)
+              if !viewModel.showCashFlowColumnMappingSheet {
+                showImportResultAlert(for: viewModel.lastImportFeedback)
+                viewModel.lastImportFeedback = nil
+              }
             }
+          } catch {
+            viewModel.reportImportFailure(
+              String(
+                localized: "Could not open file. Please check the file is a valid CSV.",
+                table: "Import"))
+            showImportResultAlert(for: viewModel.lastImportFeedback)
+            viewModel.lastImportFeedback = nil
           }
         }
       }
@@ -109,8 +133,8 @@ struct BulkEntryView: View {
           parentSize: geometry.size,
           onConfirm: { mapping in
             _ = viewModel.confirmColumnMapping(mapping)
-            showImportResultAlert(for: viewModel.lastImportResult?.formattedResult())
-            viewModel.lastImportResult = nil
+            showImportResultAlert(for: viewModel.lastImportFeedback)
+            viewModel.lastImportFeedback = nil
           },
           onCancel: {
             viewModel.showColumnMappingSheet = false
@@ -126,9 +150,8 @@ struct BulkEntryView: View {
           parentSize: geometry.size,
           onConfirm: { mapping in
             _ = viewModel.confirmCashFlowColumnMapping(mapping)
-            showImportResultAlert(
-              for: viewModel.lastCashFlowImportResult?.formattedResult())
-            viewModel.lastCashFlowImportResult = nil
+            showImportResultAlert(for: viewModel.lastImportFeedback)
+            viewModel.lastImportFeedback = nil
           },
           onCancel: {
             viewModel.showCashFlowColumnMappingSheet = false
@@ -196,11 +219,17 @@ struct BulkEntryView: View {
     cachedCategoryNames = categories.map(\.name)
   }
 
-  private func showImportResultAlert(for result: (title: String, message: String)?) {
-    guard let result else { return }
-    importResultTitle = result.title
-    importResultMessage = result.message
+  private func showImportResultAlert(for feedback: CSVImportFeedback?) {
+    guard let feedback else { return }
+    importResultTitle = feedback.title
+    importResultMessage = feedback.message
     showImportResult = true
+  }
+
+  private func isUserCancellation(_ error: Error) -> Bool {
+    if error is CancellationError { return true }
+    let nsError = error as NSError
+    return nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError
   }
 
 }

@@ -63,6 +63,19 @@ struct CSVImportResult {
     !parserWarnings.isEmpty || !platformMismatches.isEmpty || !currencyMismatches.isEmpty
   }
 
+  var feedback: CSVImportFeedback {
+    let formatted = formattedResult()
+    let severity: CSVImportFeedback.Severity
+    if hasErrors {
+      severity = .error
+    } else if hasWarnings {
+      severity = .warning
+    } else {
+      severity = .success
+    }
+    return CSVImportFeedback(severity: severity, message: formatted.message)
+  }
+
   /// Formats the import result into a user-facing title and message.
   func formattedResult() -> (title: String, message: String) {
     let title: String
@@ -201,6 +214,19 @@ struct CashFlowCSVImportResult {
   var totalImported: Int { matchedCount + newCount }
   var hasErrors: Bool { !errors.isEmpty }
   var hasWarnings: Bool { !parserWarnings.isEmpty }
+
+  var feedback: CSVImportFeedback {
+    let formatted = formattedResult()
+    let severity: CSVImportFeedback.Severity
+    if hasErrors {
+      severity = .error
+    } else if hasWarnings {
+      severity = .warning
+    } else {
+      severity = .success
+    }
+    return CSVImportFeedback(severity: severity, message: formatted.message)
+  }
 
   /// Formats the import result into a user-facing title and message.
   func formattedResult() -> (title: String, message: String) {

@@ -320,6 +320,8 @@ ______________________________________________________________________
 1. On success: snapshot is created (or updated if one exists for that date); user is navigated to the snapshot detail view
 1. If the user navigates away from the import screen with a file loaded but not yet imported, a confirmation dialog is shown: "Discard import? The selected file has not been imported yet."
 
+**Atomic replacement imports:** In Bulk Entry, asset and cash flow CSV imports replace the previous CSV-sourced values or rows for their target. Any parser or row-validation error rejects the entire replacement before existing CSV data is changed; valid rows from the same file are not applied separately. Warnings alone do not block a replacement.
+
 ______________________________________________________________________
 
 ### 4.2 CSV Schemas

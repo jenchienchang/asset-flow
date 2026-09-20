@@ -329,7 +329,7 @@ Full-screen view for entering asset values across all platforms in a single sess
 
 **Keyboard navigation**: Enter advances focus to the next included row's value field (assets) or amount field (cash flows). In cash flow rows, Enter on the description field moves to the same row's amount field. Adding a new asset or cash flow row auto-focuses the appropriate field (name or description).
 
-**Per-platform CSV import**: Each platform section has an import button that opens a file picker filtered to `.csv`. Parsed values are matched to assets by name (including manually-added rows) and populate the New Value fields.
+**Per-platform CSV import**: Each platform section has an import button that opens a file picker filtered to `.csv`. Parsed values are matched to assets by name (including manually-added rows) and populate the New Value fields. Every outcome displays an import feedback alert: success, warnings for skipped rows, or errors for malformed/unreadable files. Any parser or row-validation error leaves the previous CSV values unchanged, including when the file also contains valid rows.
 
 **Validation warnings** (toolbar):
 
@@ -359,7 +359,7 @@ Full-screen view for entering asset values across all platforms in a single sess
 
 **Cash flow accessibility**: Each row has a composite `.accessibilityLabel` including description, amount, and included/excluded status.
 
-**Cash flow CSV import**: The "Import CSV" button opens a file picker filtered to `.csv`. Uses the `.cashFlow` schema with auto-detect column mapping (required: Description, Amount; optional: Currency). Re-importing CSV clears all previous CSV-sourced rows before applying the new import.
+**Cash flow CSV import**: The "Import CSV" button opens a file picker filtered to `.csv`. Uses the `.cashFlow` schema with auto-detect column mapping (required: Description, Amount; optional: Currency). Re-importing CSV clears all previous CSV-sourced rows only after the replacement has validated successfully; any parser or row-validation error shows feedback and leaves the previous CSV rows unchanged, including when the file also contains valid rows.
 
 **Cash flow validation warnings** (displayed in the toolbar popover alongside asset warnings):
 
@@ -380,7 +380,7 @@ See [BusinessLogic.md](BusinessLogic.md) for the detailed CSV import flow.
 **Layout**:
 
 - **Import type selector**: Segmented control (Assets | Cash Flows), defaults to Assets
-- **File selector**: Drag-and-drop zone or "Browse" button (filtered to `.csv`)
+- **File selector**: Drag-and-drop zone or "Browse" button (filtered to `.csv`). Dropped file URLs and raw CSV data are both supported; read and parse failures remain visible in the validation area.
 - **Column mapping sheet** (shown automatically when CSV headers don't match expected columns): A full CSV table preview with per-column dropdowns allowing the user to assign each CSV column to a canonical field (e.g., `Asset Name`, `Market Value`) or skip it. Auto-detected matches are pre-selected. Skipped entirely when headers already match (case-insensitive). Shared between Import Screen and Bulk Entry per-platform CSV import. Uses `NavigationStack` with toolbar (Cancel/Confirm) for macOS Liquid Glass integration.
 - **Expected schema display**: Show the expected CSV column names for the selected import type and provide downloadable sample CSVs
 - **Configuration** (after file selected or column mapping confirmed):

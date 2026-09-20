@@ -23,6 +23,39 @@ enum ImportType: String, CaseIterable {
   case cashFlows
 }
 
+/// User-facing feedback produced by a CSV import attempt.
+///
+/// Bulk Entry uses this model for asset and cash-flow parse, read, and
+/// successful import outcomes so both import targets are presented
+/// consistently.
+struct CSVImportFeedback: Equatable {
+  enum Severity: Equatable {
+    case success
+    case warning
+    case error
+  }
+
+  let severity: Severity
+  let message: String
+
+  var title: String {
+    switch severity {
+    case .success:
+      String(localized: "CSV Import", table: "Snapshot")
+
+    case .warning:
+      String(localized: "Import Warning", table: "Snapshot")
+
+    case .error:
+      String(localized: "Import Error", table: "Snapshot")
+    }
+  }
+
+  static func failure(_ message: String) -> Self {
+    Self(severity: .error, message: message)
+  }
+}
+
 /// How the import-level platform is applied to CSV rows.
 enum PlatformApplyMode: String, CaseIterable {
   /// Override all rows with the selected platform.

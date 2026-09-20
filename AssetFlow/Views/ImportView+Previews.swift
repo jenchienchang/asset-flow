@@ -15,6 +15,7 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -289,44 +290,55 @@ extension ImportView {
       }
       viewModel.loadFile(url)
 
-    case .failure:
-      viewModel.validationErrors = [
-        CSVError(
-          row: 0, column: nil,
-          message: String(
-            localized: "Could not open file. Please check the file is a valid CSV.",
-            table: "Import"))
-      ]
+    case .failure(let error):
+      guard !isUserCancellation(error) else { return }
+      viewModel.reportFileLoadFailure()
     }
   }
 
   func handleDrop(_ providers: [NSItemProvider]) -> Bool {
     guard let provider = providers.first else { return false }
+    let fileName = provider.suggestedName
 
-    if provider.hasItemConformingToTypeIdentifier(UTType.commaSeparatedText.identifier) {
-      provider.loadItem(forTypeIdentifier: UTType.commaSeparatedText.identifier) { item, _ in
-        if let url = item as? URL {
+    if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+      provider.loadFileRepresentation(forTypeIdentifier: UTType.fileURL.identifier) {
+        url, _ in
+        guard let url, let data = try? Data(contentsOf: url) else {
           Task { @MainActor in
-            viewModel.loadFile(url)
+            viewModel.reportFileLoadFailure()
           }
+          return
+        }
+        Task { @MainActor in
+          viewModel.loadDroppedData(data, fileName: fileName)
         }
       }
       return true
     }
 
-    if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-      provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier) { item, _ in
-        if let data = item as? Data,
-          let url = URL(dataRepresentation: data, relativeTo: nil)
-        {
+    if provider.hasItemConformingToTypeIdentifier(UTType.commaSeparatedText.identifier) {
+      provider.loadDataRepresentation(
+        forTypeIdentifier: UTType.commaSeparatedText.identifier
+      ) { data, _ in
+        guard let data else {
           Task { @MainActor in
-            viewModel.loadFile(url)
+            viewModel.reportFileLoadFailure()
           }
+          return
+        }
+        Task { @MainActor in
+          viewModel.loadDroppedData(data, fileName: fileName)
         }
       }
       return true
     }
 
     return false
+  }
+
+  private func isUserCancellation(_ error: Error) -> Bool {
+    if error is CancellationError { return true }
+    let nsError = error as NSError
+    return nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError
   }
 }

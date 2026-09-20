@@ -268,6 +268,7 @@ Emergency fund transfer,-10000
 - **Number parsing**: Strip whitespace, currency symbols ($), thousand separators (commas in numbers). Parse as `Decimal`. Negative values allowed.
 - **Empty rows**: Silently skipped
 - **Header row**: Required as first row
+- **Malformed files**: Invalid encoding, quoting, field counts, or CSV structure produce a user-visible import error; no rows are imported
 
 ### Validation
 
@@ -516,7 +517,7 @@ Cash flow rows are portfolio-level and do not carry forward from previous snapsh
 **Input methods**:
 
 1. **Manual entry**: The "Add Cash Flow" button appends an inline row with editable description, amount, and currency fields. Manually-added rows (`.manualNew`) can be deleted via a trash button.
-1. **CSV import**: The "Import CSV" button uses the `.cashFlow` schema with auto-detect column mapping (required: Description, Amount; optional: Currency). Re-importing CSV clears all previous CSV-sourced rows globally (cash flows are portfolio-level, not per-platform) before applying the new import. CSV rows are matched to existing rows by normalized description (`normalizedForIdentity`).
+1. **CSV import**: The "Import CSV" button uses the `.cashFlow` schema with auto-detect column mapping (required: Description, Amount; optional: Currency). A valid replacement clears all previous CSV-sourced rows globally (cash flows are portfolio-level, not per-platform) before applying the new import. Any parser or row-validation error rejects the replacement without changing the previous CSV-sourced rows. CSV rows are matched to existing rows by normalized description (`normalizedForIdentity`).
 
 **Validation rules**:
 
@@ -524,6 +525,11 @@ Cash flow rows are portfolio-level and do not carry forward from previous snapsh
 1. Case-insensitive duplicate description detection via `normalizedForIdentity` blocks save
 1. Invalid (unparseable) amount text blocks save
 1. All cash flow validation errors prevent saving (reflected in `canSave`)
+
+**Bulk Entry CSV failure handling**:
+
+- Asset and cash-flow CSV parse results are always surfaced in an import feedback alert, including row-level parser errors and file-read failures.
+- Any parser or row-validation error rejects the replacement before existing CSV values or rows are changed; valid rows from a mixed-validity file are not imported separately.
 
 **Save semantics**:
 
@@ -569,16 +575,17 @@ ______________________________________________________________________
 
 ### Import Errors
 
-| Error                                       | Handling                                                            |
-| ------------------------------------------- | ------------------------------------------------------------------- |
-| File cannot be opened                       | Alert: "Could not open file. Please check the file is a valid CSV." |
-| Missing required columns for selected type  | Show which columns are expected vs. found, block import             |
-| Unparseable values                          | Highlight specific rows/columns, block import                       |
-| No data rows                                | Alert: "File contains no data rows."                                |
-| Duplicate assets in CSV                     | Error dialog listing duplicates with row numbers, import rejected   |
-| Duplicate assets with existing snapshot     | Error dialog listing conflicts, import rejected                     |
-| Duplicate cash flows in CSV                 | Error dialog listing duplicates, import rejected                    |
-| Duplicate cash flows with existing snapshot | Error dialog listing conflicts, import rejected                     |
+| Error                                       | Handling                                                             |
+| ------------------------------------------- | -------------------------------------------------------------------- |
+| File cannot be opened                       | Alert: "Could not open file. Please check the file is a valid CSV."  |
+| Malformed CSV syntax or encoding            | Error feedback with the parser diagnostic; no replacement is applied |
+| Missing required columns for selected type  | Show which columns are expected vs. found, block import              |
+| Unparseable values                          | Highlight specific rows/columns, block import                        |
+| No data rows                                | Alert: "File contains no data rows."                                 |
+| Duplicate assets in CSV                     | Error dialog listing duplicates with row numbers, import rejected    |
+| Duplicate assets with existing snapshot     | Error dialog listing conflicts, import rejected                      |
+| Duplicate cash flows in CSV                 | Error dialog listing duplicates, import rejected                     |
+| Duplicate cash flows with existing snapshot | Error dialog listing conflicts, import rejected                      |
 
 ### Calculation Errors
 
