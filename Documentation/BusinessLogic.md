@@ -333,7 +333,10 @@ Duplicates are shown as per-row error popovers on the affected preview rows. Row
 **Asset CSV duplicates**:
 
 - **Within CSV**: Two rows with the same (Asset Name, Platform) after applying platform handling rules and normalized identity comparison. The second occurrence gets the error.
+
 - **Between CSV and existing snapshot**: An asset in the CSV matches an asset already recorded in the target snapshot (same date)
+
+- **Bulk Entry platform resolution**: Empty or target-matching platform values are resolved to the selected target platform before within-CSV duplicate detection. Rows for other platforms are skipped with a warning and do not participate in duplicate detection.
 
 **Cash flow CSV duplicates**:
 

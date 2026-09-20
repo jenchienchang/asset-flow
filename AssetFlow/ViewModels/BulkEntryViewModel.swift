@@ -545,18 +545,21 @@ final class BulkEntryViewModel {
     _ parseResult: CSVParseResult<AssetCSVRow>,
     forPlatform platform: String
   ) -> CSVImportResult {
-    let errors = parseResult.errors.map(\.message)
     let parserWarnings = parseResult.warnings.map(\.message)
+    let resolved = CSVParsingService.resolveAssetRowsForPlatform(
+      rows: parseResult.rows, platform: platform)
+    let duplicateErrors = CSVParsingService.detectAssetDuplicates(rows: resolved.rows)
+    let errors = (parseResult.parsingErrors + duplicateErrors).map(\.message)
 
-    // Any parser error rejects the replacement before existing CSV values are
-    // changed, so a mixed-validity file cannot partially update the import.
-    guard !parseResult.hasErrors else {
+    // Any parser or effective duplicate error rejects the replacement before
+    // existing CSV values are changed or rows are applied.
+    guard errors.isEmpty else {
       return CSVImportResult(
         matchedCount: 0,
         newCount: 0,
         errors: errors,
         parserWarnings: parserWarnings,
-        platformMismatches: [],
+        platformMismatches: resolved.mismatches,
         currencyMismatches: [])
     }
 
@@ -574,7 +577,6 @@ final class BulkEntryViewModel {
 
     // Pre-build lookup: normalizedName → row index for the target platform.
     // Avoids O(m×n) repeated normalization inside the CSV row loop.
-    let normalizedPlatform = platform.normalizedForIdentity
     var nameIndex: [String: Int] = [:]
     for (idx, row) in rows.enumerated() where row.platform == platform {
       nameIndex[row.assetName.normalizedForIdentity] = idx
@@ -582,17 +584,9 @@ final class BulkEntryViewModel {
 
     var matchedCount = 0
     var newCount = 0
-    var platformMismatches: [String] = []
     var currencyMismatches: [String] = []
 
-    for csvRow in parseResult.rows {
-      if !csvRow.platform.isEmpty,
-        csvRow.platform.normalizedForIdentity != normalizedPlatform
-      {
-        platformMismatches.append(csvRow.assetName)
-        continue
-      }
-
+    for csvRow in resolved.rows {
       let normalizedCSVName = csvRow.assetName.normalizedForIdentity
       if let index = nameIndex[normalizedCSVName] {
         if !csvRow.currency.isEmpty,
@@ -630,7 +624,7 @@ final class BulkEntryViewModel {
       newCount: newCount,
       errors: errors,
       parserWarnings: parserWarnings,
-      platformMismatches: platformMismatches,
+      platformMismatches: resolved.mismatches,
       currencyMismatches: currencyMismatches
     )
   }

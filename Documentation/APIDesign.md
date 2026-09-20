@@ -41,7 +41,7 @@ ______________________________________________________________________
 
 **Purpose**: Parse CSV files according to the asset and cash flow schemas defined in SPEC Section 4.2.
 
-CSV record syntax is delegated to Apple’s `TabularData` framework through the internal `CSVRecordReader`. It enables RFC-style quoting, escaped double quotes, embedded newlines, and structural error reporting without a custom character-level parser. Columns are read back as strings so AssetFlow can retain exact field content and continue parsing monetary values as `Decimal` rather than floating-point values. `CSVParsingService` remains responsible for headers, schema validation, warnings, and duplicate detection. All user-facing import errors and warnings are resolved through the `Import` string catalog, including errors translated from `CSVRecordReader` reasons; framework-localized parser descriptions are not surfaced directly.
+CSV record syntax is delegated to Apple’s `TabularData` framework through the internal `CSVRecordReader`. It enables RFC-style quoting, escaped double quotes, embedded newlines, and structural error reporting without a custom character-level parser. Columns are read back as strings so AssetFlow can retain exact field content and continue parsing monetary values as `Decimal` rather than floating-point values. `CSVParsingService` remains responsible for headers, schema validation, warnings, and raw within-CSV duplicate diagnostics. Import flows perform final duplicate validation after applying their context-specific platform rules. All user-facing import errors and warnings are resolved through the `Import` string catalog, including errors translated from `CSVRecordReader` reasons; framework-localized parser descriptions are not surfaced directly.
 
 ```swift
 enum CSVParsingService {
@@ -64,6 +64,12 @@ enum CSVParsingService {
     /// Parse cash flow CSV using a user-provided column mapping
     static func parseCashFlowCSV(data: Data, mapping: CSVColumnMapping) -> CSVParseResult<CashFlowCSVRow>
 
+    /// Resolve Bulk Entry asset rows for a target platform and report skipped rows
+    static func resolveAssetRowsForPlatform(
+        rows: [AssetCSVRow],
+        platform: String
+    ) -> (rows: [AssetCSVRow], mismatches: [String])
+
     /// Extract header names from the first line of CSV data
     static func extractHeaders(from data: Data) -> [String]
 
@@ -76,6 +82,8 @@ enum CSVParsingService {
 
 struct CSVParseResult<T> {
     let rows: [T]
+    let parsingErrors: [CSVError]
+    let duplicateErrors: [CSVError]
     let errors: [CSVError]
     let warnings: [CSVWarning]
 
@@ -88,12 +96,14 @@ struct AssetCSVRow {
     let marketValue: Decimal
     let platform: String  // Resolved via platform handling rules
     let currency: String  // From optional Currency column (empty if absent)
+    let rowNumber: Int?    // Source CSV row for diagnostics
 }
 
 struct CashFlowCSVRow {
     let description: String  // Maps to CashFlowOperation.cashFlowDescription in the model
     let amount: Decimal
     let currency: String  // From optional Currency column (empty if absent)
+    let rowNumber: Int?    // Source CSV row for diagnostics
 }
 
 /// Canonical column identifiers for CSV mapping
@@ -162,12 +172,13 @@ ______________________________________________________________________
 
 **Implementation**: AssetFlow handles duplicate detection in two layers:
 
-1. **CSV-Internal Duplicates** (handled by `CSVParsingService`):
+1. **CSV-Internal Duplicate Candidates** (reported by `CSVParsingService` and finalized by the importing workflow):
 
-   - Detected during CSV parsing
+   - Raw candidates are detected during CSV parsing and exposed separately from structural parsing errors
    - Asset duplicates: Same (name, platform) within the CSV file (normalized: trim whitespace, collapse spaces, case-insensitive)
    - Cash flow duplicates: Same description within the CSV file (case-insensitive)
-   - Returns parsing errors with row numbers for duplicates found
+   - Final validation uses effective rows and preserves source row numbers
+   - Bulk Entry resolves empty or matching platforms to its target platform and ignores duplicates belonging only to skipped platforms
 
 1. **CSV-vs-Snapshot Duplicates** (handled by `ImportViewModel`):
 

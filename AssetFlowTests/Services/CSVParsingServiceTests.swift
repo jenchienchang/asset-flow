@@ -579,4 +579,23 @@ struct CSVParsingServiceTests {
             "Duplicate description '\("salary deposit")' — first appeared in row \(2).")
       })
   }
+
+  @Test("Cash-flow duplicate diagnostics preserve source row numbers")
+  func testCashFlowDuplicateRowNumbersPreserveInvalidRows() {
+    let csv = """
+      Description,Amount
+      Invalid,not-a-number
+      Salary deposit,50000
+      salary deposit,30000
+      """
+    let result = CSVParsingService.parseCashFlowCSV(data: csvData(csv))
+
+    #expect(
+      result.duplicateErrors.contains {
+        $0.row == 4
+          && $0.message
+            == localizedImportMessage(
+              "Duplicate description '\("salary deposit")' — first appeared in row \(3).")
+      })
+  }
 }

@@ -22,8 +22,10 @@ import Foundation
 /// Handles parsing, validation, and duplicate detection per SPEC Sections 4.2-4.6.
 /// Takes raw `Data` as input -- file I/O is the caller's responsibility.
 ///
-/// Duplicate detection between CSV and existing snapshot data is NOT handled here;
-/// it requires ModelContext access and will be performed by the Import ViewModel.
+/// Duplicate detection against existing snapshot data is NOT handled here; it
+/// requires ModelContext access and will be performed by the Import ViewModel.
+/// Within-CSV duplicate errors are kept separate from parsing errors so import
+/// flows can validate them after applying their platform-resolution rules.
 enum CSVParsingService {
 
   // MARK: - Asset CSV Parsing
@@ -255,9 +257,10 @@ extension CSVParsingService {
       }
     }
 
-    errors.append(contentsOf: detectAssetDuplicates(rows: rows))
+    let duplicateErrors = detectAssetDuplicates(rows: rows)
     return CSVParseResult(
-      rows: rows, errors: errors, warnings: warnings)
+      rows: rows, errors: errors, warnings: warnings,
+      duplicateErrors: duplicateErrors)
   }
 
   static func parseCashFlowDataRows(
@@ -289,10 +292,10 @@ extension CSVParsingService {
       }
     }
 
-    errors.append(
-      contentsOf: detectCashFlowDuplicates(rows: rows))
+    let duplicateErrors = detectCashFlowDuplicates(rows: rows)
     return CSVParseResult(
-      rows: rows, errors: errors, warnings: warnings)
+      rows: rows, errors: errors, warnings: warnings,
+      duplicateErrors: duplicateErrors)
   }
 }
 
@@ -335,7 +338,7 @@ extension CSVParsingService {
     return .row(
       AssetCSVRow(
         assetName: name, marketValue: marketValue,
-        platform: platform, currency: currency),
+        platform: platform, currency: currency, rowNumber: rowNumber),
       marketValueWarnings(
         value: marketValue, name: name,
         rowNumber: rowNumber))
@@ -379,7 +382,8 @@ extension CSVParsingService {
       } ?? ""
 
     return .row(
-      CashFlowCSVRow(description: desc, amount: amount, currency: currency),
+      CashFlowCSVRow(
+        description: desc, amount: amount, currency: currency, rowNumber: rowNumber),
       warnings)
   }
 
@@ -502,7 +506,7 @@ extension CSVParsingService {
     var errors: [CSVError] = []
     for (index, row) in rows.enumerated() {
       let identity = normalizedAssetIdentity(row: row)
-      let rowNumber = index + 2
+      let rowNumber = row.rowNumber ?? index + 2
       if let firstRow = seen[identity] {
         errors.append(
           CSVError(
@@ -526,7 +530,7 @@ extension CSVParsingService {
     for (index, row) in rows.enumerated() {
       let normalized = row.description.lowercased()
         .trimmingCharacters(in: .whitespaces)
-      let rowNumber = index + 2
+      let rowNumber = row.rowNumber ?? index + 2
       if let firstRow = seen[normalized] {
         errors.append(
           CSVError(
@@ -545,5 +549,38 @@ extension CSVParsingService {
     row: AssetCSVRow
   ) -> String {
     "\(row.assetName.normalizedForIdentity)|\(row.platform.normalizedForIdentity)"
+  }
+
+  /// Resolves asset rows for a Bulk Entry platform import.
+  ///
+  /// Rows without a platform, or rows whose platform matches the target,
+  /// are assigned the target platform. Rows for another platform are left
+  /// out and reported as mismatches so they can be shown as warnings.
+  static func resolveAssetRowsForPlatform(
+    rows: [AssetCSVRow],
+    platform: String
+  ) -> (rows: [AssetCSVRow], mismatches: [String]) {
+    let normalizedPlatform = platform.normalizedForIdentity
+    var resolvedRows: [AssetCSVRow] = []
+    var mismatches: [String] = []
+
+    for row in rows {
+      if !row.platform.isEmpty,
+        row.platform.normalizedForIdentity != normalizedPlatform
+      {
+        mismatches.append(row.assetName)
+        continue
+      }
+
+      resolvedRows.append(
+        AssetCSVRow(
+          assetName: row.assetName,
+          marketValue: row.marketValue,
+          platform: platform,
+          currency: row.currency,
+          rowNumber: row.rowNumber))
+    }
+
+    return (rows: resolvedRows, mismatches: mismatches)
   }
 }

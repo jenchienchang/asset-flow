@@ -796,6 +796,50 @@ struct BulkEntryViewModelTests {
     #expect(viewModel.rows.isEmpty)
   }
 
+  @Test("Bulk Entry detects duplicates after target platform resolution")
+  func importCSVDetectsDuplicatesAfterTargetPlatformResolution() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+    let previousCSV = "Asset Name,Market Value\nExisting Fund,1000\n".data(using: .utf8)!
+    viewModel.importCSV(data: previousCSV, forPlatform: "Vanguard")
+
+    let duplicateCSV =
+      "Asset Name,Market Value,Platform\nNew Fund,1000,Vanguard\nNew Fund,2000,\n"
+      .data(using: .utf8)!
+    let result = viewModel.importCSV(data: duplicateCSV, forPlatform: "Vanguard")
+
+    #expect(result.hasErrors)
+    #expect(result.totalImported == 0)
+    #expect(viewModel.lastImportFeedback?.severity == .error)
+    let previousRow = try #require(
+      viewModel.rows.first(where: { $0.assetName == "Existing Fund" }))
+    #expect(previousRow.newValueText == "1000")
+    #expect(previousRow.source == .csv)
+    #expect(viewModel.rows.contains { $0.assetName == "New Fund" } == false)
+  }
+
+  @Test("Bulk Entry ignores duplicates on skipped platforms")
+  func importCSVIgnoresDuplicatesOnSkippedPlatforms() {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+    let duplicateCSV =
+      "Asset Name,Market Value,Platform\nNew Fund,1000,Schwab\nNew Fund,2000,Schwab\n"
+      .data(using: .utf8)!
+    let result = viewModel.importCSV(data: duplicateCSV, forPlatform: "Vanguard")
+
+    #expect(result.hasErrors == false)
+    #expect(result.totalImported == 0)
+    #expect(result.platformMismatches == ["New Fund", "New Fund"])
+    #expect(viewModel.lastImportFeedback?.severity == .warning)
+    #expect(viewModel.rows.isEmpty)
+  }
+
   // MARK: - advanceFocus / nextFocusRowID Tests
 
   @Test("nextFocusRowID advances to next included row within same platform")

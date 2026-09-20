@@ -180,7 +180,7 @@ See [DataModel.md](DataModel.md) for detailed model documentation.
 
 1. **CalculationService** (`enum`): Unified calculation engine providing growth rate, Modified Dietz return, cumulative time-weighted return (TWR), compound annual growth rate (CAGR), and category allocation percentage calculations. All methods are pure functions operating on `Decimal` values.
 
-1. **CSVParsingService** (`enum`): Parses asset CSV and cash flow CSV files according to the schemas defined in SPEC Section 4.2. Uses the shared `CSVRecordReader`, backed by Apple’s `TabularData` CSV reader, for UTF-8/BOM handling, quoted fields, escaped quotes, embedded newlines, and structural errors. It then applies AssetFlow-specific string trimming, `Decimal` number parsing (strip currency symbols and thousand separators), validation, and **within-CSV duplicate detection**. Returns structured results with error reporting. The reader converts TabularData failures into stable, app-owned reasons instead of exposing framework-localized text.
+1. **CSVParsingService** (`enum`): Parses asset CSV and cash flow CSV files according to the schemas defined in SPEC Section 4.2. Uses the shared `CSVRecordReader`, backed by Apple’s `TabularData` CSV reader, for UTF-8/BOM handling, quoted fields, escaped quotes, embedded newlines, and structural errors. It then applies AssetFlow-specific string trimming, `Decimal` number parsing (strip currency symbols and thousand separators), validation, and raw **within-CSV duplicate diagnostics**. Parsed asset and cash-flow rows retain their source CSV row numbers so diagnostics remain accurate when invalid rows are omitted from the parsed result. Import workflows finalize duplicates after applying their effective platform rules. Returns structured results with separate parsing and duplicate errors. The reader converts TabularData failures into stable, app-owned reasons instead of exposing framework-localized text.
 
 1. **RebalancingCalculator** (`enum`): Computes target vs. current allocation differences and suggested buy/sell adjustment amounts for each category. Returns signed `Decimal` values (positive = buy, negative = sell).
 
@@ -200,7 +200,7 @@ See [DataModel.md](DataModel.md) for detailed model documentation.
 
 **Duplicate Detection**: AssetFlow handles duplicate detection in two layers:
 
-- **CSV-internal duplicates**: Detected by `CSVParsingService` during parsing (same name+platform within file, or same description within cash flow CSV)
+- **CSV-internal duplicates**: Raw candidates are detected by `CSVParsingService`; `ImportViewModel` and `BulkEntryViewModel` finalize them after effective platform handling (same name+platform within file, or same description within cash flow CSV)
 - **CSV-vs-snapshot duplicates**: Detected by `ImportViewModel` when loading preview (checks CSV rows against existing snapshot data)
 
 **Supporting Types**: `DateFormatStyle`, `BackupTypes`, `CSVParsingTypes` (result types), `SnapshotSummary` (converted snapshot aggregates), `ChartDataService` (chart data filtering and axis formatting). Domain error enums (`AssetError`, `CategoryError`, `PlatformError`) are in `Models/`.

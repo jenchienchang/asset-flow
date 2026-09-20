@@ -23,12 +23,20 @@ struct AssetCSVRow {
   let marketValue: Decimal
   let platform: String
   let currency: String
+  let rowNumber: Int?
 
-  init(assetName: String, marketValue: Decimal, platform: String, currency: String = "") {
+  init(
+    assetName: String,
+    marketValue: Decimal,
+    platform: String,
+    currency: String = "",
+    rowNumber: Int? = nil
+  ) {
     self.assetName = assetName
     self.marketValue = marketValue
     self.platform = platform
     self.currency = currency
+    self.rowNumber = rowNumber
   }
 }
 
@@ -37,11 +45,18 @@ struct CashFlowCSVRow {
   let description: String
   let amount: Decimal
   let currency: String
+  let rowNumber: Int?
 
-  init(description: String, amount: Decimal, currency: String = "") {
+  init(
+    description: String,
+    amount: Decimal,
+    currency: String = "",
+    rowNumber: Int? = nil
+  ) {
     self.description = description
     self.amount = amount
     self.currency = currency
+    self.rowNumber = rowNumber
   }
 }
 
@@ -62,8 +77,24 @@ struct CSVWarning: Equatable {
 /// Result of parsing a CSV file.
 struct CSVParseResult<T> {
   let rows: [T]
-  let errors: [CSVError]
+  let parsingErrors: [CSVError]
   let warnings: [CSVWarning]
+  let duplicateErrors: [CSVError]
+
+  init(
+    rows: [T],
+    errors: [CSVError],
+    warnings: [CSVWarning],
+    duplicateErrors: [CSVError] = []
+  ) {
+    self.rows = rows
+    self.parsingErrors = errors
+    self.warnings = warnings
+    self.duplicateErrors = duplicateErrors
+  }
+
+  /// All errors found while parsing or validating the raw CSV rows.
+  var errors: [CSVError] { parsingErrors + duplicateErrors }
 
   var hasErrors: Bool { !errors.isEmpty }
   var isValid: Bool { errors.isEmpty }

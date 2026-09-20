@@ -509,10 +509,8 @@ class ImportViewModel {
     let result = CSVParsingService.parseAssetCSV(data: data, importPlatform: nil)
     baseAssetRows = result.rows
 
-    // Store parsing-only errors (not within-CSV duplicates, which depend on effective platform)
-    let withinCSVDuplicates = CSVParsingService.detectAssetDuplicates(rows: result.rows)
-    let duplicateMessages = Set(withinCSVDuplicates.map { $0.message })
-    baseAssetParsingErrors = result.errors.filter { !duplicateMessages.contains($0.message) }
+    // Within-CSV duplicates are revalidated after effective platform handling.
+    baseAssetParsingErrors = result.parsingErrors
     baseAssetWarnings = result.warnings
 
     excludedAssetIndices = []
@@ -676,7 +674,7 @@ class ImportViewModel {
 
     return AssetCSVRow(
       assetName: baseRow.assetName, marketValue: baseRow.marketValue, platform: platform,
-      currency: baseRow.currency)
+      currency: baseRow.currency, rowNumber: baseRow.rowNumber)
   }
 
   /// Whether the loaded CSV has a mix of empty and non-empty platform values,
@@ -703,10 +701,8 @@ class ImportViewModel {
 
     assetPreviewRows = []
 
-    // Separate parsing errors from duplicate errors
-    let withinCSVDuplicates = CSVParsingService.detectCashFlowDuplicates(rows: result.rows)
-    let duplicateMessages = Set(withinCSVDuplicates.map { $0.message })
-    parsingErrors = result.errors.filter { !duplicateMessages.contains($0.message) }
+    // Within-CSV duplicates are revalidated against the included preview rows.
+    parsingErrors = result.parsingErrors
 
     baseCashFlowWarnings = result.warnings
     revalidate()
@@ -719,9 +715,8 @@ class ImportViewModel {
       data: data, mapping: mapping, importPlatform: nil)
     baseAssetRows = result.rows
 
-    let withinCSVDuplicates = CSVParsingService.detectAssetDuplicates(rows: result.rows)
-    let duplicateMessages = Set(withinCSVDuplicates.map { $0.message })
-    baseAssetParsingErrors = result.errors.filter { !duplicateMessages.contains($0.message) }
+    // Within-CSV duplicates are revalidated after effective platform handling.
+    baseAssetParsingErrors = result.parsingErrors
     baseAssetWarnings = result.warnings
 
     excludedAssetIndices = []
@@ -744,9 +739,8 @@ class ImportViewModel {
 
     assetPreviewRows = []
 
-    let withinCSVDuplicates = CSVParsingService.detectCashFlowDuplicates(rows: result.rows)
-    let duplicateMessages = Set(withinCSVDuplicates.map { $0.message })
-    parsingErrors = result.errors.filter { !duplicateMessages.contains($0.message) }
+    // Within-CSV duplicates are revalidated against the included preview rows.
+    parsingErrors = result.parsingErrors
 
     baseCashFlowWarnings = result.warnings
     revalidate()
