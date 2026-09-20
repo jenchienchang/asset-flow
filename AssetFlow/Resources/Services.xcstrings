@@ -293,6 +293,16 @@
         }
       }
     },
+    "The backup files must be at the ZIP root or inside one enclosing folder." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備份檔案必須位於 ZIP 根目錄，或位於單一外層資料夾中。"
+          }
+        }
+      }
+    },
     "Missing required settings key '%@'." : {
       "localizations" : {
         "zh-Hant" : {

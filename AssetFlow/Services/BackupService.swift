@@ -94,7 +94,8 @@ enum BackupService {
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
     try extractZip(from: url, to: tempDir)
-    return try validateExtractedBackup(at: tempDir)
+    let backupRoot = try resolveBackupRoot(at: tempDir)
+    return try validateExtractedBackup(at: backupRoot)
   }
 
   // MARK: - Restore
@@ -119,7 +120,8 @@ enum BackupService {
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
     try extractZip(from: url, to: tempDir)
-    let backup = try loadValidatedBackup(at: tempDir)
+    let backupRoot = try resolveBackupRoot(at: tempDir)
+    let backup = try loadValidatedBackup(at: backupRoot)
 
     // Establish a clean rollback point before the destructive transaction.
     // If this save fails, no restore mutation has occurred.

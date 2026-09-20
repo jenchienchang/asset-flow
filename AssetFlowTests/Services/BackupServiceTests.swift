@@ -350,6 +350,61 @@ struct BackupServiceTests {
     #expect(manifest.formatVersion == 3)
   }
 
+  @Test("Validate accepts backup with one enclosing folder")
+  func validateAcceptsSingleEnclosingFolder() throws {
+    let tc = createTestContext()
+    populateTestData(
+      context: tc.context, settingsService: tc.settingsService)
+
+    let zipURL = tempZipURL()
+    defer { try? FileManager.default.removeItem(at: zipURL) }
+
+    try BackupService.exportBackup(
+      to: zipURL, modelContext: tc.context,
+      settingsService: tc.settingsService)
+
+    try tamperAndRezip(zipURL: zipURL) { dir in
+      let wrapper = dir.appending(path: "AssetFlowBackup")
+      try FileManager.default.createDirectory(
+        at: wrapper, withIntermediateDirectories: false)
+
+      let fileNames =
+        [BackupCSV.manifestFileName] + BackupCSV.allCSVFileNames
+        + BackupCSV.optionalCSVFileNames
+      for fileName in fileNames {
+        try FileManager.default.moveItem(
+          at: dir.appending(path: fileName),
+          to: wrapper.appending(path: fileName))
+      }
+    }
+
+    let manifest = try? BackupService.validateBackup(at: zipURL)
+    #expect(manifest?.formatVersion == BackupFormatVersion.current.rawValue)
+
+    let restored = createTestContext()
+    let restoreResult: Result<Void, Error> = Result {
+      try BackupService.restoreFromBackup(
+        at: zipURL,
+        modelContext: restored.context,
+        settingsService: restored.settingsService)
+    }
+    let restoreSucceeded: Bool
+    switch restoreResult {
+    case .success:
+      restoreSucceeded = true
+
+    case .failure:
+      restoreSucceeded = false
+    }
+    #expect(restoreSucceeded)
+
+    if restoreSucceeded {
+      let categories = try restored.context.fetch(
+        FetchDescriptor<AssetFlow.Category>())
+      #expect(categories.count == 2)
+    }
+  }
+
   @Test("Validate rejects non-ZIP file")
   func validateRejectsNonZIP() throws {
     let url = tempZipURL()
@@ -1714,6 +1769,7 @@ struct BackupServiceTests {
     [
       "This file is not supported by backup format version %lld.",
       "Invalid manifest.json: %@",
+      "The backup files must be at the ZIP root or inside one enclosing folder.",
       "Expected a valid ISO 8601 timestamp.",
       "The app version must not be empty.",
       "Expected a regular file.",

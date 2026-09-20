@@ -9,6 +9,8 @@ Protect your portfolio data by regularly creating backups. AssetFlow exports all
 1. Choose a location and filename in the save dialog.
 1. A ZIP file is created containing all your portfolio data.
 
+AssetFlow normally stores the backup files at the ZIP root. Restore also accepts a ZIP with the files inside one enclosing folder, as can happen when a folder is compressed using Finder or another archive tool.
+
 ## What's Included
 
 A backup file contains everything in your portfolio:

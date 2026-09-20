@@ -49,6 +49,7 @@ struct BackupValidationIssue: Sendable {
 /// Errors that can occur during backup export, validation, or restore.
 enum BackupError: LocalizedError {
   case invalidArchive
+  case invalidArchiveLayout
   case missingFile(String)
   case invalidCSVHeaders(file: String, expected: [String], got: [String])
   case invalidForeignKey(file: String, column: String, value: String)
@@ -61,6 +62,12 @@ enum BackupError: LocalizedError {
     switch self {
     case .invalidArchive:
       String(localized: "The file is not a valid backup archive.", table: "Services")
+
+    case .invalidArchiveLayout:
+      String(
+        localized:
+          "The backup files must be at the ZIP root or inside one enclosing folder.",
+        table: "Services")
 
     case .missingFile(let name):
       String(

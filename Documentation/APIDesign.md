@@ -349,6 +349,8 @@ struct BackupManifest: Codable {
 
 Format versions 1 through 3 contain only those three settings. Preferences not represented by the format, such as platform ordering and stale-asset visibility, remain unchanged during restore.
 
+The canonical layout places these files directly at the ZIP root. Restore also accepts archives with exactly one immediate enclosing folder, which accommodates archive tools that preserve the selected source folder. It does not search recursively or accept ambiguous layouts.
+
 **ZIP Implementation**: Uses `/usr/bin/ditto` via `Process` for ZIP creation (`-c -k --sequesterRsrc`) and extraction (`-x -k`). No external dependencies required — `ditto` is built into macOS.
 
 **CSV Serialization Rules**:

@@ -257,7 +257,7 @@ Accessible via menu bar (AssetFlow > Settings) or keyboard shortcut (Cmd+,).
      - A `manifest.json` file containing: format version identifier (e.g., `"formatVersion": 1`), export timestamp, and app version
      - Backup CSV files use the data model field names (Section 7) as column headers. Each row represents one record. UUID fields are serialized as standard UUID strings. Decimal fields are serialized at full precision. Date fields use ISO 8601 timestamps. Optional/nullable fields use an empty string for null values. The CSV files are internal to the backup format and are not intended for direct user editing.
      - User selects save location via standard macOS save dialog. Default filename: `AssetFlow-Backup-YYYY-MM-DD.zip`.
-   - **Restore from Backup** — Imports a previously exported backup archive. Confirmation required: "Restoring from backup will replace ALL existing data. This cannot be undone. Continue?" Restore validates the complete archive before replacing existing data and supports backup format versions 1 through 3. If validation or persistence fails, the existing database and settings remain unchanged. On success, reloads all views.
+   - **Restore from Backup** — Imports a previously exported backup archive. Confirmation required: "Restoring from backup will replace ALL existing data. This cannot be undone. Continue?" Restore validates the complete archive before replacing existing data and supports backup format versions 1 through 3. Files may be at the ZIP root or inside exactly one enclosing folder. If validation or persistence fails, the existing database and settings remain unchanged. On success, reloads all views.
 
 1. **App Lock** — Protects portfolio data behind device authentication.
 
