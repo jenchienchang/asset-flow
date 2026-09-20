@@ -31,9 +31,12 @@ Commit only the changes that are already staged, and only after the user approve
 
 1. Show the complete proposed commit message, including the subject and entire body, to the user in a code block. Stop and wait for explicit approval of that exact message. The initial request to commit authorizes preparation only; it does not authorize running `git commit`.
 
-1. After approval, run `git commit` with exactly the approved message. Do not stage or unstage files, and do not include changes that were not already staged.
+1. After approval, run `git commit` with exactly the approved message so the repository's pre-commit hooks can review the commit. Do not stage or unstage files, and do not include changes that were not already staged. Never use `--no-verify` (or any equivalent option) to bypass the hooks.
 
-1. Report the resulting commit hash and subject.
+1. Treat the pre-commit result as authoritative:
+
+   - If all hooks pass and the commit succeeds, report the resulting commit hash and subject.
+   - If a hook fails or prevents the commit, stop. Report the hook result and any relevant status or diff, and wait for the user to address it. Do not bypass the hook, retry with verification disabled, or continue as if the commit succeeded. If hooks modified files, mention that those changes may need review and staging by the user.
 
 ## Message Shape
 
