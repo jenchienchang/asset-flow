@@ -21,26 +21,20 @@ import Foundation
 
 extension CSVParsingService {
 
-  /// Extracts header names from the first line of CSV data.
-  ///
-  /// Note: This and `extractSampleRows` each independently decode and split
-  /// the CSV. A combined helper could avoid redundant work, but the data is
-  /// usually small, and the clarity of
-  /// separate, single-purpose methods is preferred for now.
+  /// Extracts header names from CSV data.
   static func extractHeaders(from data: Data) -> [String] {
-    let lines = splitCSVLines(decodeCSVData(data))
-    guard let headerLine = lines.first else { return [] }
-    return parseCSVRow(headerLine)
+    (try? CSVRecordReader.read(data).headers) ?? []
   }
 
   /// Extracts data rows (excluding header) as raw string arrays.
   ///
   /// Pass `nil` for `count` to extract every data row.
   static func extractSampleRows(from data: Data, count: Int? = 3) -> [[String]] {
-    let lines = splitCSVLines(decodeCSVData(data))
-    let rows = lines.dropFirst()
-    let dataLines = count.map { Array(rows.prefix($0)) } ?? Array(rows)
-    return dataLines.map { parseCSVRow($0) }
+    guard let document = try? CSVRecordReader.read(data) else { return [] }
+    let records =
+      count.map { Array(document.records.prefix($0)) }
+      ?? document.records
+    return records.map(\.fields)
   }
 
   /// Attempts case-insensitive auto-detection of column mapping.
@@ -90,14 +84,33 @@ extension CSVParsingService {
     else {
       return CSVParseResult(
         rows: [],
-        errors: [CSVError(row: 0, column: nil, message: "Mapping missing required columns.")],
+        errors: [
+          CSVError(
+            row: 0, column: nil,
+            message: localizedImportMessage("Mapping missing required columns."))
+        ],
         warnings: [])
     }
 
-    let lines = splitCSVLines(decodeCSVData(data))
-    guard lines.count > 1 else {
-      return lines.isEmpty ? emptyFileResult() : noDataRowsResult(warnings: [])
+    let document: CSVDocument
+    do {
+      document = try CSVRecordReader.read(data)
+    } catch let error as CSVRecordReaderError {
+      return CSVParseResult(
+        rows: [], errors: [csvError(from: error)], warnings: [])
+    } catch {
+      return CSVParseResult(
+        rows: [],
+        errors: [
+          CSVError(
+            row: 1, column: nil,
+            message: localizedImportMessage("Unable to read CSV data."))
+        ],
+        warnings: [])
     }
+
+    guard !document.headers.isEmpty else { return emptyFileResult() }
+    guard !document.records.isEmpty else { return noDataRowsResult(warnings: []) }
 
     let headers = AssetCSVHeaders(
       nameIndex: nameIndex,
@@ -107,7 +120,7 @@ extension CSVParsingService {
       warnings: [])
 
     return parseAssetDataRows(
-      lines: Array(lines.dropFirst()),
+      records: document.records,
       headers: headers, importPlatform: importPlatform)
   }
 
@@ -121,14 +134,33 @@ extension CSVParsingService {
     else {
       return CSVParseResult(
         rows: [],
-        errors: [CSVError(row: 0, column: nil, message: "Mapping missing required columns.")],
+        errors: [
+          CSVError(
+            row: 0, column: nil,
+            message: localizedImportMessage("Mapping missing required columns."))
+        ],
         warnings: [])
     }
 
-    let lines = splitCSVLines(decodeCSVData(data))
-    guard lines.count > 1 else {
-      return lines.isEmpty ? emptyFileResult() : noDataRowsResult(warnings: [])
+    let document: CSVDocument
+    do {
+      document = try CSVRecordReader.read(data)
+    } catch let error as CSVRecordReaderError {
+      return CSVParseResult(
+        rows: [], errors: [csvError(from: error)], warnings: [])
+    } catch {
+      return CSVParseResult(
+        rows: [],
+        errors: [
+          CSVError(
+            row: 1, column: nil,
+            message: localizedImportMessage("Unable to read CSV data."))
+        ],
+        warnings: [])
     }
+
+    guard !document.headers.isEmpty else { return emptyFileResult() }
+    guard !document.records.isEmpty else { return noDataRowsResult(warnings: []) }
 
     let headers = CashFlowCSVHeaders(
       descIndex: descIndex,
@@ -137,6 +169,6 @@ extension CSVParsingService {
       warnings: [])
 
     return parseCashFlowDataRows(
-      lines: Array(lines.dropFirst()), headers: headers)
+      records: document.records, headers: headers)
   }
 }

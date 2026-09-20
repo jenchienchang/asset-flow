@@ -441,8 +441,8 @@ ______________________________________________________________________
 ### Services
 
 - **CalculationService**: Growth rate, Modified Dietz return (no cash flows, with cash flows, time-weighting), cumulative TWR (chaining returns), CAGR (multi-year, fractional year), category allocation, edge cases (zero/negative values, divide-by-zero)
-- **CSVParsingService**: Valid files, malformed files, encoding, number formats, within-CSV duplicate detection (assets by name+platform, cash flows by description)
-- **BackupService**: Export and version compatibility; record-aware CSV round trips; archive, scalar, identity, and relationship validation; localized diagnostics; complete-graph rollback and settings preservation; round-trip integrity
+- **CSVParsingService**: Valid files, RFC-style quoted commas, escaped quotes, CRLF, embedded newlines, empty/trailing fields, malformed records, encoding, number formats, column mapping, localized parser/validation diagnostics, and within-CSV duplicate detection (assets by name+platform, cash flows by description)
+- **BackupService**: Export and version compatibility; record-aware CSV round trips; archive, scalar, identity, and relationship validation; localized diagnostics from app-owned parser reasons (including Traditional Chinese catalog coverage); complete-graph rollback and settings preservation; round-trip integrity
 - **RebalancingCalculator**: Balanced portfolio, unbalanced, no target, uncategorized assets, adjustment calculations
 - **ChartDataService**: Time range filtering, abbreviated axis labels (K/M/B)
 

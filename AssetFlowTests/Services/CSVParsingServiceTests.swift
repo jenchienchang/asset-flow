@@ -30,6 +30,63 @@ struct CSVParsingServiceTests {
     string.data(using: .utf8)!
   }
 
+  private func localizedImportMessage(
+    _ value: String.LocalizationValue
+  ) -> String {
+    CSVParsingService.localizedImportMessage(value)
+  }
+
+  @Test("CSV parser diagnostics include Traditional Chinese localizations")
+  func csvParserDiagnosticsIncludeTraditionalChineseLocalizations() throws {
+    let repositoryURL = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let catalogURL =
+      repositoryURL
+      .appending(path: "AssetFlow/Resources/Import.xcstrings")
+    let data = try Data(contentsOf: catalogURL)
+    let root = try #require(
+      JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let strings = try #require(root["strings"] as? [String: Any])
+    let keys = [
+      "Expected UTF-8 encoded text.",
+      "Malformed CSV quoting.",
+      "Expected %lld fields but found %lld.",
+      "The CSV value could not be parsed.",
+      "The CSV file is missing a column.",
+      "The CSV row is out of bounds.",
+      "Unable to read CSV data.",
+      "Missing required column: Asset Name",
+      "Missing required column: Market Value",
+      "Missing required column: Description",
+      "Missing required column: Amount",
+      "Asset name is empty.",
+      "Cannot parse '%@' as a number.",
+      "Description is empty.",
+      "File is empty or contains no data.",
+      "File contains no data rows.",
+      "Mapping missing required columns.",
+      "Duplicate asset '%@' (platform: '%@') — first appeared in row %lld.",
+      "Duplicate description '%@' — first appeared in row %lld.",
+    ]
+
+    for key in keys {
+      let entry = try #require(strings[key] as? [String: Any], "Missing key: \(key)")
+      let localizations = try #require(
+        entry["localizations"] as? [String: Any],
+        "Missing localizations: \(key)")
+      let traditionalChinese = try #require(
+        localizations["zh-Hant"] as? [String: Any],
+        "Missing zh-Hant localization: \(key)")
+      let unit = try #require(
+        traditionalChinese["stringUnit"] as? [String: Any],
+        "Missing zh-Hant string unit: \(key)")
+      #expect(unit["state"] as? String == "translated")
+      #expect((unit["value"] as? String)?.isEmpty == false)
+    }
+  }
+
   // MARK: - Asset CSV: Valid Parsing
 
   @Test("Valid asset CSV parses correctly")
@@ -114,7 +171,9 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseAssetCSV(data: csvData(csv), importPlatform: nil)
 
     #expect(result.hasErrors)
-    #expect(result.errors[0].message.contains("empty"))
+    #expect(
+      result.errors[0].message
+        == localizedImportMessage("Asset name is empty."))
   }
 
   @Test("Unparseable market value returns error")
@@ -126,7 +185,9 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseAssetCSV(data: csvData(csv), importPlatform: nil)
 
     #expect(result.hasErrors)
-    #expect(result.errors[0].message.contains("Cannot parse"))
+    #expect(
+      result.errors[0].message
+        == localizedImportMessage("Cannot parse '\("abc")' as a number."))
   }
 
   @Test("Empty file returns error")
@@ -142,7 +203,9 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseAssetCSV(data: csvData(csv), importPlatform: nil)
 
     #expect(result.hasErrors)
-    #expect(result.errors[0].message.contains("no data"))
+    #expect(
+      result.errors[0].message
+        == localizedImportMessage("File contains no data rows."))
   }
 
   // MARK: - Asset CSV: Platform Handling (SPEC 4.5)
@@ -181,7 +244,11 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseAssetCSV(data: csvData(csv), importPlatform: nil)
 
     #expect(result.isValid)
-    #expect(result.warnings.contains(where: { $0.message.contains("zero") }))
+    #expect(
+      result.warnings.contains {
+        $0.message
+          == localizedImportMessage("Market value is zero for '\("AAPL")'.")
+      })
   }
 
   @Test("Negative market value generates warning")
@@ -193,7 +260,11 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseAssetCSV(data: csvData(csv), importPlatform: nil)
 
     #expect(result.isValid)
-    #expect(result.warnings.contains(where: { $0.message.contains("negative") }))
+    #expect(
+      result.warnings.contains {
+        $0.message
+          == localizedImportMessage("Market value is negative for '\("AAPL")'.")
+      })
   }
 
   @Test("Unrecognized columns generate warning")
@@ -220,7 +291,13 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseAssetCSV(data: csvData(csv), importPlatform: nil)
 
     #expect(result.hasErrors)
-    #expect(result.errors.contains(where: { $0.message.contains("Duplicate") }))
+    #expect(
+      result.errors.contains {
+        $0.message
+          == localizedImportMessage(
+            "Duplicate asset '\("AAPL")' (platform: '\("Firstrade")') — first appeared in row \(2)."
+          )
+      })
   }
 
   @Test("Same asset name on different platforms is not a duplicate")
@@ -246,7 +323,13 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseAssetCSV(data: csvData(csv), importPlatform: nil)
 
     #expect(result.hasErrors)
-    #expect(result.errors.contains(where: { $0.message.contains("Duplicate") }))
+    #expect(
+      result.errors.contains {
+        $0.message
+          == localizedImportMessage(
+            "Duplicate asset '\("aapl")' (platform: '\("firstrade")') — first appeared in row \(2)."
+          )
+      })
   }
 
   // MARK: - Asset CSV: Number Parsing
@@ -274,6 +357,45 @@ struct CSVParsingServiceTests {
 
     #expect(result.isValid)
     #expect(result.rows[0].marketValue == Decimal(string: "15000.50"))
+  }
+
+  @Test("Asset CSV preserves RFC quoted commas, escaped quotes, and multiline fields")
+  func testAssetCSVPreservesRFCQuotedFields() {
+    let csv =
+      "Asset Name,Market Value,Platform,Currency\r\n"
+      + "\"Fund, \"\"A\"\"\r\nSeries 1\",15000,\"Broker, One\",USD\r\n"
+
+    let result = CSVParsingService.parseAssetCSV(
+      data: csvData(csv), importPlatform: nil)
+
+    #expect(result.isValid)
+    #expect(result.rows.count == 1)
+    guard let row = result.rows.first else { return }
+    #expect(row.assetName == "Fund, \"A\"\r\nSeries 1")
+    #expect(row.platform == "Broker, One")
+    #expect(row.currency == "USD")
+  }
+
+  @Test("Asset CSV rejects rows with an incorrect number of fields")
+  func testAssetCSVRejectsIncorrectFieldCount() {
+    let csv = "Asset Name,Market Value\nAAPL,15000,Unexpected\n"
+
+    let result = CSVParsingService.parseAssetCSV(
+      data: csvData(csv), importPlatform: nil)
+
+    #expect(result.hasErrors)
+    #expect(result.rows.isEmpty)
+  }
+
+  @Test("Asset CSV rejects quotes in unquoted fields")
+  func testAssetCSVRejectsMisplacedQuote() {
+    let csv = "Asset Name,Market Value\nA\"APL,15000\n"
+
+    let result = CSVParsingService.parseAssetCSV(
+      data: csvData(csv), importPlatform: nil)
+
+    #expect(result.hasErrors)
+    #expect(result.rows.isEmpty)
   }
 
   @Test("Currency symbol stripping")
@@ -317,6 +439,22 @@ struct CSVParsingServiceTests {
     #expect(result.rows[0].description == "Salary deposit")
     #expect(result.rows[0].amount == Decimal(50000))
     #expect(result.rows[1].amount == Decimal(-10000))
+  }
+
+  @Test("Cash flow CSV preserves escaped quotes and multiline descriptions")
+  func testCashFlowCSVPreservesRFCQuotedFields() {
+    let csv =
+      "Description,Amount,Currency\r\n"
+      + "\"Transfer, \"\"special\"\"\r\nSecond line\",25,USD\r\n"
+
+    let result = CSVParsingService.parseCashFlowCSV(data: csvData(csv))
+
+    #expect(result.isValid)
+    #expect(result.rows.count == 1)
+    guard let row = result.rows.first else { return }
+    #expect(row.description == "Transfer, \"special\"\r\nSecond line")
+    #expect(row.amount == Decimal(25))
+    #expect(row.currency == "USD")
   }
 
   // MARK: - Cash Flow CSV: Missing Columns
@@ -370,7 +508,9 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseCashFlowCSV(data: csvData(csv))
 
     #expect(result.hasErrors)
-    #expect(result.errors[0].message.contains("empty"))
+    #expect(
+      result.errors[0].message
+        == localizedImportMessage("Description is empty."))
   }
 
   @Test("Unparseable amount returns error")
@@ -382,7 +522,9 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseCashFlowCSV(data: csvData(csv))
 
     #expect(result.hasErrors)
-    #expect(result.errors[0].message.contains("Cannot parse"))
+    #expect(
+      result.errors[0].message
+        == localizedImportMessage("Cannot parse '\("abc")' as a number."))
   }
 
   @Test("Zero amount generates warning")
@@ -394,7 +536,10 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseCashFlowCSV(data: csvData(csv))
 
     #expect(result.isValid)
-    #expect(result.warnings.contains(where: { $0.message.contains("zero") }))
+    #expect(
+      result.warnings.contains {
+        $0.message == localizedImportMessage("Amount is zero for '\("No-op")'.")
+      })
   }
 
   // MARK: - Cash Flow CSV: Duplicate Detection
@@ -409,7 +554,12 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseCashFlowCSV(data: csvData(csv))
 
     #expect(result.hasErrors)
-    #expect(result.errors.contains(where: { $0.message.contains("Duplicate") }))
+    #expect(
+      result.errors.contains {
+        $0.message
+          == localizedImportMessage(
+            "Duplicate description '\("Salary deposit")' — first appeared in row \(2).")
+      })
   }
 
   @Test("Case-insensitive cash flow duplicate detection")
@@ -422,6 +572,11 @@ struct CSVParsingServiceTests {
     let result = CSVParsingService.parseCashFlowCSV(data: csvData(csv))
 
     #expect(result.hasErrors)
-    #expect(result.errors.contains(where: { $0.message.contains("Duplicate") }))
+    #expect(
+      result.errors.contains {
+        $0.message
+          == localizedImportMessage(
+            "Duplicate description '\("salary deposit")' — first appeared in row \(2).")
+      })
   }
 }

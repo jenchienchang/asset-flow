@@ -17,10 +17,7 @@
 
 import Foundation
 
-struct BackupCSVRecord {
-  let row: Int
-  let fields: [String]
-}
+typealias BackupCSVRecord = CSVRecord
 
 struct BackupCSVDocument {
   let records: [BackupCSVRecord]
@@ -34,188 +31,56 @@ extension BackupService {
     _ data: Data,
     fileName: String
   ) throws -> [BackupCSVRecord] {
-    var parser = try BackupCSVParser(data: data, fileName: fileName)
-    return try parser.parse()
-  }
-}
-
-@MainActor
-private struct BackupCSVParser {
-  private let fileName: String
-  private var bytes: [UInt8]
-  private var records: [BackupCSVRecord] = []
-  private var fields: [String] = []
-  private var field: [UInt8] = []
-  private var inQuotes = false
-  private var quoteClosed = false
-  private var recordHasExplicitSyntax = false
-  private var recordStartLine = 1
-  private var line = 1
-  private var index = 0
-
-  init(data: Data, fileName: String) throws {
-    var input = Array(data)
-    if input.starts(with: [0xEF, 0xBB, 0xBF]) {
-      input.removeFirst(3)
-    }
-    guard String(bytes: input, encoding: .utf8) != nil else {
+    do {
+      let document = try CSVRecordReader.read(data)
+      guard !document.headers.isEmpty else { return [] }
+      return [
+        BackupCSVRecord(row: 1, fields: document.headers)
+      ] + document.records
+    } catch let error as CSVRecordReaderError {
       throw BackupError.validationFailed([
-        BackupService.issue(
+        BackupValidationIssue(
           file: fileName,
-          detail: BackupService.localizedBackupMessage(
-            "Expected UTF-8 encoded text."))
+          row: error.row,
+          column: error.column.map(String.init),
+          detail: localizedCSVReaderMessage(error))
+      ])
+    } catch {
+      throw BackupError.validationFailed([
+        BackupValidationIssue(
+          file: fileName,
+          row: 1,
+          column: nil,
+          detail: localizedBackupMessage("Unable to read CSV data."))
       ])
     }
-    self.fileName = fileName
-    self.bytes = input
   }
 
-  mutating func parse() throws -> [BackupCSVRecord] {
-    while index < bytes.count {
-      if inQuotes {
-        consumeQuotedByte()
-      } else if quoteClosed {
-        try consumeByteAfterClosingQuote()
-      } else {
-        try consumeUnquotedByte()
-      }
+  private static func localizedCSVReaderMessage(
+    _ error: CSVRecordReaderError
+  ) -> String {
+    switch error.reason {
+    case .badEncoding, .unsupportedEncoding:
+      localizedBackupMessage("Expected UTF-8 encoded text.")
+
+    case .misplacedQuote:
+      localizedBackupMessage("Malformed CSV quoting.")
+
+    case .wrongNumberOfColumns(let expected, let actual):
+      localizedBackupMessage(
+        "Expected \(expected) fields but found \(actual).")
+
+    case .failedToParse:
+      localizedBackupMessage("The CSV value could not be parsed.")
+
+    case .missingColumn:
+      localizedBackupMessage("The CSV file is missing a column.")
+
+    case .outOfBounds:
+      localizedBackupMessage("The CSV row is out of bounds.")
+
+    case .unknown:
+      localizedBackupMessage("Unable to read CSV data.")
     }
-    try finishDocument()
-    return records
-  }
-
-  private mutating func consumeQuotedByte() {
-    let byte = bytes[index]
-    if byte == 0x22 {
-      if index + 1 < bytes.count, bytes[index + 1] == 0x22 {
-        field.append(0x22)
-        index += 2
-      } else {
-        inQuotes = false
-        quoteClosed = true
-        index += 1
-      }
-      return
-    }
-
-    field.append(byte)
-    if byte == 0x0D {
-      if index + 1 < bytes.count, bytes[index + 1] == 0x0A {
-        field.append(0x0A)
-        index += 1
-      }
-      line += 1
-    } else if byte == 0x0A {
-      line += 1
-    }
-    index += 1
-  }
-
-  private mutating func consumeByteAfterClosingQuote() throws {
-    let byte = bytes[index]
-    if byte == 0x2C {
-      finishField()
-      quoteClosed = false
-      index += 1
-    } else if byte == 0x0A || byte == 0x0D {
-      finishRecord(terminator: byte)
-    } else {
-      throw validationError(
-        row: line,
-        detail: BackupService.localizedBackupMessage(
-          "Unexpected character after a closing quote."))
-    }
-  }
-
-  private mutating func consumeUnquotedByte() throws {
-    let byte = bytes[index]
-    switch byte {
-    case 0x22:
-      guard field.isEmpty else {
-        throw validationError(
-          row: line,
-          detail: BackupService.localizedBackupMessage(
-            "Unexpected quote in an unquoted field."))
-      }
-      recordHasExplicitSyntax = true
-      inQuotes = true
-      index += 1
-
-    case 0x2C:
-      recordHasExplicitSyntax = true
-      finishField()
-      index += 1
-
-    case 0x0A, 0x0D:
-      finishRecord(terminator: byte)
-
-    default:
-      field.append(byte)
-      index += 1
-    }
-  }
-
-  private mutating func finishField() {
-    fields.append(String(decoding: field, as: UTF8.self))
-    field = []
-  }
-
-  private mutating func finishRecord(terminator: UInt8) {
-    finishField()
-    appendRecordUnlessBlank()
-    fields = []
-    quoteClosed = false
-    recordHasExplicitSyntax = false
-
-    if terminator == 0x0D,
-      index + 1 < bytes.count,
-      bytes[index + 1] == 0x0A
-    {
-      index += 1
-    }
-    line += 1
-    recordStartLine = line
-    index += 1
-  }
-
-  private mutating func appendRecordUnlessBlank() {
-    guard !isBlankRecord else { return }
-    records.append(
-      BackupCSVRecord(
-        row: recordStartLine,
-        fields: fields))
-  }
-
-  private var isBlankRecord: Bool {
-    !recordHasExplicitSyntax && fields.count == 1
-      && fields[0].trimmingCharacters(
-        in: .whitespacesAndNewlines
-      ).isEmpty
-  }
-
-  private mutating func finishDocument() throws {
-    guard !inQuotes else {
-      throw validationError(
-        row: recordStartLine,
-        detail: BackupService.localizedBackupMessage(
-          "Unterminated quoted field."))
-    }
-    if !fields.isEmpty || !field.isEmpty || quoteClosed {
-      finishField()
-      appendRecordUnlessBlank()
-    }
-  }
-
-  private func validationError(
-    row: Int,
-    detail: String
-  ) -> BackupError {
-    BackupError.validationFailed([
-      BackupValidationIssue(
-        file: fileName,
-        row: row,
-        column: nil,
-        detail: detail)
-    ])
   }
 }

@@ -41,6 +41,8 @@ ______________________________________________________________________
 
 **Purpose**: Parse CSV files according to the asset and cash flow schemas defined in SPEC Section 4.2.
 
+CSV record syntax is delegated to Apple’s `TabularData` framework through the internal `CSVRecordReader`. It enables RFC-style quoting, escaped double quotes, embedded newlines, and structural error reporting without a custom character-level parser. Columns are read back as strings so AssetFlow can retain exact field content and continue parsing monetary values as `Decimal` rather than floating-point values. `CSVParsingService` remains responsible for headers, schema validation, warnings, and duplicate detection. All user-facing import errors and warnings are resolved through the `Import` string catalog, including errors translated from `CSVRecordReader` reasons; framework-localized parser descriptions are not surfaced directly.
+
 ```swift
 enum CSVParsingService {
     /// Parse asset CSV data into structured rows
@@ -332,7 +334,7 @@ struct BackupManifest: Codable {
 }
 ```
 
-**File Organization**: The BackupService implementation is split across extension files: `BackupService+Export.swift` (CSV writing and export helpers), `BackupService+Parsing.swift` (typed loading and file validation), `BackupService+EntityParsing.swift` and `BackupService+SupplementalParsing.swift` (typed entity validation), `BackupService+ParsingSupport.swift` (strict scalar parsing and validation helpers), `BackupService+GraphValidation.swift` (cross-file relationship validation), `BackupCSVParser.swift` (record-aware CSV parsing), `BackupService+Restore.swift` (typed insertion and deletion), and `BackupService+Validation.swift` (validation entry point and ZIP operations).
+**File Organization**: The BackupService implementation is split across extension files: `BackupService+Export.swift` (CSV writing and export helpers), `BackupService+Parsing.swift` (typed loading and file validation), `AssetFlow/Services/CSVRecordReader.swift` (TabularData-backed record parsing shared with user imports), `BackupService+EntityParsing.swift` and `BackupService+SupplementalParsing.swift` (typed entity validation), `BackupService+ParsingSupport.swift` (strict scalar parsing and validation helpers), `BackupService+GraphValidation.swift` (cross-file relationship validation), `BackupCSVParser.swift` (backup error translation and header-record adaptation), `BackupService+Restore.swift` (typed insertion and deletion), and `BackupService+Validation.swift` (validation entry point and ZIP operations). TabularData parser failures are converted to app-owned reasons before backup diagnostics are localized through `Services.xcstrings`; framework `localizedDescription` text is not exposed.
 
 **Export Format**: ZIP archive containing:
 

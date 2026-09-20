@@ -38,13 +38,28 @@ enum CSVParsingService {
     data: Data,
     importPlatform: String?
   ) -> CSVParseResult<AssetCSVRow> {
-    let lines = splitCSVLines(decodeCSVData(data))
+    let document: CSVDocument
+    do {
+      document = try CSVRecordReader.read(data)
+    } catch let error as CSVRecordReaderError {
+      return CSVParseResult(
+        rows: [], errors: [csvError(from: error)], warnings: [])
+    } catch {
+      return CSVParseResult(
+        rows: [],
+        errors: [
+          CSVError(
+            row: 1, column: nil,
+            message: localizedImportMessage("Unable to read CSV data."))
+        ],
+        warnings: [])
+    }
 
-    guard let headerLine = lines.first else {
+    guard !document.headers.isEmpty else {
       return emptyFileResult()
     }
 
-    let validated = validateAssetHeaders(parseCSVRow(headerLine))
+    let validated = validateAssetHeaders(document.headers)
 
     switch validated {
     case .failure(let validationError):
@@ -52,7 +67,7 @@ enum CSVParsingService {
 
     case .success(let hdr):
       return parseAssetDataRows(
-        lines: Array(lines.dropFirst()),
+        records: document.records,
         headers: hdr, importPlatform: importPlatform)
     }
   }
@@ -66,13 +81,28 @@ enum CSVParsingService {
   static func parseCashFlowCSV(
     data: Data
   ) -> CSVParseResult<CashFlowCSVRow> {
-    let lines = splitCSVLines(decodeCSVData(data))
+    let document: CSVDocument
+    do {
+      document = try CSVRecordReader.read(data)
+    } catch let error as CSVRecordReaderError {
+      return CSVParseResult(
+        rows: [], errors: [csvError(from: error)], warnings: [])
+    } catch {
+      return CSVParseResult(
+        rows: [],
+        errors: [
+          CSVError(
+            row: 1, column: nil,
+            message: localizedImportMessage("Unable to read CSV data."))
+        ],
+        warnings: [])
+    }
 
-    guard let headerLine = lines.first else {
+    guard !document.headers.isEmpty else {
       return emptyFileResult()
     }
 
-    let validated = validateCashFlowHeaders(parseCSVRow(headerLine))
+    let validated = validateCashFlowHeaders(document.headers)
 
     switch validated {
     case .failure(let validationError):
@@ -80,7 +110,7 @@ enum CSVParsingService {
 
     case .success(let hdr):
       return parseCashFlowDataRows(
-        lines: Array(lines.dropFirst()), headers: hdr)
+        records: document.records, headers: hdr)
     }
   }
 }
@@ -104,13 +134,13 @@ extension CSVParsingService {
       errors.append(
         CSVError(
           row: 1, column: "Asset Name",
-          message: "Missing required column: Asset Name"))
+          message: localizedImportMessage("Missing required column: Asset Name")))
     }
     if valueIndex == nil {
       errors.append(
         CSVError(
           row: 1, column: "Market Value",
-          message: "Missing required column: Market Value"))
+          message: localizedImportMessage("Missing required column: Market Value")))
     }
 
     guard errors.isEmpty, let nameIndex, let valueIndex else {
@@ -147,13 +177,13 @@ extension CSVParsingService {
       errors.append(
         CSVError(
           row: 1, column: "Description",
-          message: "Missing required column: Description"))
+          message: localizedImportMessage("Missing required column: Description")))
     }
     if amountIndex == nil {
       errors.append(
         CSVError(
           row: 1, column: "Amount",
-          message: "Missing required column: Amount"))
+          message: localizedImportMessage("Missing required column: Amount")))
     }
 
     guard errors.isEmpty, let descIndex, let amountIndex else {
@@ -196,11 +226,11 @@ extension CSVParsingService {
 extension CSVParsingService {
 
   static func parseAssetDataRows(
-    lines: [String],
+    records: [CSVRecord],
     headers: AssetCSVHeaders,
     importPlatform: String?
   ) -> CSVParseResult<AssetCSVRow> {
-    if lines.isEmpty {
+    if records.isEmpty {
       return noDataRowsResult(warnings: headers.warnings)
     }
 
@@ -208,12 +238,12 @@ extension CSVParsingService {
     var errors: [CSVError] = []
     var warnings = headers.warnings
 
-    for (lineIndex, line) in lines.enumerated() {
-      let fields = parseCSVRow(line)
+    for record in records {
+      let fields = record.fields
       if isEmptyRow(fields) { continue }
 
       switch parseAssetRow(
-        fields: fields, rowNumber: lineIndex + 2,
+        fields: fields, rowNumber: record.row,
         headers: headers, importPlatform: importPlatform)
       {
       case .error(let err):
@@ -231,10 +261,10 @@ extension CSVParsingService {
   }
 
   static func parseCashFlowDataRows(
-    lines: [String],
+    records: [CSVRecord],
     headers: CashFlowCSVHeaders
   ) -> CSVParseResult<CashFlowCSVRow> {
-    if lines.isEmpty {
+    if records.isEmpty {
       return noDataRowsResult(warnings: headers.warnings)
     }
 
@@ -242,12 +272,12 @@ extension CSVParsingService {
     var errors: [CSVError] = []
     var warnings = headers.warnings
 
-    for (lineIndex, line) in lines.enumerated() {
-      let fields = parseCSVRow(line)
+    for record in records {
+      let fields = record.fields
       if isEmptyRow(fields) { continue }
 
       switch parseCashFlowRow(
-        fields: fields, rowNumber: lineIndex + 2,
+        fields: fields, rowNumber: record.row,
         headers: headers)
       {
       case .error(let err):
@@ -281,7 +311,7 @@ extension CSVParsingService {
       return .error(
         CSVError(
           row: rowNumber, column: "Asset Name",
-          message: "Asset name is empty."))
+          message: localizedImportMessage("Asset name is empty.")))
     }
 
     let raw = fieldValue(fields: fields, index: headers.valueIndex)
@@ -289,7 +319,8 @@ extension CSVParsingService {
       return .error(
         CSVError(
           row: rowNumber, column: "Market Value",
-          message: "Cannot parse '\(raw)' as a number."))
+          message: localizedImportMessage(
+            "Cannot parse '\(raw)' as a number.")))
     }
 
     let platform = resolveAssetPlatform(
@@ -321,7 +352,7 @@ extension CSVParsingService {
       return .error(
         CSVError(
           row: rowNumber, column: "Description",
-          message: "Description is empty."))
+          message: localizedImportMessage("Description is empty.")))
     }
 
     let raw = fieldValue(
@@ -330,7 +361,8 @@ extension CSVParsingService {
       return .error(
         CSVError(
           row: rowNumber, column: "Amount",
-          message: "Cannot parse '\(raw)' as a number."))
+          message: localizedImportMessage(
+            "Cannot parse '\(raw)' as a number.")))
     }
 
     var warnings: [CSVWarning] = []
@@ -338,7 +370,7 @@ extension CSVParsingService {
       warnings.append(
         CSVWarning(
           row: rowNumber, column: "Amount",
-          message: "Amount is zero for '\(desc)'."))
+          message: localizedImportMessage("Amount is zero for '\(desc)'.")))
     }
 
     let currency =
@@ -369,10 +401,10 @@ extension CSVParsingService {
   ) -> [CSVWarning] {
     let col = "Market Value"
     if value == 0 {
-      let msg = "Market value is zero for '\(name)'."
+      let msg = localizedImportMessage("Market value is zero for '\(name)'.")
       return [CSVWarning(row: rowNumber, column: col, message: msg)]
     } else if value < 0 {
-      let msg = "Market value is negative for '\(name)'."
+      let msg = localizedImportMessage("Market value is negative for '\(name)'.")
       return [CSVWarning(row: rowNumber, column: col, message: msg)]
     }
     return []
@@ -382,6 +414,47 @@ extension CSVParsingService {
 // MARK: - Private Helpers
 
 extension CSVParsingService {
+
+  static func localizedImportMessage(
+    _ value: String.LocalizationValue
+  ) -> String {
+    String(localized: value, table: "Import")
+  }
+
+  static func csvError(from error: CSVRecordReaderError) -> CSVError {
+    CSVError(
+      row: error.row,
+      column: error.column.map(String.init),
+      message: localizedCSVReaderMessage(error))
+  }
+
+  static func localizedCSVReaderMessage(
+    _ error: CSVRecordReaderError
+  ) -> String {
+    switch error.reason {
+    case .badEncoding, .unsupportedEncoding:
+      localizedImportMessage("Expected UTF-8 encoded text.")
+
+    case .misplacedQuote:
+      localizedImportMessage("Malformed CSV quoting.")
+
+    case .wrongNumberOfColumns(let expected, let actual):
+      localizedImportMessage(
+        "Expected \(expected) fields but found \(actual).")
+
+    case .failedToParse:
+      localizedImportMessage("The CSV value could not be parsed.")
+
+    case .missingColumn:
+      localizedImportMessage("The CSV file is missing a column.")
+
+    case .outOfBounds:
+      localizedImportMessage("The CSV row is out of bounds.")
+
+    case .unknown:
+      localizedImportMessage("Unable to read CSV data.")
+    }
+  }
 
   private static func fieldValue(
     fields: [String], index: Int
@@ -399,7 +472,7 @@ extension CSVParsingService {
   static func emptyFileResult<T>() -> CSVParseResult<T> {
     let err = CSVError(
       row: 0, column: nil,
-      message: "File is empty or contains no data.")
+      message: localizedImportMessage("File is empty or contains no data."))
     return CSVParseResult(rows: [], errors: [err], warnings: [])
   }
 
@@ -408,45 +481,9 @@ extension CSVParsingService {
   ) -> CSVParseResult<T> {
     let err = CSVError(
       row: 0, column: nil,
-      message: "File contains no data rows.")
+      message: localizedImportMessage("File contains no data rows."))
     return CSVParseResult(
       rows: [], errors: [err], warnings: warnings)
-  }
-
-  static func decodeCSVData(_ data: Data) -> String {
-    var data = data
-    let bom: [UInt8] = [0xEF, 0xBB, 0xBF]
-    if data.count >= 3 && Array(data.prefix(3)) == bom {
-      data = data.dropFirst(3)
-    }
-    return String(data: data, encoding: .utf8) ?? ""
-  }
-
-  static func splitCSVLines(_ text: String) -> [String] {
-    text
-      .replacingOccurrences(of: "\r\n", with: "\n")
-      .replacingOccurrences(of: "\r", with: "\n")
-      .split(separator: "\n", omittingEmptySubsequences: false)
-      .map(String.init)
-      .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-  }
-
-  static func parseCSVRow(_ line: String) -> [String] {
-    var fields: [String] = []
-    var current = ""
-    var inQuotes = false
-    for char in line {
-      if char == "\"" {
-        inQuotes.toggle()
-      } else if char == "," && !inQuotes {
-        fields.append(current)
-        current = ""
-      } else {
-        current.append(char)
-      }
-    }
-    fields.append(current)
-    return fields
   }
 
   static func parseDecimalValue(_ raw: String) -> Decimal? {
@@ -470,8 +507,9 @@ extension CSVParsingService {
         errors.append(
           CSVError(
             row: rowNumber, column: nil,
-            message:
+            message: localizedImportMessage(
               "Duplicate asset '\(row.assetName)' (platform: '\(row.platform)') — first appeared in row \(firstRow)."
+            )
           ))
       } else {
         seen[identity] = rowNumber
@@ -493,8 +531,8 @@ extension CSVParsingService {
         errors.append(
           CSVError(
             row: rowNumber, column: nil,
-            message:
-              "Duplicate description '\(row.description)' — first appeared in row \(firstRow)."
+            message: localizedImportMessage(
+              "Duplicate description '\(row.description)' — first appeared in row \(firstRow).")
           ))
       } else {
         seen[normalized] = rowNumber

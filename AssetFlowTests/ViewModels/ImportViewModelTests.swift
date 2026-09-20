@@ -1363,7 +1363,7 @@ struct ImportViewModelTests {
     // Should have: parsing error in validationErrors + per-row duplicate error on second AAPL
     #expect(!viewModel.validationErrors.isEmpty)
     let hasEmptyNameError = viewModel.validationErrors.contains {
-      $0.message.lowercased().contains("empty")
+      $0.message == CSVParsingService.localizedImportMessage("Asset name is empty.")
     }
     #expect(hasEmptyNameError)
     #expect(viewModel.assetPreviewRows[1].duplicateError != nil)
@@ -1379,7 +1379,7 @@ struct ImportViewModelTests {
     // - But the parsing error for empty name should still be present
     #expect(viewModel.assetPreviewRows[0].duplicateError == nil)
     let hasEmptyNameErrorAfter = viewModel.validationErrors.contains {
-      $0.message.lowercased().contains("empty")
+      $0.message == CSVParsingService.localizedImportMessage("Asset name is empty.")
     }
     #expect(hasEmptyNameErrorAfter)
   }

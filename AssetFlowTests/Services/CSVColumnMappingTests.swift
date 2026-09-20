@@ -66,6 +66,18 @@ struct CSVColumnMappingTests {
     #expect(rows[2] == ["7", "8", "9"])
   }
 
+  @Test("extractSampleRows keeps multiline quoted records together")
+  func testExtractSampleRowsPreservesMultilineRecords() {
+    let csv =
+      "Name,Value\r\n"
+      + "\"First line\r\nSecond line\",100\r\n"
+      + "Third,200\r\n"
+
+    let rows = CSVParsingService.extractSampleRows(from: csvData(csv), count: nil)
+
+    #expect(rows == [["First line\r\nSecond line", "100"], ["Third", "200"]])
+  }
+
   @Test("extractSampleRows returns empty for header-only CSV")
   func testExtractSampleRowsHeaderOnly() {
     let csv = "A,B,C"
@@ -166,6 +178,26 @@ struct CSVColumnMappingTests {
     #expect(result.rows[0].platform == "Schwab")
     #expect(result.rows[1].assetName == "VTI")
     #expect(result.rows[1].platform == "Fidelity")
+  }
+
+  @Test("parseAssetCSV with mapping preserves multiline quoted fields")
+  func testParseAssetCSVWithMappingPreservesMultilineFields() {
+    let csv =
+      "Symbol,Price,Account\r\n"
+      + "\"Fund, \"\"A\"\"\r\nSeries 1\",15000,\"Broker, One\"\r\n"
+    let mapping = CSVColumnMapping(
+      schema: .asset,
+      columnMap: [.assetName: 0, .marketValue: 1, .platform: 2],
+      rawHeaders: ["Symbol", "Price", "Account"])
+
+    let result = CSVParsingService.parseAssetCSV(
+      data: csvData(csv), mapping: mapping, importPlatform: nil)
+
+    #expect(result.isValid)
+    #expect(result.rows.count == 1)
+    guard let row = result.rows.first else { return }
+    #expect(row.assetName == "Fund, \"A\"\r\nSeries 1")
+    #expect(row.platform == "Broker, One")
   }
 
   // MARK: - parseCashFlowCSV with mapping

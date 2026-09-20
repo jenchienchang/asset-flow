@@ -223,6 +223,46 @@
         }
       }
     },
+    "Malformed CSV quoting." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV 檔案包含無效的引號格式。"
+          }
+        }
+      }
+    },
+    "The CSV file is missing a column." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV 檔案缺少欄位。"
+          }
+        }
+      }
+    },
+    "The CSV row is out of bounds." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV 列超出範圍。"
+          }
+        }
+      }
+    },
+    "The CSV value could not be parsed." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法剖析 CSV 值。"
+          }
+        }
+      }
+    },
     "Expected valid base64 data." : {
       "localizations" : {
         "zh-Hant" : {
@@ -359,6 +399,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "備份格式版本 %lld 不支援此檔案。"
+          }
+        }
+      }
+    },
+    "Unable to read CSV data." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取 CSV 資料。"
           }
         }
       }

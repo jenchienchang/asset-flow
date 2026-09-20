@@ -47,6 +47,196 @@
         }
       }
     },
+    "Expected %lld fields but found %lld." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期有 %1$lld 個欄位，但實際有 %2$lld 個。"
+          }
+        }
+      }
+    },
+    "Expected UTF-8 encoded text." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為 UTF-8 編碼文字。"
+          }
+        }
+      }
+    },
+    "Malformed CSV quoting." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV 檔案包含無效的引號格式。"
+          }
+        }
+      }
+    },
+    "The CSV file is missing a column." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV 檔案缺少欄位。"
+          }
+        }
+      }
+    },
+    "The CSV row is out of bounds." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV 列超出範圍。"
+          }
+        }
+      }
+    },
+    "The CSV value could not be parsed." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法剖析 CSV 值。"
+          }
+        }
+      }
+    },
+    "Unable to read CSV data." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取 CSV 資料。"
+          }
+        }
+      }
+    },
+    "Missing required column: Asset Name" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少必要欄位：Asset Name"
+          }
+        }
+      }
+    },
+    "Missing required column: Market Value" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少必要欄位：Market Value"
+          }
+        }
+      }
+    },
+    "Missing required column: Description" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少必要欄位：Description"
+          }
+        }
+      }
+    },
+    "Missing required column: Amount" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少必要欄位：Amount"
+          }
+        }
+      }
+    },
+    "Asset name is empty." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資產名稱為空。"
+          }
+        }
+      }
+    },
+    "Cannot parse '%@' as a number." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法將「%@」解析為數字。"
+          }
+        }
+      }
+    },
+    "Description is empty." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描述為空。"
+          }
+        }
+      }
+    },
+    "File is empty or contains no data." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案為空或不包含任何資料。"
+          }
+        }
+      }
+    },
+    "File contains no data rows." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案不包含任何資料列。"
+          }
+        }
+      }
+    },
+    "Mapping missing required columns." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "欄位對應缺少必要欄位。"
+          }
+        }
+      }
+    },
+    "Duplicate asset '%@' (platform: '%@') — first appeared in row %lld." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重複的資產「%1$@」（平台：%2$@）— 首次出現於第 %3$lld 列。"
+          }
+        }
+      }
+    },
+    "Duplicate description '%@' — first appeared in row %lld." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重複的描述「%1$@」— 首次出現於第 %2$lld 列。"
+          }
+        }
+      }
+    },
     "Duplicate asset '%@' (platform: '%@') — first appeared as '%@'." : {
       "localizations" : {
         "en" : {

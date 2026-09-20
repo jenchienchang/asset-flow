@@ -1096,6 +1096,24 @@ struct BackupServiceTests {
     }
   }
 
+  @Test("Backup CSV diagnostics use localized application messages")
+  func backupCSVDiagnosticsUseLocalizedApplicationMessages() throws {
+    let malformedCSV = Data(
+      ("id,name,targetAllocationPercentage,displayOrder\n"
+        + "\(UUID().uuidString),\"unterminated,50,0\n").utf8)
+
+    do {
+      _ = try BackupService.parseCSVRecords(
+        malformedCSV, fileName: BackupCSV.Categories.fileName)
+      Issue.record("Expected malformed CSV to be rejected")
+    } catch BackupError.validationFailed(let issues) {
+      let issue = try #require(issues.first)
+      #expect(
+        issue.detail
+          == BackupService.localizedBackupMessage("Malformed CSV quoting."))
+    }
+  }
+
   @Test("Validate reports invalid scalar values across files")
   func validateReportsInvalidScalarValuesAcrossFiles() throws {
     let tc = createTestContext()
@@ -1729,9 +1747,14 @@ struct BackupServiceTests {
       "Expected an ISO 8601 date.",
       "Expected a decimal value.",
       "Expected UTF-8 encoded text.",
+      "Malformed CSV quoting.",
+      "The CSV file is missing a column.",
+      "The CSV row is out of bounds.",
+      "The CSV value could not be parsed.",
       "Unexpected character after a closing quote.",
       "Unexpected quote in an unquoted field.",
       "Unterminated quoted field.",
+      "Unable to read CSV data.",
       "Validated category ID was not available during insertion.",
       "Validated snapshot ID was not available during value insertion.",
       "Validated asset ID was not available during value insertion.",
