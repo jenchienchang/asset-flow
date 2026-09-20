@@ -131,6 +131,7 @@ struct PlatformDetailView: View {
     } header: {
       Text("Value History")
     }
+    .conversionUnavailable(viewModel.conversionStatus.unavailableMessage)
   }
 
   // MARK: - Actions

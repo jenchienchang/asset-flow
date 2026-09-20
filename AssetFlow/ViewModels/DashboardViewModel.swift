@@ -54,6 +54,8 @@ struct RecentSnapshotData {
   let date: Date
   let totalValue: Decimal
   let assetCount: Int
+  let conversionStatus: CurrencyConversionStatus
+  let nativeCurrencyTotals: [String: Decimal]
 }
 
 /// ViewModel for the Dashboard (home) screen.
@@ -99,6 +101,24 @@ class DashboardViewModel {
 
   /// Per-category value at each snapshot, keyed by category name.
   var categoryValueHistory: [String: [DashboardDataPoint]] = [:]
+
+  /// Conversion status for the latest snapshot.
+  var latestConversionStatus: CurrencyConversionStatus = .notNeeded
+
+  /// Native-currency totals for the latest snapshot when conversion is incomplete.
+  var latestNativeCurrencyTotals: [String: Decimal] = [:]
+
+  /// Combined conversion status across all snapshots used by historical metrics.
+  var conversionStatus: CurrencyConversionStatus = .notNeeded
+
+  /// Dates of snapshots with incomplete conversion data.
+  var conversionIssueDates: [Date] = []
+
+  /// Conversion status across asset totals used by value and allocation charts.
+  var assetConversionStatus: CurrencyConversionStatus = .notNeeded
+
+  /// Dates of snapshots with incomplete asset-total conversion data.
+  var assetConversionIssueDates: [Date] = []
 
   // MARK: - Private cached data
 
@@ -162,6 +182,12 @@ class DashboardViewModel {
       twrHistory = []
       categoryValueHistory = [:]
       recentSnapshots = []
+      latestConversionStatus = .notNeeded
+      latestNativeCurrencyTotals = [:]
+      conversionStatus = .notNeeded
+      conversionIssueDates = []
+      assetConversionStatus = .notNeeded
+      assetConversionIssueDates = []
       sortedSnapshotsCache = []
       snapshotTotalCache = [:]
       categoryValuesCache = [:]
@@ -178,9 +204,22 @@ class DashboardViewModel {
     let sortedSnapshots = allSnapshots.sorted { $0.date < $1.date }
     sortedSnapshotsCache = sortedSnapshots
 
-    // Build converted snapshot summaries once for all dashboard charts/cards.
     let displayCurrency = SettingsService.shared.mainCurrency
     cachedDisplayCurrency = displayCurrency
+
+    let statuses = sortedSnapshots.map { conversionStatus(for: $0) }
+    let assetStatuses = sortedSnapshots.map { assetConversionStatus(for: $0) }
+    conversionStatus = CurrencyConversionStatus.merged(statuses)
+    conversionIssueDates = sortedSnapshots.enumerated().compactMap { index, snapshot in
+      statuses[index].isComplete ? nil : snapshot.date
+    }
+    assetConversionStatus = CurrencyConversionStatus.merged(assetStatuses)
+    assetConversionIssueDates = sortedSnapshots.enumerated().compactMap { index, snapshot in
+      assetStatuses[index].isComplete ? nil : snapshot.date
+    }
+    latestConversionStatus = assetStatuses.last ?? .notNeeded
+
+    // Build converted snapshot summaries once for all dashboard charts/cards.
     var totalCache: [UUID: Decimal] = [:]
     var catCache: [UUID: [String: Decimal]] = [:]
     var summaryCache: [UUID: SnapshotSummary] = [:]
@@ -248,6 +287,19 @@ class DashboardViewModel {
     return computeCategoryAllocationsForSnapshot(snapshot)
   }
 
+  /// Returns the asset-conversion status for the snapshot shown by the pie chart.
+  ///
+  /// The pie chart can display any historical snapshot, so its availability must
+  /// be based on the selected snapshot rather than the latest snapshot.
+  func categoryAllocationConversionStatus(forSnapshotDate date: Date)
+    -> CurrencyConversionStatus
+  {
+    guard let snapshot = sortedSnapshotsCache.first(where: { $0.date == date }) else {
+      return .notNeeded
+    }
+    return assetConversionStatus(for: snapshot)
+  }
+
   // MARK: - Period Performance
 
   /// Returns the cached resolved period for a given dashboard period.
@@ -286,6 +338,9 @@ class DashboardViewModel {
   /// Returns nil if fewer than 2 snapshots exist.
   func growthRate(for period: DashboardPeriod) -> Decimal? {
     guard let resolved = resolvePeriod(for: period) else { return nil }
+    guard assetConversionStatus(for: resolved.beginSnapshot).isComplete,
+      assetConversionStatus(for: resolved.endSnapshot).isComplete
+    else { return nil }
 
     let beginValue = snapshotTotal(for: resolved.beginSnapshot)
     let endValue = snapshotTotal(for: resolved.endSnapshot)
@@ -314,11 +369,17 @@ class DashboardViewModel {
     let displayCurrency =
       cachedDisplayCurrency ?? SettingsService.shared.mainCurrency
     let intermediateSnapshots = intermediateSnapshotsCache[period] ?? []
+    guard conversionStatus(for: resolved.beginSnapshot).isComplete,
+      conversionStatus(for: resolved.endSnapshot).isComplete,
+      intermediateSnapshots.allSatisfy({ conversionStatus(for: $0).isComplete })
+    else { return nil }
 
     var cashFlows: [(amount: Decimal, daysSinceStart: Int)] = []
     for snapshot in intermediateSnapshots {
-      let netCashFlow = CurrencyConversionService.netCashFlow(
-        for: snapshot, displayCurrency: displayCurrency, exchangeRate: snapshot.exchangeRate)
+      guard
+        let netCashFlow = CurrencyConversionService.netCashFlow(
+          for: snapshot, displayCurrency: displayCurrency, exchangeRate: snapshot.exchangeRate)
+      else { continue }
       if netCashFlow != 0 {
         let daysSinceStart =
           Calendar.current.dateComponents([.day], from: resolved.beginDate, to: snapshot.date).day
@@ -348,13 +409,19 @@ class DashboardViewModel {
     assetCount =
       snapshotSummariesCache[latestSnapshot.id]?.assetCount
       ?? (latestSnapshot.assetValues ?? []).count
+    latestNativeCurrencyTotals =
+      snapshotSummariesCache[latestSnapshot.id]?.nativeCurrencyTotals ?? [:]
 
-    // Cumulative TWR — treat nil returns as 0% (identity) to match twrHistory
+    // Cumulative TWR is unavailable when any period lacks complete conversion.
     if sortedSnapshots.count >= 2 {
-      let product = cachedPeriodReturns.reduce(Decimal(1)) { acc, periodReturn in
-        acc * (1 + (periodReturn ?? 0))
+      if cachedPeriodReturns.allSatisfy({ $0 != nil }) {
+        let product = cachedPeriodReturns.reduce(Decimal(1)) { acc, periodReturn in
+          acc * (1 + periodReturn!)
+        }
+        cumulativeTWR = product - 1
+      } else {
+        cumulativeTWR = nil
       }
-      cumulativeTWR = product - 1
     } else {
       cumulativeTWR = nil
     }
@@ -367,8 +434,14 @@ class DashboardViewModel {
           [.day], from: firstSnapshot.date, to: latestSnapshot.date
         ).day ?? 0
       let years = Double(days) / 365.25
-      cagr = CalculationService.cagr(
-        beginValue: firstTotal, endValue: totalPortfolioValue, years: years)
+      if assetConversionStatus(for: firstSnapshot).isComplete,
+        assetConversionStatus(for: latestSnapshot).isComplete
+      {
+        cagr = CalculationService.cagr(
+          beginValue: firstTotal, endValue: totalPortfolioValue, years: years)
+      } else {
+        cagr = nil
+      }
     } else {
       cagr = nil
     }
@@ -388,6 +461,9 @@ class DashboardViewModel {
   private func computeCategoryAllocationsForSnapshot(
     _ snapshot: Snapshot
   ) -> [CategoryAllocationData] {
+    guard snapshotSummariesCache[snapshot.id]?.conversionStatus.isComplete == true else {
+      return []
+    }
     let total = snapshotTotal(for: snapshot)
     guard total > 0 else { return [] }
 
@@ -397,8 +473,9 @@ class DashboardViewModel {
     } else {
       let currency =
         cachedDisplayCurrency ?? SettingsService.shared.mainCurrency
-      catValues = CurrencyConversionService.categoryValues(
-        for: snapshot, displayCurrency: currency, exchangeRate: snapshot.exchangeRate)
+      catValues =
+        CurrencyConversionService.categoryValues(
+          for: snapshot, displayCurrency: currency, exchangeRate: snapshot.exchangeRate) ?? [:]
     }
 
     return
@@ -416,6 +493,14 @@ class DashboardViewModel {
   // MARK: - Private: Category Value History
 
   private func computeCategoryValueHistory(sortedSnapshots: [Snapshot]) {
+    guard
+      sortedSnapshots.allSatisfy({
+        snapshotSummariesCache[$0.id]?.conversionStatus.isComplete == true
+      })
+    else {
+      categoryValueHistory = [:]
+      return
+    }
     var result: [String: [DashboardDataPoint]] = [:]
 
     for snapshot in sortedSnapshots {
@@ -434,6 +519,14 @@ class DashboardViewModel {
   // MARK: - Private: Portfolio Value History
 
   private func computePortfolioValueHistory(sortedSnapshots: [Snapshot]) {
+    guard
+      sortedSnapshots.allSatisfy({
+        snapshotSummariesCache[$0.id]?.conversionStatus.isComplete == true
+      })
+    else {
+      portfolioValueHistory = []
+      return
+    }
     portfolioValueHistory = sortedSnapshots.map { snapshot in
       DashboardDataPoint(
         date: snapshot.date,
@@ -446,6 +539,11 @@ class DashboardViewModel {
 
   private func computeTWRHistory(sortedSnapshots: [Snapshot]) {
     guard sortedSnapshots.count >= 2 else {
+      twrHistory = []
+      return
+    }
+
+    guard cachedPeriodReturns.allSatisfy({ $0 != nil }) else {
       twrHistory = []
       return
     }
@@ -481,7 +579,9 @@ class DashboardViewModel {
         date: snapshot.date,
         totalValue: snapshotTotal(for: snapshot),
         assetCount: snapshotSummariesCache[snapshot.id]?.assetCount
-          ?? (snapshot.assetValues ?? []).count
+          ?? (snapshot.assetValues ?? []).count,
+        conversionStatus: snapshotSummariesCache[snapshot.id]?.conversionStatus ?? .notNeeded,
+        nativeCurrencyTotals: snapshotSummariesCache[snapshot.id]?.nativeCurrencyTotals ?? [:]
       )
     }
   }
@@ -499,7 +599,23 @@ class DashboardViewModel {
     let currency =
       cachedDisplayCurrency ?? SettingsService.shared.mainCurrency
     return CurrencyConversionService.totalValue(
-      for: snapshot, displayCurrency: currency, exchangeRate: snapshot.exchangeRate)
+      for: snapshot, displayCurrency: currency, exchangeRate: snapshot.exchangeRate) ?? 0
+  }
+
+  func conversionStatus(for snapshot: Snapshot) -> CurrencyConversionStatus {
+    CurrencyConversionService.status(
+      for: snapshot,
+      displayCurrency: cachedDisplayCurrency ?? SettingsService.shared.mainCurrency,
+      exchangeRate: snapshot.exchangeRate
+    )
+  }
+
+  func assetConversionStatus(for snapshot: Snapshot) -> CurrencyConversionStatus {
+    CurrencyConversionService.totalValueReport(
+      for: snapshot,
+      displayCurrency: cachedDisplayCurrency ?? SettingsService.shared.mainCurrency,
+      exchangeRate: snapshot.exchangeRate
+    ).status
   }
 
   /// Computes Modified Dietz returns for each consecutive pair of snapshots.
@@ -509,6 +625,13 @@ class DashboardViewModel {
     for idx in 1..<sortedSnapshots.count {
       let begin = sortedSnapshots[idx - 1]
       let end = sortedSnapshots[idx]
+
+      guard conversionStatus(for: begin).isComplete,
+        conversionStatus(for: end).isComplete
+      else {
+        returns.append(nil)
+        continue
+      }
 
       let beginValue = snapshotTotal(for: begin)
       let endValue = snapshotTotal(for: end)
@@ -527,8 +650,13 @@ class DashboardViewModel {
       let displayCurrency =
         cachedDisplayCurrency ?? SettingsService.shared.mainCurrency
       var cashFlows: [(amount: Decimal, daysSinceStart: Int)] = []
-      let netCashFlow = CurrencyConversionService.netCashFlow(
-        for: end, displayCurrency: displayCurrency, exchangeRate: end.exchangeRate)
+      guard
+        let netCashFlow = CurrencyConversionService.netCashFlow(
+          for: end, displayCurrency: displayCurrency, exchangeRate: end.exchangeRate)
+      else {
+        returns.append(nil)
+        continue
+      }
       if netCashFlow != 0 {
         cashFlows.append((amount: netCashFlow, daysSinceStart: totalDays))
       }

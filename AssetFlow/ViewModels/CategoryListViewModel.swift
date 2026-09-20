@@ -44,6 +44,7 @@ final class CategoryListViewModel {
   var categoryRows: [CategoryRowData] = []
   var targetAllocationSumWarning: String?
   var hasSignificantDeviation = false
+  var conversionStatus: CurrencyConversionStatus = .notNeeded
 
   init(modelContext: ModelContext, settingsService: SettingsService? = nil) {
     self.modelContext = modelContext
@@ -70,6 +71,14 @@ final class CategoryListViewModel {
   private func performLoadCategories() {
     let allCategories = fetchAllCategories()
     let latestSnapshot = SnapshotSummaryService.fetchLatestSnapshot(modelContext: modelContext)
+    conversionStatus =
+      latestSnapshot.map {
+        CurrencyConversionService.totalValueReport(
+          for: $0,
+          displayCurrency: settingsService.mainCurrency,
+          exchangeRate: $0.exchangeRate
+        ).status
+      } ?? .notNeeded
 
     // Build latest value lookup grouped by category
     let categoryValues = buildCategoryValueLookup(
@@ -85,8 +94,10 @@ final class CategoryListViewModel {
         let value = categoryValues[category.id] ?? 0
         let allocation: Decimal? =
           hasSnapshots
-          ? CalculationService.categoryAllocation(
-            categoryValue: value, totalValue: totalValue)
+          ? conversionStatus.isComplete
+            ? CalculationService.categoryAllocation(
+              categoryValue: value, totalValue: totalValue)
+            : nil
           : nil
         return CategoryRowData(
           category: category,
@@ -248,6 +259,13 @@ final class CategoryListViewModel {
     let displayCurrency = settingsService.mainCurrency
     let exchangeRate = latestSnapshot.exchangeRate
 
+    let report = CurrencyConversionService.totalValueReport(
+      for: latestSnapshot,
+      displayCurrency: displayCurrency,
+      exchangeRate: exchangeRate
+    )
+    guard report.status.isComplete else { return [:] }
+
     var lookup: [UUID: Decimal] = [:]
     for sav in assetValues {
       guard let asset = sav.asset, let categoryID = asset.category?.id else { continue }
@@ -257,8 +275,9 @@ final class CategoryListViewModel {
         value: sav.marketValue,
         from: effectiveCurrency,
         to: displayCurrency,
-        using: exchangeRate)
-      lookup[categoryID, default: 0] += converted
+        using: exchangeRate,
+        forSnapshotDate: latestSnapshot.date)
+      lookup[categoryID, default: 0] += converted ?? 0
     }
     return lookup
   }

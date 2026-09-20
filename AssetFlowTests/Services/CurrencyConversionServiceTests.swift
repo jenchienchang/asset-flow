@@ -38,10 +38,11 @@ struct CurrencyConversionServiceTests {
 
   private func makeExchangeRate(
     base: String = "usd",
-    rates: [String: Double]
+    rates: [String: Double],
+    fetchDate: Date = Date()
   ) throws -> ExchangeRate {
     let ratesJSON = try JSONEncoder().encode(rates)
-    return ExchangeRate(baseCurrency: base, ratesJSON: ratesJSON, fetchDate: Date())
+    return ExchangeRate(baseCurrency: base, ratesJSON: ratesJSON, fetchDate: fetchDate)
   }
 
   // MARK: - Convert Tests
@@ -50,22 +51,179 @@ struct CurrencyConversionServiceTests {
   func testConvertSameCurrency() throws {
     let er = try makeExchangeRate(rates: ["twd": 31.5])
     let result = CurrencyConversionService.convert(
-      value: Decimal(100), from: "usd", to: "usd", using: er)
+      value: Decimal(100),
+      from: "usd",
+      to: "usd",
+      using: er,
+      forSnapshotDate: er.fetchDate
+    )
     #expect(result == Decimal(100))
   }
 
-  @Test("Convert with nil exchange rate returns original value")
+  @Test("Convert with nil exchange rate is unavailable")
   func testConvertWithNilExchangeRate() {
     let result = CurrencyConversionService.convert(
-      value: Decimal(100), from: "usd", to: "twd", using: nil)
-    #expect(result == Decimal(100))
+      value: Decimal(100),
+      from: "usd",
+      to: "twd",
+      using: nil,
+      forSnapshotDate: Date()
+    )
+    #expect(result == nil)
+  }
+
+  @Test("Incomplete total reports native totals and no converted total")
+  func testIncompleteTotalReportsNativeTotals() throws {
+    let tc = createTestContext()
+    let snapshot = Snapshot(date: Date())
+    tc.context.insert(snapshot)
+
+    let assetUSD = Asset(name: "US Stock")
+    assetUSD.currency = "usd"
+    tc.context.insert(assetUSD)
+
+    let assetEUR = Asset(name: "EU Stock")
+    assetEUR.currency = "eur"
+    tc.context.insert(assetEUR)
+
+    let usdValue = SnapshotAssetValue(marketValue: Decimal(1000))
+    usdValue.snapshot = snapshot
+    usdValue.asset = assetUSD
+    tc.context.insert(usdValue)
+
+    let eurValue = SnapshotAssetValue(marketValue: Decimal(850))
+    eurValue.snapshot = snapshot
+    eurValue.asset = assetEUR
+    tc.context.insert(eurValue)
+
+    let report = CurrencyConversionService.totalValueReport(
+      for: snapshot,
+      displayCurrency: "usd",
+      exchangeRate: nil
+    )
+
+    #expect(report.convertedTotal == nil)
+    #expect(report.nativeTotals["usd"] == Decimal(1000))
+    #expect(report.nativeTotals["eur"] == Decimal(850))
+    #expect(report.status == .missingRates(["eur"]))
+  }
+
+  @Test("Complete total reports one converted display-currency value")
+  func testCompleteTotalReportsConvertedValue() throws {
+    let tc = createTestContext()
+    let snapshot = Snapshot(date: Date())
+    tc.context.insert(snapshot)
+
+    let assetEUR = Asset(name: "EU Stock")
+    assetEUR.currency = "eur"
+    tc.context.insert(assetEUR)
+
+    let eurValue = SnapshotAssetValue(marketValue: Decimal(850))
+    eurValue.snapshot = snapshot
+    eurValue.asset = assetEUR
+    tc.context.insert(eurValue)
+
+    let ratesJSON = try JSONEncoder().encode(["eur": 0.85])
+    let exchangeRate = ExchangeRate(
+      baseCurrency: "usd",
+      ratesJSON: ratesJSON,
+      fetchDate: snapshot.date
+    )
+
+    let report = CurrencyConversionService.totalValueReport(
+      for: snapshot,
+      displayCurrency: "usd",
+      exchangeRate: exchangeRate
+    )
+
+    #expect(report.convertedTotal == Decimal(1000))
+    #expect(report.status == .applied)
+  }
+
+  @Test("Wrong-date exchange rates are unavailable for historical conversion")
+  func testWrongDateExchangeRateIsUnavailable() throws {
+    let tc = createTestContext()
+    let snapshot = Snapshot(date: Date())
+    tc.context.insert(snapshot)
+
+    let asset = Asset(name: "EU Stock")
+    asset.currency = "eur"
+    tc.context.insert(asset)
+
+    let value = SnapshotAssetValue(marketValue: Decimal(850))
+    value.snapshot = snapshot
+    value.asset = asset
+    tc.context.insert(value)
+
+    let ratesJSON = try JSONEncoder().encode(["eur": 0.85])
+    let exchangeRate = ExchangeRate(
+      baseCurrency: "usd",
+      ratesJSON: ratesJSON,
+      fetchDate: Date(timeIntervalSince1970: 0)
+    )
+
+    let report = CurrencyConversionService.totalValueReport(
+      for: snapshot,
+      displayCurrency: "usd",
+      exchangeRate: exchangeRate
+    )
+
+    #expect(report.convertedTotal == nil)
+    #expect(report.status == .missingRates(["eur"]))
+    #expect(
+      CurrencyConversionService.convert(
+        value: Decimal(850),
+        from: "eur",
+        to: "usd",
+        using: exchangeRate,
+        forSnapshotDate: snapshot.date
+      ) == nil
+    )
+    #expect(
+      !CurrencyConversionService.canConvert(
+        from: "eur",
+        to: "usd",
+        using: exchangeRate,
+        forSnapshotDate: snapshot.date
+      )
+    )
+  }
+
+  @Test("Mismatched exchange-rate base is unavailable")
+  func testMismatchedExchangeRateBaseIsUnavailable() throws {
+    let tc = createTestContext()
+    let snapshot = Snapshot(date: Date())
+    tc.context.insert(snapshot)
+
+    let asset = Asset(name: "EU Stock")
+    asset.currency = "eur"
+    tc.context.insert(asset)
+    let value = SnapshotAssetValue(marketValue: Decimal(850))
+    value.snapshot = snapshot
+    value.asset = asset
+    tc.context.insert(value)
+
+    let exchangeRate = try makeExchangeRate(base: "eur", rates: ["usd": 1.08])
+    let report = CurrencyConversionService.totalValueReport(
+      for: snapshot,
+      displayCurrency: "usd",
+      exchangeRate: exchangeRate
+    )
+
+    #expect(report.convertedTotal == nil)
+    #expect(report.status == .missingRates(["eur"]))
   }
 
   @Test("Convert base to target currency")
   func testConvertBaseToTarget() throws {
     let er = try makeExchangeRate(rates: ["twd": 31.5])
     let result = CurrencyConversionService.convert(
-      value: Decimal(100), from: "usd", to: "twd", using: er)
+      value: Decimal(100),
+      from: "usd",
+      to: "twd",
+      using: er,
+      forSnapshotDate: er.fetchDate
+    )
     #expect(result == Decimal(3150))
   }
 
@@ -73,7 +231,12 @@ struct CurrencyConversionServiceTests {
   func testConvertTargetToBase() throws {
     let er = try makeExchangeRate(rates: ["twd": 31.5])
     let result = CurrencyConversionService.convert(
-      value: Decimal(3150), from: "twd", to: "usd", using: er)
+      value: Decimal(3150),
+      from: "twd",
+      to: "usd",
+      using: er,
+      forSnapshotDate: er.fetchDate
+    )
     #expect(result == Decimal(100))
   }
 
@@ -204,7 +367,7 @@ struct CurrencyConversionServiceTests {
     let values = CurrencyConversionService.categoryValues(
       for: snapshot, displayCurrency: "usd", exchangeRate: er)
 
-    #expect(values["Stocks"] == Decimal(2000))
+    #expect(values?["Stocks"] == Decimal(2000))
   }
 
   // MARK: - canConvert Tests
@@ -212,18 +375,30 @@ struct CurrencyConversionServiceTests {
   @Test("canConvert returns true when rates available")
   func testCanConvertAvailable() throws {
     let er = try makeExchangeRate(rates: ["twd": 31.5, "eur": 0.92])
-    #expect(CurrencyConversionService.canConvert(from: "usd", to: "twd", using: er))
-    #expect(CurrencyConversionService.canConvert(from: "eur", to: "twd", using: er))
+    #expect(
+      CurrencyConversionService.canConvert(
+        from: "usd", to: "twd", using: er, forSnapshotDate: er.fetchDate)
+    )
+    #expect(
+      CurrencyConversionService.canConvert(
+        from: "eur", to: "twd", using: er, forSnapshotDate: er.fetchDate)
+    )
   }
 
   @Test("canConvert returns false when rate missing")
   func testCanConvertMissing() throws {
     let er = try makeExchangeRate(rates: ["twd": 31.5])
-    #expect(!CurrencyConversionService.canConvert(from: "usd", to: "gbp", using: er))
+    #expect(
+      !CurrencyConversionService.canConvert(
+        from: "usd", to: "gbp", using: er, forSnapshotDate: er.fetchDate)
+    )
   }
 
   @Test("canConvert returns false with nil exchange rate")
   func testCanConvertNilExchangeRate() {
-    #expect(!CurrencyConversionService.canConvert(from: "usd", to: "twd", using: nil))
+    #expect(
+      !CurrencyConversionService.canConvert(
+        from: "usd", to: "twd", using: nil, forSnapshotDate: Date())
+    )
   }
 }

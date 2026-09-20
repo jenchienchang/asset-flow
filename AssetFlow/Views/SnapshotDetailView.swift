@@ -51,7 +51,7 @@ struct SnapshotDetailView: View {
       summarySection
       assetBreakdownSection
       categoryAllocationSection
-      if viewModel.exchangeRate != nil && !viewModel.usedCurrencyRates.isEmpty {
+      if !viewModel.usedCurrencyCodes.isEmpty {
         exchangeRateSection
       }
       cashFlowSection
@@ -106,16 +106,40 @@ struct SnapshotDetailView: View {
 
   private var summarySection: some View {
     Section {
-      LabeledContent("Total Value") {
-        Text(viewModel.totalValue.formatted(currency: SettingsService.shared.mainCurrency))
-          .monospacedDigit()
+      if viewModel.totalConversionStatus.isComplete {
+        LabeledContent("Total Value") {
+          Text(viewModel.totalValue.formatted(currency: SettingsService.shared.mainCurrency))
+            .monospacedDigit()
+        }
+      } else {
+        nativeCurrencyTotalsView(
+          title: "Portfolio Values",
+          totals: viewModel.nativeCurrencyTotals
+        )
       }
 
-      LabeledContent("Net Cash Flow") {
-        HStack(spacing: 4) {
-          Text(viewModel.netCashFlow.formatted(currency: SettingsService.shared.mainCurrency))
-            .monospacedDigit()
-          Text("(\(viewModel.cashFlowOperations.count) operations)")
+      if viewModel.cashFlowConversionStatus.isComplete {
+        LabeledContent("Net Cash Flow") {
+          HStack(spacing: 4) {
+            Text(viewModel.netCashFlow.formatted(currency: SettingsService.shared.mainCurrency))
+              .monospacedDigit()
+            Text("(\(viewModel.cashFlowOperations.count) operations)")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+      } else if !viewModel.nativeCashFlowTotals.isEmpty {
+        nativeCurrencyTotalsView(
+          title: "Cash Flow Totals",
+          totals: viewModel.nativeCashFlowTotals
+        )
+      }
+
+      if let message = viewModel.conversionStatus.unavailableMessage {
+        HStack(spacing: 8) {
+          Image(systemName: "exclamationmark.triangle.fill")
+            .foregroundStyle(.orange)
+          Text(message)
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -151,6 +175,23 @@ struct SnapshotDetailView: View {
     }
     .animation(AnimationConstants.standard, value: viewModel.isFetchingRates)
     .animation(AnimationConstants.standard, value: viewModel.ratesFetchError)
+  }
+
+  private func nativeCurrencyTotalsView(
+    title: LocalizedStringKey,
+    totals: [(code: String, value: Decimal)]
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(title)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      ForEach(totals, id: \.code) { total in
+        LabeledContent(total.code.uppercased()) {
+          Text(total.value.formatted(currency: total.code))
+            .monospacedDigit()
+        }
+      }
+    }
   }
 
   // MARK: - Asset Breakdown Section
@@ -230,8 +271,8 @@ struct SnapshotDetailView: View {
         if isDifferentCurrency, let exchangeRate = viewModel.exchangeRate {
           let converted = CurrencyConversionService.convert(
             value: sav.marketValue, from: assetCurrency, to: displayCurrency,
-            using: exchangeRate)
-          if converted != sav.marketValue {
+            using: exchangeRate, forSnapshotDate: viewModel.snapshot.date)
+          if let converted, converted != sav.marketValue {
             Text("\u{2248} \(converted.formatted(currency: displayCurrency))")
               .font(.caption)
               .foregroundStyle(.secondary)
@@ -295,6 +336,7 @@ struct SnapshotDetailView: View {
     } header: {
       Text("Category Allocation")
     }
+    .conversionUnavailable(viewModel.totalConversionStatus.unavailableMessage)
   }
 
   // MARK: - Exchange Rate Section
@@ -303,11 +345,20 @@ struct SnapshotDetailView: View {
     Section {
       let baseCurrency = SettingsService.shared.mainCurrency
 
-      ForEach(viewModel.usedCurrencyRates, id: \.code) { entry in
-        LabeledContent(entry.code.uppercased()) {
-          Text("1 \(entry.code.uppercased()) = \(entry.rate) \(baseCurrency.uppercased())")
-            .monospacedDigit()
+      ForEach(viewModel.usedCurrencyCodes, id: \.self) { code in
+        LabeledContent(code.uppercased()) {
+          if let entry = viewModel.usedCurrencyRates.first(where: { $0.code == code }) {
+            Text("1 \(code.uppercased()) = \(entry.rate) \(baseCurrency.uppercased())")
+              .monospacedDigit()
+          } else {
+            Text("Unavailable")
+              .foregroundStyle(.orange)
+          }
         }
+      }
+
+      if let fetchDate = viewModel.exchangeRate?.fetchDate {
+        LabeledContent("Rate Date", value: fetchDate.settingsFormatted())
       }
     } header: {
       HStack {
@@ -331,15 +382,27 @@ struct SnapshotDetailView: View {
       } else {
         ForEach(operations) { operation in
           let direction = operation.amount < 0 ? "outflow" : "inflow"
-          let formatted = operation.amount.formatted(currency: SettingsService.shared.mainCurrency)
+          let currency =
+            operation.currency.isEmpty
+            ? SettingsService.shared.mainCurrency : operation.currency
+          let formatted = operation.amount.formatted(currency: currency)
           HStack {
             Text(operation.cashFlowDescription)
               .font(.body)
             Spacer()
-            Text(formatted)
-              .font(.body)
-              .monospacedDigit()
-              .foregroundStyle(operation.amount < 0 ? .red : .primary)
+            HStack(spacing: 4) {
+              if currency.lowercased() != SettingsService.shared.mainCurrency.lowercased() {
+                Text(currency.uppercased())
+                  .font(.caption2)
+                  .padding(.horizontal, 4)
+                  .padding(.vertical, 1)
+                  .background(.quaternary, in: Capsule())
+              }
+              Text(formatted)
+                .font(.body)
+                .monospacedDigit()
+                .foregroundStyle(operation.amount < 0 ? .red : .primary)
+            }
           }
           .accessibilityLabel("\(operation.cashFlowDescription), \(direction), \(formatted)")
           .contextMenu {
@@ -372,10 +435,12 @@ struct SnapshotDetailView: View {
           }
         }
 
-        LabeledContent("Net Cash Flow") {
-          Text(viewModel.netCashFlow.formatted(currency: SettingsService.shared.mainCurrency))
-            .monospacedDigit()
-            .fontWeight(.semibold)
+        if viewModel.cashFlowConversionStatus.isComplete {
+          LabeledContent("Net Cash Flow") {
+            Text(viewModel.netCashFlow.formatted(currency: SettingsService.shared.mainCurrency))
+              .monospacedDigit()
+              .fontWeight(.semibold)
+          }
         }
       }
     } header: {
@@ -406,6 +471,46 @@ struct SnapshotDetailView: View {
     }
   }
 
+}
+
+/// Preserves a metric or chart's layout while clearly obscuring unavailable
+/// currency-dependent data.
+struct CurrencyConversionUnavailableOverlay: ViewModifier {
+  let message: String
+
+  func body(content: Content) -> some View {
+    content
+      .blur(radius: 4)
+      .overlay {
+        RoundedRectangle(cornerRadius: ChartConstants.cardCornerRadius)
+          .fill(.regularMaterial.opacity(0.94))
+          .overlay {
+            VStack(spacing: 8) {
+              Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+              Text(message)
+                .font(.callout.weight(.medium))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.primary)
+                .padding(.horizontal)
+            }
+            .padding()
+          }
+      }
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel(message)
+  }
+}
+
+extension View {
+  @ViewBuilder
+  func conversionUnavailable(_ message: String?) -> some View {
+    if let message {
+      modifier(CurrencyConversionUnavailableOverlay(message: message))
+    } else {
+      self
+    }
+  }
 }
 
 // MARK: - Previews

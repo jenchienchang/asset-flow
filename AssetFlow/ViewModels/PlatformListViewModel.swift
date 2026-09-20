@@ -38,6 +38,7 @@ final class PlatformListViewModel {
   private let settingsService: SettingsService
 
   var platformRows: [PlatformRowData] = []
+  var conversionStatus: CurrencyConversionStatus = .notNeeded
 
   init(modelContext: ModelContext, settingsService: SettingsService? = nil) {
     self.modelContext = modelContext
@@ -71,8 +72,16 @@ final class PlatformListViewModel {
     )
 
     // Build platform → total value lookup from latest snapshot
-    let platformValues = buildPlatformValueLookup(
-      latestSnapshot: SnapshotSummaryService.fetchLatestSnapshot(modelContext: modelContext))
+    let latestSnapshot = SnapshotSummaryService.fetchLatestSnapshot(modelContext: modelContext)
+    conversionStatus =
+      latestSnapshot.map {
+        CurrencyConversionService.totalValueReport(
+          for: $0,
+          displayCurrency: settingsService.mainCurrency,
+          exchangeRate: $0.exchangeRate
+        ).status
+      } ?? .notNeeded
+    let platformValues = buildPlatformValueLookup(latestSnapshot: latestSnapshot)
 
     let rows =
       assetsByPlatform.map { platform, assets in
@@ -194,6 +203,13 @@ final class PlatformListViewModel {
     let displayCurrency = settingsService.mainCurrency
     let exchangeRate = latestSnapshot.exchangeRate
 
+    let report = CurrencyConversionService.totalValueReport(
+      for: latestSnapshot,
+      displayCurrency: displayCurrency,
+      exchangeRate: exchangeRate
+    )
+    guard report.status.isComplete else { return [:] }
+
     var lookup: [String: Decimal] = [:]
     for sav in assetValues {
       guard let asset = sav.asset, !asset.platform.isEmpty else { continue }
@@ -203,8 +219,9 @@ final class PlatformListViewModel {
         value: sav.marketValue,
         from: effectiveCurrency,
         to: displayCurrency,
-        using: exchangeRate)
-      lookup[asset.platform, default: 0] += converted
+        using: exchangeRate,
+        forSnapshotDate: latestSnapshot.date)
+      lookup[asset.platform, default: 0] += converted ?? 0
     }
     return lookup
   }

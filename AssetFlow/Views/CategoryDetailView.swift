@@ -152,6 +152,7 @@ struct CategoryDetailView: View {
     } header: {
       Text("Value History")
     }
+    .conversionUnavailable(viewModel.conversionStatus.unavailableMessage)
   }
 
   // MARK: - Allocation History Section
@@ -171,6 +172,7 @@ struct CategoryDetailView: View {
           .foregroundStyle(.secondary)
       }
     }
+    .conversionUnavailable(viewModel.conversionStatus.unavailableMessage)
   }
 
   // MARK: - Delete Section

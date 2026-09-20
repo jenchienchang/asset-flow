@@ -52,6 +52,7 @@ final class PlatformDetailViewModel {
 
   /// Platform total value per snapshot across all snapshots.
   var valueHistory: [PlatformValueHistoryEntry] = []
+  var conversionStatus: CurrencyConversionStatus = .notNeeded
   private var summaries: [SnapshotSummary] = []
 
   init(platformName: String, modelContext: ModelContext, settingsService: SettingsService? = nil) {
@@ -82,6 +83,8 @@ final class PlatformDetailViewModel {
     summaries = SnapshotSummaryService.makeSummaries(
       for: allSnapshots,
       displayCurrency: settingsService.mainCurrency)
+    conversionStatus = CurrencyConversionStatus.merged(
+      summaries.map(\.conversionStatus))
 
     loadAssets(allSnapshots: allSnapshots)
     loadHistory()
@@ -148,6 +151,7 @@ final class PlatformDetailViewModel {
 
     let displayCurrency = settingsService.mainCurrency
     let latestExchangeRate = allSnapshots.last?.exchangeRate
+    let latestSnapshotDate = allSnapshots.last?.date
 
     assets =
       platformAssets.map { asset in
@@ -155,12 +159,15 @@ final class PlatformDetailViewModel {
         let assetCurrency = asset.currency
         let effectiveCurrency = assetCurrency.isEmpty ? displayCurrency : assetCurrency
         let converted: Decimal? =
-          if let value, effectiveCurrency != displayCurrency {
+          if let value, let snapshotDate = latestSnapshotDate,
+            effectiveCurrency != displayCurrency
+          {
             CurrencyConversionService.convert(
               value: value,
               from: effectiveCurrency,
               to: displayCurrency,
-              using: latestExchangeRate)
+              using: latestExchangeRate,
+              forSnapshotDate: snapshotDate)
           } else {
             nil
           }
@@ -173,9 +180,12 @@ final class PlatformDetailViewModel {
       .sorted {
         $0.asset.name.localizedCaseInsensitiveCompare($1.asset.name) == .orderedAscending
       }
-    totalValue = assets.reduce(Decimal(0)) { sum, row in
-      sum + (row.convertedValue ?? row.latestValue ?? 0)
-    }
+    totalValue =
+      conversionStatus.isComplete
+      ? assets.reduce(Decimal(0)) { sum, row in
+        sum + (row.convertedValue ?? row.latestValue ?? 0)
+      }
+      : 0
   }
 
   /// Computes value history across all snapshots for this platform.

@@ -497,6 +497,16 @@
         }
       }
     },
+    "Not available due to missing exchange rates: %@." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "因缺少匯率而無法使用：%@。"
+          }
+        }
+      }
+    },
     "Invalid headers in %@. Expected: %@. Got: %@." : {
       "localizations" : {
         "en" : {
@@ -559,6 +569,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網路無法使用，無法取得匯率資料。"
+          }
+        }
+      }
+    },
+    "Affected snapshots: %@." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "受影響的快照：%@。"
+          }
+        }
+      }
+    },
+    "Some exchange rates are unavailable." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分匯率無法使用。"
           }
         }
       }

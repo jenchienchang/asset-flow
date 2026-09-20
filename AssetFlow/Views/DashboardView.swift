@@ -119,11 +119,20 @@ struct DashboardView: View {
   private var summaryCardsRow: some View {
     VStack(spacing: 12) {
       // Hero card: Total Portfolio Value
-      HeroMetricCard(
-        title: "Total Portfolio Value",
-        value: viewModel.totalPortfolioValue.formatted(
-          currency: SettingsService.shared.mainCurrency)
-      )
+      if viewModel.latestConversionStatus.isComplete {
+        HeroMetricCard(
+          title: "Total Portfolio Value",
+          value: viewModel.totalPortfolioValue.formatted(
+            currency: SettingsService.shared.mainCurrency)
+        )
+      } else {
+        NativeTotalsMetricCard(
+          title: "Total Portfolio Value",
+          totals: viewModel.latestNativeCurrencyTotals,
+          message: viewModel.latestConversionStatus.unavailableMessage
+            ?? String(localized: "Some exchange rates are unavailable.", table: "Services")
+        )
+      }
 
       // Secondary metrics grid
       HStack(spacing: 12) {
@@ -147,6 +156,7 @@ struct DashboardView: View {
           helpText:
             "Time-weighted return measures pure investment performance by removing the effect of external cash flows (deposits and withdrawals)."
         )
+        .conversionUnavailable(dashboardConversionMessage)
 
         MetricCard(
           title: "CAGR",
@@ -155,8 +165,35 @@ struct DashboardView: View {
           helpText:
             "CAGR is the annualized rate at which the portfolio's total value has grown since inception, including the effect of deposits and withdrawals."
         )
+        .conversionUnavailable(assetConversionMessage)
       }
     }
+  }
+
+  private var dashboardConversionMessage: String? {
+    guard let message = viewModel.conversionStatus.unavailableMessage else { return nil }
+    guard !viewModel.conversionIssueDates.isEmpty else { return message }
+    let dates = viewModel.conversionIssueDates
+      .map { $0.settingsFormatted() }
+      .joined(separator: ", ")
+    let affectedSnapshots = String(
+      localized: "Affected snapshots: \(dates).",
+      table: "Services"
+    )
+    return "\(message) \(affectedSnapshots)"
+  }
+
+  private var assetConversionMessage: String? {
+    guard let message = viewModel.assetConversionStatus.unavailableMessage else { return nil }
+    guard !viewModel.assetConversionIssueDates.isEmpty else { return message }
+    let dates = viewModel.assetConversionIssueDates
+      .map { $0.settingsFormatted() }
+      .joined(separator: ", ")
+    let affectedSnapshots = String(
+      localized: "Affected snapshots: \(dates).",
+      table: "Services"
+    )
+    return "\(message) \(affectedSnapshots)"
   }
 
   private func rateColor(for value: Decimal?) -> Color {
@@ -218,6 +255,7 @@ struct DashboardView: View {
         )
       )
       .animation(AnimationConstants.numericText, value: growthRatePeriod)
+      .conversionUnavailable(assetConversionMessage)
 
       // Return Rate card
       HStack {
@@ -260,6 +298,7 @@ struct DashboardView: View {
         )
       )
       .animation(AnimationConstants.numericText, value: returnRatePeriod)
+      .conversionUnavailable(dashboardConversionMessage)
     }
   }
 
@@ -284,6 +323,13 @@ struct DashboardView: View {
     return viewModel.categoryAllocations
   }
 
+  private var pieChartConversionStatus: CurrencyConversionStatus {
+    if let selectedDate = pieChartSelectedDate {
+      return viewModel.categoryAllocationConversionStatus(forSnapshotDate: selectedDate)
+    }
+    return viewModel.latestConversionStatus
+  }
+
   private var chartsSection: some View {
     VStack(spacing: 12) {
       // Row 1: Pie chart + Portfolio value line chart
@@ -296,6 +342,7 @@ struct DashboardView: View {
             onNavigateToCategory?(name)
           }
         )
+        .conversionUnavailable(pieChartConversionStatus.unavailableMessage)
 
         PortfolioValueLineChart(
           dataPoints: viewModel.portfolioValueHistory,
@@ -304,6 +351,7 @@ struct DashboardView: View {
             onSelectSnapshot?(date)
           }
         )
+        .conversionUnavailable(assetConversionMessage)
       }
 
       // Row 2: TWR line chart + Category value line chart
@@ -313,11 +361,13 @@ struct DashboardView: View {
           totalSnapshotCount: viewModel.portfolioValueHistory.count,
           timeRange: $twrChartRange
         )
+        .conversionUnavailable(dashboardConversionMessage)
 
         CategoryValueLineChart(
           categoryHistory: viewModel.categoryValueHistory,
           timeRange: $categoryChartRange
         )
+        .conversionUnavailable(assetConversionMessage)
       }
     }
   }
@@ -351,11 +401,24 @@ struct DashboardView: View {
 
               Spacer()
 
-              Text(
-                snapshot.totalValue.formatted(currency: SettingsService.shared.mainCurrency)
-              )
-              .font(.body)
-              .monospacedDigit()
+              if snapshot.conversionStatus.isComplete {
+                Text(
+                  snapshot.totalValue.formatted(currency: SettingsService.shared.mainCurrency)
+                )
+                .font(.body)
+                .monospacedDigit()
+              } else {
+                VStack(alignment: .trailing, spacing: 1) {
+                  ForEach(
+                    snapshot.nativeCurrencyTotals.sorted(by: { $0.key < $1.key }),
+                    id: \.key
+                  ) { code, value in
+                    Text(value.formatted(currency: code))
+                      .font(.caption)
+                      .monospacedDigit()
+                  }
+                }
+              }
 
               Text("\(snapshot.assetCount)")
                 .font(.caption)
@@ -428,6 +491,42 @@ private struct HeroMetricCard: View {
       RoundedRectangle(cornerRadius: ChartConstants.cardCornerRadius)
         .strokeBorder(.tint.opacity(0.15), lineWidth: 1)
     )
+    .accessibilityElement(children: .combine)
+  }
+}
+
+private struct NativeTotalsMetricCard: View {
+  let title: LocalizedStringKey
+  let totals: [String: Decimal]
+  let message: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text(title)
+        .font(.caption)
+        .foregroundStyle(.primary.opacity(0.6))
+
+      HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 2) {
+          ForEach(totals.sorted(by: { $0.key < $1.key }), id: \.key) { code, value in
+            Text(value.formatted(currency: code))
+              .font(.title3.bold())
+              .monospacedDigit()
+          }
+        }
+        Spacer()
+      }
+
+      Label(message, systemImage: "exclamationmark.triangle.fill")
+        .font(.caption)
+        .foregroundStyle(.orange)
+    }
+    .padding()
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(
+      .tint.opacity(0.06), in: RoundedRectangle(cornerRadius: ChartConstants.cardCornerRadius)
+    )
+    .glassCard()
     .accessibilityElement(children: .combine)
   }
 }

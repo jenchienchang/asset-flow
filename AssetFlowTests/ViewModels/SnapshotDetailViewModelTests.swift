@@ -105,6 +105,32 @@ struct SnapshotDetailViewModelTests {
     #expect(viewModel.totalValue == Decimal(65000))
   }
 
+  @Test("Missing rates keep native totals and mark converted total unavailable")
+  func missingRatesKeepNativeTotals() throws {
+    let tc = createSnapshotWithContext()
+    let (context, snapshot) = (tc.context, tc.snapshot)
+    let settings = SettingsService.createForTesting()
+    settings.mainCurrency = "usd"
+
+    let (usdAsset, _) = createAssetWithValue(
+      name: "US Stock", platform: "Broker", marketValue: 1000,
+      snapshot: snapshot, context: context)
+    usdAsset.currency = "usd"
+    let (eurAsset, _) = createAssetWithValue(
+      name: "EU Stock", platform: "Broker", marketValue: 850,
+      snapshot: snapshot, context: context)
+    eurAsset.currency = "eur"
+
+    let viewModel = SnapshotDetailViewModel(
+      snapshot: snapshot, modelContext: context, settingsService: settings)
+    viewModel.loadData()
+
+    #expect(viewModel.totalValue == 0)
+    #expect(viewModel.totalConversionStatus == .missingRates(["eur"]))
+    #expect(viewModel.nativeCurrencyTotals.contains { $0.code == "usd" && $0.value == 1000 })
+    #expect(viewModel.nativeCurrencyTotals.contains { $0.code == "eur" && $0.value == 850 })
+  }
+
   // MARK: - Add Asset: Existing
 
   @Test("Adds existing asset to snapshot with market value")

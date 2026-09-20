@@ -17,30 +17,228 @@
 
 import Foundation
 
+enum CurrencyConversionStatus: Equatable, Sendable {
+  case notNeeded
+  case applied
+  case missingRates([String])
+
+  var missingCurrencies: [String] {
+    if case .missingRates(let currencies) = self {
+      return currencies
+    }
+    return []
+  }
+
+  var isComplete: Bool {
+    switch self {
+    case .notNeeded, .applied:
+      return true
+
+    case .missingRates:
+      return false
+    }
+  }
+
+  static func merged(_ statuses: [CurrencyConversionStatus]) -> CurrencyConversionStatus {
+    let missing = Set(statuses.flatMap(\.missingCurrencies)).sorted()
+    if !missing.isEmpty { return .missingRates(missing) }
+    return statuses.contains(.applied) ? .applied : .notNeeded
+  }
+
+  var unavailableMessage: String? {
+    guard case .missingRates(let currencies) = self else { return nil }
+    let formattedCurrencies = currencies.map { $0.uppercased() }.joined(separator: ", ")
+    return String(
+      localized: "Not available due to missing exchange rates: \(formattedCurrencies).",
+      table: "Services"
+    )
+  }
+}
+
+struct CurrencyConversionReport: Equatable, Sendable {
+  let convertedTotal: Decimal?
+  let nativeTotals: [String: Decimal]
+  let status: CurrencyConversionStatus
+}
+
 /// Stateless service for currency conversion using exchange rates.
 ///
-/// All methods gracefully degrade: if exchange rate is nil or conversion is unavailable,
-/// values are returned unconverted.
+/// Conversion methods return an optional converted value. Callers must preserve native
+/// currency totals and surface `CurrencyConversionStatus` when a required rate is absent.
 enum CurrencyConversionService {
+
+  static func totalValueReport(
+    for snapshot: Snapshot,
+    displayCurrency: String,
+    exchangeRate: ExchangeRate?
+  ) -> CurrencyConversionReport {
+    let display = displayCurrency.lowercased()
+    let assetValues = snapshot.assetValues ?? []
+    var nativeTotals: [String: Decimal] = [:]
+    var requiredCurrencies = Set<String>()
+
+    for assetValue in assetValues {
+      let currency = effectiveCurrency(
+        assetValue.asset?.currency,
+        displayCurrency: display)
+      nativeTotals[currency, default: 0] += assetValue.marketValue
+      if currency != display { requiredCurrencies.insert(currency) }
+    }
+
+    let status = conversionStatus(
+      requiredCurrencies: requiredCurrencies,
+      displayCurrency: display,
+      exchangeRate: exchangeRate,
+      snapshotDate: snapshot.date
+    )
+    guard status.isComplete else {
+      return CurrencyConversionReport(
+        convertedTotal: nil,
+        nativeTotals: nativeTotals,
+        status: status
+      )
+    }
+
+    let convertedTotal = assetValues.reduce(Decimal(0)) { total, assetValue in
+      let currency = effectiveCurrency(
+        assetValue.asset?.currency,
+        displayCurrency: display)
+      let converted =
+        convert(
+          value: assetValue.marketValue,
+          from: currency,
+          to: display,
+          using: exchangeRate,
+          forSnapshotDate: snapshot.date
+        ) ?? 0
+      return total + converted
+    }
+
+    return CurrencyConversionReport(
+      convertedTotal: convertedTotal,
+      nativeTotals: nativeTotals,
+      status: status
+    )
+  }
+
+  static func netCashFlowReport(
+    for snapshot: Snapshot,
+    displayCurrency: String,
+    exchangeRate: ExchangeRate?
+  ) -> CurrencyConversionReport {
+    let display = displayCurrency.lowercased()
+    let operations = snapshot.cashFlowOperations ?? []
+    var nativeTotals: [String: Decimal] = [:]
+    var requiredCurrencies = Set<String>()
+
+    for operation in operations {
+      let currency = effectiveCurrency(operation.currency, displayCurrency: display)
+      nativeTotals[currency, default: 0] += operation.amount
+      if currency != display { requiredCurrencies.insert(currency) }
+    }
+
+    let status = conversionStatus(
+      requiredCurrencies: requiredCurrencies,
+      displayCurrency: display,
+      exchangeRate: exchangeRate,
+      snapshotDate: snapshot.date
+    )
+    guard status.isComplete else {
+      return CurrencyConversionReport(
+        convertedTotal: nil,
+        nativeTotals: nativeTotals,
+        status: status
+      )
+    }
+
+    let convertedTotal = operations.reduce(Decimal(0)) { total, operation in
+      let currency = effectiveCurrency(operation.currency, displayCurrency: display)
+      let converted =
+        convert(
+          value: operation.amount,
+          from: currency,
+          to: display,
+          using: exchangeRate,
+          forSnapshotDate: snapshot.date
+        ) ?? 0
+      return total + converted
+    }
+
+    return CurrencyConversionReport(
+      convertedTotal: convertedTotal,
+      nativeTotals: nativeTotals,
+      status: status
+    )
+  }
+
+  static func status(
+    for snapshot: Snapshot,
+    displayCurrency: String,
+    exchangeRate: ExchangeRate?
+  ) -> CurrencyConversionStatus {
+    CurrencyConversionStatus.merged([
+      totalValueReport(
+        for: snapshot, displayCurrency: displayCurrency, exchangeRate: exchangeRate
+      ).status,
+      netCashFlowReport(
+        for: snapshot, displayCurrency: displayCurrency, exchangeRate: exchangeRate
+      ).status,
+    ])
+  }
+
+  static func nativeTotals(
+    for snapshot: Snapshot,
+    displayCurrency: String
+  ) -> [String: Decimal] {
+    totalValueReport(for: snapshot, displayCurrency: displayCurrency, exchangeRate: nil)
+      .nativeTotals
+  }
+
+  private static func conversionStatus(
+    requiredCurrencies: Set<String>,
+    displayCurrency: String,
+    exchangeRate: ExchangeRate?,
+    snapshotDate: Date
+  ) -> CurrencyConversionStatus {
+    guard !requiredCurrencies.isEmpty else { return .notNeeded }
+    guard let exchangeRate else {
+      return .missingRates(requiredCurrencies.sorted())
+    }
+    guard exchangeRate.baseCurrency.lowercased() == displayCurrency else {
+      return .missingRates(requiredCurrencies.sorted())
+    }
+    guard exchangeRate.matchesDate(snapshotDate) else {
+      return .missingRates(requiredCurrencies.sorted())
+    }
+    let missing = exchangeRate.missingCurrencies(requiredCurrencies)
+    return missing.isEmpty ? .applied : .missingRates(missing)
+  }
+
+  private static func effectiveCurrency(_ currency: String?, displayCurrency: String) -> String {
+    let normalized = currency?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+    return normalized.isEmpty ? displayCurrency : normalized
+  }
 
   /// Converts a value from one currency to another.
   ///
-  /// Returns the original value if:
-  /// - Currencies are the same
-  /// - Exchange rate is nil
-  /// - Rate data is missing for either currency
+  /// Returns nil when a required exchange rate is unavailable.
+  /// The exchange rate must match the date of the snapshot being converted.
   static func convert(
     value: Decimal,
     from: String,
     to: String,
-    using exchangeRate: ExchangeRate?
-  ) -> Decimal {
+    using exchangeRate: ExchangeRate?,
+    forSnapshotDate snapshotDate: Date
+  ) -> Decimal? {
     let fromLower = from.lowercased()
     let toLower = to.lowercased()
 
     guard fromLower != toLower else { return value }
-    guard let exchangeRate else { return value }
-    return exchangeRate.convert(value: value, from: fromLower, to: toLower) ?? value
+    guard let exchangeRate else { return nil }
+    guard exchangeRate.matchesDate(snapshotDate) else {
+      return nil
+    }
+    return exchangeRate.convert(value: value, from: fromLower, to: toLower)
   }
 
   /// Computes total portfolio value for a snapshot, converting each asset's value
@@ -49,19 +247,10 @@ enum CurrencyConversionService {
     for snapshot: Snapshot,
     displayCurrency: String,
     exchangeRate: ExchangeRate?
-  ) -> Decimal {
-    let assetValues = snapshot.assetValues ?? []
-    return assetValues.reduce(Decimal(0)) { sum, sav in
-      let assetCurrency = sav.asset?.currency ?? ""
-      let effectiveCurrency = assetCurrency.isEmpty ? displayCurrency : assetCurrency
-      let converted = convert(
-        value: sav.marketValue,
-        from: effectiveCurrency,
-        to: displayCurrency,
-        using: exchangeRate
-      )
-      return sum + converted
-    }
+  ) -> Decimal? {
+    totalValueReport(
+      for: snapshot, displayCurrency: displayCurrency, exchangeRate: exchangeRate
+    ).convertedTotal
   }
 
   /// Computes net cash flow for a snapshot, converting each operation's amount
@@ -70,18 +259,10 @@ enum CurrencyConversionService {
     for snapshot: Snapshot,
     displayCurrency: String,
     exchangeRate: ExchangeRate?
-  ) -> Decimal {
-    let operations = snapshot.cashFlowOperations ?? []
-    return operations.reduce(Decimal(0)) { sum, op in
-      let opCurrency = op.currency.isEmpty ? displayCurrency : op.currency
-      let converted = convert(
-        value: op.amount,
-        from: opCurrency,
-        to: displayCurrency,
-        using: exchangeRate
-      )
-      return sum + converted
-    }
+  ) -> Decimal? {
+    netCashFlowReport(
+      for: snapshot, displayCurrency: displayCurrency, exchangeRate: exchangeRate
+    ).convertedTotal
   }
 
   /// Groups asset values by category name, converting each to display currency.
@@ -91,23 +272,28 @@ enum CurrencyConversionService {
     for snapshot: Snapshot,
     displayCurrency: String,
     exchangeRate: ExchangeRate?
-  ) -> [String: Decimal] {
+  ) -> [String: Decimal]? {
+    guard
+      totalValueReport(
+        for: snapshot, displayCurrency: displayCurrency, exchangeRate: exchangeRate
+      ).status.isComplete
+    else { return nil }
+
     let assetValues = snapshot.assetValues ?? []
     var result: [String: Decimal] = [:]
-
-    for sav in assetValues {
-      let categoryName = sav.asset?.category?.name ?? ""
-      let assetCurrency = sav.asset?.currency ?? ""
-      let effectiveCurrency = assetCurrency.isEmpty ? displayCurrency : assetCurrency
-      let converted = convert(
-        value: sav.marketValue,
-        from: effectiveCurrency,
-        to: displayCurrency,
-        using: exchangeRate
-      )
-      result[categoryName, default: Decimal(0)] += converted
+    for assetValue in assetValues {
+      let categoryName = assetValue.asset?.category?.name ?? ""
+      let currency = effectiveCurrency(assetValue.asset?.currency, displayCurrency: displayCurrency)
+      let converted =
+        convert(
+          value: assetValue.marketValue,
+          from: currency,
+          to: displayCurrency,
+          using: exchangeRate,
+          forSnapshotDate: snapshot.date
+        ) ?? 0
+      result[categoryName, default: 0] += converted
     }
-
     return result
   }
 
@@ -115,13 +301,17 @@ enum CurrencyConversionService {
   static func canConvert(
     from: String,
     to: String,
-    using exchangeRate: ExchangeRate?
+    using exchangeRate: ExchangeRate?,
+    forSnapshotDate snapshotDate: Date
   ) -> Bool {
     let fromLower = from.lowercased()
     let toLower = to.lowercased()
 
     guard fromLower != toLower else { return true }
     guard let exchangeRate else { return false }
+    guard exchangeRate.matchesDate(snapshotDate) else {
+      return false
+    }
     return exchangeRate.convert(value: Decimal(1), from: fromLower, to: toLower) != nil
   }
 }

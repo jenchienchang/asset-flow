@@ -205,7 +205,7 @@ struct ContentView: View {
       await CurrencyService.shared.loadFromAPI()
       let service = ExchangeRateService()
       let snapshots = (try? modelContext.fetch(FetchDescriptor<Snapshot>())) ?? []
-      await service.fetchMissingRates(
+      _ = await service.fetchMissingRates(
         snapshots: snapshots,
         displayCurrency: SettingsService.shared.mainCurrency,
         modelContext: modelContext

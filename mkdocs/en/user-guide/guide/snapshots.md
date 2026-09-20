@@ -42,9 +42,9 @@ The right side shows the detail view for the selected snapshot.
 
 At the top, you'll see:
 
-- **Total Value** — the sum of all assets in this snapshot. A yellow warning icon appears if the snapshot contains assets with a value of 0
-- **Net Cash Flow** — total deposits minus withdrawals, with the number of operations shown
-- **Exchange Rate Status** — whether rates have been fetched for this snapshot's date
+- **Total Value** — one value in the display currency when every required exchange rate is available. If a rate is missing, totals are shown grouped by their original currencies instead.
+- **Net Cash Flow** — the converted total when rates are complete, or native-currency totals when conversion is unavailable
+- **Exchange Rate Status** — whether all rates required by this snapshot are valid and available
 
 ### Asset Breakdown
 
@@ -55,11 +55,11 @@ A table listing every asset in the snapshot with its market value. For multi-cur
 
 ### Category Allocation
 
-Shows all categories represented in this snapshot, with their values and percentage of the total portfolio.
+Shows all categories represented in this snapshot, with their values and percentage of the total portfolio. If required rates are missing, this section remains visible but is marked unavailable.
 
 ### Exchange Rates
 
-Displays the exchange rates used for currency conversions. Rates are auto-fetched when you create a snapshot. If fetching failed, you'll see a **Retry** button to try again.
+Displays every exchange rate needed for currency conversions. Rates are auto-fetched when you create a snapshot or open a snapshot with incomplete cached data. Missing or invalid rates are shown explicitly, and **Retry** fetches fresh data. The app never labels native values as the display currency when conversion has not succeeded.
 
 ### Cash Flow Operations
 

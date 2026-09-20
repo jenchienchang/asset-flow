@@ -65,6 +65,7 @@ final class CategoryDetailViewModel {
   var assets: [DetailAssetRowData] = []
   var valueHistory: [CategoryValueHistoryEntry] = []
   var allocationHistory: [CategoryAllocationHistoryEntry] = []
+  var conversionStatus: CurrencyConversionStatus = .notNeeded
   private var summaries: [SnapshotSummary] = []
 
   init(category: Category, modelContext: ModelContext, settingsService: SettingsService? = nil) {
@@ -115,6 +116,8 @@ final class CategoryDetailViewModel {
     summaries = SnapshotSummaryService.makeSummaries(
       for: allSnapshots,
       displayCurrency: settingsService.mainCurrency)
+    conversionStatus = CurrencyConversionStatus.merged(
+      summaries.map(\.conversionStatus))
 
     loadAssets(allSnapshots: allSnapshots)
     loadHistory()
@@ -167,6 +170,7 @@ final class CategoryDetailViewModel {
     let categoryAssets = category.assets ?? []
     let displayCurrency = settingsService.mainCurrency
     let latestExchangeRate = allSnapshots.last?.exchangeRate
+    let latestSnapshotDate = allSnapshots.last?.date
 
     // Build latest value lookup from most recent snapshot
     var latestValueLookup: [UUID: Decimal] = [:]
@@ -183,12 +187,15 @@ final class CategoryDetailViewModel {
         let assetCurrency = asset.currency
         let effectiveCurrency = assetCurrency.isEmpty ? displayCurrency : assetCurrency
         let converted: Decimal? =
-          if let value, effectiveCurrency != displayCurrency {
+          if let value, let snapshotDate = latestSnapshotDate,
+            effectiveCurrency != displayCurrency
+          {
             CurrencyConversionService.convert(
               value: value,
               from: effectiveCurrency,
               to: displayCurrency,
-              using: latestExchangeRate)
+              using: latestExchangeRate,
+              forSnapshotDate: snapshotDate)
           } else {
             nil
           }

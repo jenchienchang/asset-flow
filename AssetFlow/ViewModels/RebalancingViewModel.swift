@@ -59,9 +59,11 @@ final class RebalancingViewModel {
   var uncategorizedRow: UncategorizedRowData?
   var summaryTexts: [String] = []
   var totalPortfolioValue: Decimal = 0
+  var conversionStatus: CurrencyConversionStatus = .notNeeded
 
   var isEmpty: Bool {
     suggestions.isEmpty && noTargetRows.isEmpty && uncategorizedRow == nil
+      && conversionStatus.isComplete
   }
 
   init(modelContext: ModelContext) {
@@ -93,22 +95,35 @@ final class RebalancingViewModel {
     uncategorizedRow = nil
     summaryTexts = []
     totalPortfolioValue = 0
+    conversionStatus = .notNeeded
 
     guard
       let latestSnapshot = SnapshotSummaryService.fetchLatestSnapshot(modelContext: modelContext)
     else { return }
 
+    conversionStatus =
+      CurrencyConversionService.totalValueReport(
+        for: latestSnapshot,
+        displayCurrency: SettingsService.shared.mainCurrency,
+        exchangeRate: latestSnapshot.exchangeRate
+      ).status
+
     let displayCurrency = SettingsService.shared.mainCurrency
-    totalPortfolioValue = CurrencyConversionService.totalValue(
-      for: latestSnapshot, displayCurrency: displayCurrency,
-      exchangeRate: latestSnapshot.exchangeRate)
+    guard
+      let totalPortfolioValue = CurrencyConversionService.totalValue(
+        for: latestSnapshot, displayCurrency: displayCurrency,
+        exchangeRate: latestSnapshot.exchangeRate)
+    else { return }
+    self.totalPortfolioValue = totalPortfolioValue
 
     guard totalPortfolioValue > 0 else { return }
 
     // Group values by category with currency conversion
-    let catValues = CurrencyConversionService.categoryValues(
-      for: latestSnapshot, displayCurrency: displayCurrency,
-      exchangeRate: latestSnapshot.exchangeRate)
+    guard
+      let catValues = CurrencyConversionService.categoryValues(
+        for: latestSnapshot, displayCurrency: displayCurrency,
+        exchangeRate: latestSnapshot.exchangeRate)
+    else { return }
 
     var categoryValueLookup: [String: Decimal] = [:]
     var uncategorizedValue: Decimal = 0

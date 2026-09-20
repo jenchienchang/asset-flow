@@ -64,17 +64,28 @@ class SnapshotDetailViewModel {
     settingsService.mainCurrency
   }
 
-  /// Total portfolio value for this snapshot, converted to display currency.
-  var totalValue: Decimal {
-    CurrencyConversionService.totalValue(
-      for: snapshot, displayCurrency: displayCurrency, exchangeRate: exchangeRate)
-  }
+  /// Total portfolio value when every required exchange rate is available.
+  /// The value is zero while conversion is incomplete; the view must use
+  /// `conversionStatus` and `nativeCurrencyTotals` to render that state.
+  var totalValue: Decimal = 0
 
-  /// Net cash flow for this snapshot, converted to display currency.
-  var netCashFlow: Decimal {
-    CurrencyConversionService.netCashFlow(
-      for: snapshot, displayCurrency: displayCurrency, exchangeRate: exchangeRate)
-  }
+  /// Asset totals grouped by their original currency when conversion is incomplete.
+  var nativeCurrencyTotals: [(code: String, value: Decimal)] = []
+
+  /// Net cash flow when every required exchange rate is available.
+  var netCashFlow: Decimal = 0
+
+  /// Cash-flow totals grouped by their original currency when conversion is incomplete.
+  var nativeCashFlowTotals: [(code: String, value: Decimal)] = []
+
+  /// Combined conversion status for asset and cash-flow values in this snapshot.
+  var conversionStatus: CurrencyConversionStatus = .notNeeded
+
+  /// Conversion status for asset totals.
+  var totalConversionStatus: CurrencyConversionStatus = .notNeeded
+
+  /// Conversion status for cash-flow totals.
+  var cashFlowConversionStatus: CurrencyConversionStatus = .notNeeded
 
   /// Asset values sorted by platform (alphabetical), then asset name (alphabetical).
   var sortedAssetValues: [SnapshotAssetValue] = []
@@ -90,6 +101,10 @@ class SnapshotDetailViewModel {
   /// Returns `(code, rate)` pairs where `rate` is the inverse rate (1 foreign = X base),
   /// sorted alphabetically by currency code.
   var usedCurrencyRates: [(code: String, rate: Double)] = []
+
+  /// All foreign currencies used by this snapshot, including currencies whose
+  /// rates are currently unavailable.
+  var usedCurrencyCodes: [String] = []
 
   // MARK: - Load Data
 
@@ -112,9 +127,34 @@ class SnapshotDetailViewModel {
     cashFlowOperations = snapshot.cashFlowOperations ?? []
     exchangeRate = snapshot.exchangeRate
 
+    let totalReport = CurrencyConversionService.totalValueReport(
+      for: snapshot,
+      displayCurrency: displayCurrency,
+      exchangeRate: exchangeRate
+    )
+    let cashFlowReport = CurrencyConversionService.netCashFlowReport(
+      for: snapshot,
+      displayCurrency: displayCurrency,
+      exchangeRate: exchangeRate
+    )
+    totalValue = totalReport.convertedTotal ?? 0
+    totalConversionStatus = totalReport.status
+    nativeCurrencyTotals = totalReport.nativeTotals
+      .sorted { $0.key < $1.key }
+      .map { (code: $0.key, value: $0.value) }
+    netCashFlow = cashFlowReport.convertedTotal ?? 0
+    cashFlowConversionStatus = cashFlowReport.status
+    nativeCashFlowTotals = cashFlowReport.nativeTotals
+      .sorted { $0.key < $1.key }
+      .map { (code: $0.key, value: $0.value) }
+    conversionStatus = CurrencyConversionStatus.merged([
+      totalReport.status,
+      cashFlowReport.status,
+    ])
+
     computeSortedAssetValues()
     computeSortedCashFlowOperations()
-    computeCategoryAllocations()
+    computeCategoryAllocations(totalReport: totalReport)
     computeUsedCurrencyRates()
   }
 
@@ -139,15 +179,20 @@ class SnapshotDetailViewModel {
     }
   }
 
-  private func computeCategoryAllocations() {
+  private func computeCategoryAllocations(totalReport: CurrencyConversionReport) {
     let total = totalValue
-    guard total > 0 else {
+    guard totalReport.status.isComplete, total > 0 else {
       categoryAllocations = []
       return
     }
 
-    let catValues = CurrencyConversionService.categoryValues(
-      for: snapshot, displayCurrency: displayCurrency, exchangeRate: exchangeRate)
+    guard
+      let catValues = CurrencyConversionService.categoryValues(
+        for: snapshot, displayCurrency: displayCurrency, exchangeRate: exchangeRate)
+    else {
+      categoryAllocations = []
+      return
+    }
 
     categoryAllocations =
       catValues.map { name, value in
@@ -162,12 +207,7 @@ class SnapshotDetailViewModel {
   }
 
   private func computeUsedCurrencyRates() {
-    guard let er = exchangeRate else {
-      usedCurrencyRates = []
-      return
-    }
     let display = displayCurrency.lowercased()
-    let rates = er.rates
 
     var usedCodes = Set<String>()
     for sav in assetValues {
@@ -182,9 +222,16 @@ class SnapshotDetailViewModel {
       }
     }
 
+    usedCurrencyCodes = usedCodes.sorted()
+    guard let er = exchangeRate else {
+      usedCurrencyRates = []
+      return
+    }
+    let rates = er.rates
+
     usedCurrencyRates =
       usedCodes.compactMap { code in
-        if let rate = rates[code], rate != 0 {
+        if let rate = rates[code], rate.isFinite, rate > 0 {
           return (code: code, rate: 1.0 / rate)
         }
         return nil
@@ -196,54 +243,36 @@ class SnapshotDetailViewModel {
     guard !isFetchingRates else { return }
 
     if let existing = snapshot.exchangeRate,
-      existing.baseCurrency.lowercased() == displayCurrency.lowercased()
+      CurrencyConversionService.status(
+        for: snapshot,
+        displayCurrency: displayCurrency,
+        exchangeRate: existing
+      ).isComplete
     {
       exchangeRate = existing
       return
     }
 
-    // Check if any assets use a different currency from the display currency
-    let assetValues = snapshot.assetValues ?? []
-    let cashFlows = snapshot.cashFlowOperations ?? []
-    let display = displayCurrency.lowercased()
-
-    let needsConversion =
-      assetValues.contains {
-        let c = $0.asset?.currency ?? ""
-        return !c.isEmpty && c.lowercased() != display
-      }
-      || cashFlows.contains {
-        !$0.currency.isEmpty && $0.currency.lowercased() != display
-      }
-
-    guard needsConversion else { return }
-
     isFetchingRates = true
     ratesFetchError = nil
+    defer { isFetchingRates = false }
 
-    do {
-      let service = ExchangeRateService()
-      let rates = try await service.fetchRates(
-        for: snapshot.date, baseCurrency: display)
-      let ratesJSON = try JSONEncoder().encode(rates)
+    let result = await ExchangeRateService().fetchMissingRates(
+      snapshots: [snapshot], displayCurrency: displayCurrency, modelContext: modelContext
+    ).first
 
-      if let existing = snapshot.exchangeRate {
-        existing.updateRates(baseCurrency: display, ratesJSON: ratesJSON, fetchDate: snapshot.date)
-        exchangeRate = existing
-      } else {
-        let er = ExchangeRate(
-          baseCurrency: display,
-          ratesJSON: ratesJSON,
-          fetchDate: snapshot.date
-        )
-        er.snapshot = snapshot
-        modelContext.insert(er)
-        exchangeRate = er
-      }
-      isFetchingRates = false
-    } catch {
-      ratesFetchError = error.localizedDescription
-      isFetchingRates = false
+    switch result?.status {
+    case .cached, .fetched:
+      exchangeRate = snapshot.exchangeRate
+
+    case .failed(let message):
+      ratesFetchError = message
+
+    case .cancelled:
+      break
+
+    case .notNeeded, .none:
+      break
     }
   }
 

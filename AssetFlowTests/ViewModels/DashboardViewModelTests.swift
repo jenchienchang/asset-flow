@@ -259,8 +259,8 @@ struct DashboardViewModelTests {
     #expect(abs(cagr - Decimal(string: "0.1")!) < Decimal(string: "0.01")!)
   }
 
-  @Test("Cumulative TWR and twrHistory are consistent when a period has nil return")
-  func cumulativeTWRConsistentWithHistoryOnNilPeriods() {
+  @Test("Cumulative TWR is unavailable when a period lacks a return")
+  func cumulativeTWRUnavailableWhenPeriodReturnIsNil() {
     let tc = createTestContext()
 
     // Snapshot 1: zero value — Modified Dietz will return nil for this → next period
@@ -287,13 +287,10 @@ struct DashboardViewModelTests {
     let viewModel = DashboardViewModel(modelContext: tc.context)
     viewModel.loadData()
 
-    // twrHistory treats nil return as 0% (identity), so:
-    //   Period 1 (Jan→Feb): nil → treated as 0%  → cumulative = (1+0) - 1 = 0
-    //   Period 2 (Feb→Mar): 10% → cumulative = (1+0)(1+0.10) - 1 = 0.10
-    // cumulativeTWR should match the last twrHistory point
-    let lastHistoryValue = viewModel.twrHistory.last?.value
-    #expect(lastHistoryValue != nil)
-    #expect(viewModel.cumulativeTWR == lastHistoryValue)
+    // A missing period return must not be silently treated as 0%; the complete
+    // time-weighted return history is unavailable until every period converts.
+    #expect(viewModel.twrHistory.isEmpty)
+    #expect(viewModel.cumulativeTWR == nil)
   }
 
   // MARK: - Period Performance: Growth Rate
@@ -701,6 +698,37 @@ struct DashboardViewModelTests {
 
     let bondAlloc = allocations.first { $0.categoryName == "Bonds" }
     #expect(bondAlloc?.percentage == 40)
+  }
+
+  @Test("historical pie allocation uses the selected snapshot conversion status")
+  func categoryAllocationConversionStatusForHistoricalSnapshot() {
+    let tc = createTestContext()
+
+    let historicalSnapshot = createSnapshot(
+      in: tc.context,
+      date: makeDate(year: 2025, month: 1, day: 1),
+      assets: [("EU Stock", "Broker", 100_000, nil)]
+    )
+    historicalSnapshot.assetValues?.first?.asset?.currency = "eur"
+
+    createSnapshot(
+      in: tc.context,
+      date: makeDate(year: 2025, month: 2, day: 1),
+      assets: [("US Stock", "Broker", 100_000, nil)]
+    )
+
+    let viewModel = DashboardViewModel(modelContext: tc.context)
+    viewModel.loadData()
+
+    #expect(viewModel.latestConversionStatus.isComplete)
+    #expect(
+      viewModel.categoryAllocationConversionStatus(
+        forSnapshotDate: historicalSnapshot.date
+      ) == .missingRates(["eur"])
+    )
+    #expect(
+      viewModel.categoryAllocations(forSnapshotDate: historicalSnapshot.date).isEmpty
+    )
   }
 
   @Test("categoryAllocations(forSnapshotDate:) returns empty for non-existent date")

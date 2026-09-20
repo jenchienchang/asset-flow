@@ -57,7 +57,7 @@ For a given snapshot, the total value is the sum of all directly-stored Snapshot
 total_value(snapshot) = sum(convert(sav.marketValue, from: asset.currency, to: displayCurrency) for each sav)
 ```
 
-If exchange rate data is unavailable (e.g., offline), raw unconverted values are summed as a fallback. This value is always derived, never stored on the Snapshot model.
+If any required exchange rate is unavailable, the converted total is unavailable rather than a mixed-currency sum. Native totals remain available grouped by currency so the user can inspect the underlying values. This value is always derived, never stored on the Snapshot model.
 
 ### Currency Conversion
 
@@ -69,13 +69,15 @@ converted_value = value / rates[from_currency] * rates[to_currency]
 
 Where `rates[baseCurrency]` is implicitly 1.0. Cross-rate conversion is used when neither currency is the base currency.
 
-**Graceful Degradation**: If exchange rate is nil or a currency is missing from rates, the original unconverted value is returned. This ensures the app works offline without crashing. An error banner is shown when rates cannot be fetched.
+**Conversion status**: A conversion is complete only when every non-display currency used by the snapshot has a positive, finite rate in an exchange-rate record whose base currency and Gregorian `fetchDate` match the display currency and snapshot date. Missing, invalid, or wrong-date rates produce an explicit unavailable status; they never silently pass through native values as if they were display-currency values.
 
-**Auto-Fetch Missing Rates**: On app launch and after backup restore, `ExchangeRateService.fetchMissingRates()` scans all snapshots and fetches exchange rates for any that need currency conversion but lack an `ExchangeRate`. This covers snapshots created offline, with failed fetches, or restored from backups (especially v2 backups which lack `exchange_rates.csv`). Fetches run sequentially and silently skip failures.
+When conversion is incomplete, the UI shows native asset and cash-flow totals grouped by currency. Statistics that require a single display-currency series (category allocations, platform totals, growth and return rates, TWR/CAGR, and related graphs) remain in place with an unavailable overlay identifying the missing currencies and affected snapshots.
+
+**Auto-Fetch Missing Rates**: On app launch and after backup restore, `ExchangeRateService.fetchMissingRates()` scans all snapshots and fetches exchange rates for any that need currency conversion but lack a complete usable `ExchangeRate`. This covers snapshots created offline, failed fetches, malformed, incomplete, or wrong-date cached data, and restored backups (especially v2 backups which lack `exchange_rates.csv`). Requests for the same date/base-currency pair are coalesced with caller-aware cancellation, API response dates and currency coverage are validated before caching, and failures are returned to callers instead of being silently treated as successful conversion data.
 
 ### Category Allocation
 
-For each snapshot, asset values are converted to the display currency before computing allocation:
+For each snapshot with complete conversion, asset values are converted to the display currency before computing allocation:
 
 ```
 category_value = sum(convert(market_value, asset.currency, displayCurrency) for assets in category)
@@ -85,6 +87,7 @@ category_percentage = category_value / total_portfolio_value * 100
 - Uncategorized assets appear as a separate "Uncategorized" group
 - A category with no assets has allocation = 0%
 - If all assets are uncategorized, the "Uncategorized" group shows 100% allocation
+- If any required exchange rate is missing, allocation is unavailable rather than calculated from mixed currencies
 
 ### Growth Rate
 

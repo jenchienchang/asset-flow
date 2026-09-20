@@ -100,8 +100,11 @@ Exchange rate data for currency conversion at a specific snapshot date.
 
 **Computed Properties:**
 
-- `rates` - Decoded `[String: Double]` from `ratesJSON`
+- `rates` - Decoded, lowercased `[String: Double]` from `ratesJSON`
+- `missingCurrencies(_:)` / `supportsAll(_:)` - Validate that requested currencies have usable positive finite rates
 - `convert(value:from:to:)` - Cross-rate currency conversion
+
+An exchange-rate record is usable only when its base currency matches the configured display currency and it contains a valid rate for every non-display currency used by the snapshot. Invalid or incomplete records are refreshed before being used.
 
 ## Relationships
 

@@ -40,11 +40,130 @@ enum ExchangeRateError: Error, LocalizedError {
   }
 }
 
+enum ExchangeRateFetchStatus: Equatable, Sendable {
+  case notNeeded
+  case cached
+  case fetched
+  case failed(String)
+  case cancelled
+}
+
+struct ExchangeRateFetchResult: Equatable, Sendable {
+  let snapshotID: UUID
+  let status: ExchangeRateFetchStatus
+}
+
+private actor ExchangeRateRequestCoordinator {
+  private final class CancellationAwareWaiter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<[String: Double], Error>?
+    private var result: Result<[String: Double], Error>?
+
+    func install(_ continuation: CheckedContinuation<[String: Double], Error>) {
+      lock.lock()
+      if let result {
+        lock.unlock()
+        continuation.resume(with: result)
+      } else {
+        self.continuation = continuation
+        lock.unlock()
+      }
+    }
+
+    func complete(_ result: Result<[String: Double], Error>) {
+      lock.lock()
+      let continuation = self.continuation
+      if continuation != nil {
+        self.continuation = nil
+      } else if self.result == nil {
+        self.result = result
+      }
+      lock.unlock()
+
+      continuation?.resume(with: result)
+    }
+
+    func cancel() {
+      complete(.failure(CancellationError()))
+    }
+  }
+
+  private struct InFlightRequest {
+    let task: Task<[String: Double], Error>
+    var waiters: Set<UUID>
+  }
+
+  private var inFlight: [String: InFlightRequest] = [:]
+
+  func fetch(
+    key: String,
+    operation: @escaping @Sendable () async throws -> [String: Double]
+  ) async throws -> [String: Double] {
+    let waiterID = UUID()
+    let task: Task<[String: Double], Error>
+
+    if var request = inFlight[key] {
+      request.waiters.insert(waiterID)
+      task = request.task
+      inFlight[key] = request
+    } else {
+      task = Task { try await operation() }
+      inFlight[key] = InFlightRequest(task: task, waiters: [waiterID])
+    }
+
+    defer {
+      self.release(key: key, waiterID: waiterID)
+    }
+
+    let waiter = CancellationAwareWaiter()
+    return try await withTaskCancellationHandler(
+      operation: {
+        try Task.checkCancellation()
+        let rates: [String: Double] = try await withCheckedThrowingContinuation {
+          (continuation: CheckedContinuation<[String: Double], Error>) in
+          waiter.install(continuation)
+          Task {
+            do {
+              waiter.complete(.success(try await task.value))
+            } catch {
+              waiter.complete(.failure(error))
+            }
+          }
+        }
+        try Task.checkCancellation()
+        return rates
+      },
+      onCancel: {
+        waiter.cancel()
+        Task { await self.cancel(key: key, waiterID: waiterID) }
+      })
+  }
+
+  private func cancel(key: String, waiterID: UUID) {
+    release(key: key, waiterID: waiterID)
+  }
+
+  private func release(key: String, waiterID: UUID) {
+    guard var request = inFlight[key], request.waiters.remove(waiterID) != nil else {
+      return
+    }
+
+    if request.waiters.isEmpty {
+      inFlight[key] = nil
+      request.task.cancel()
+    } else {
+      inFlight[key] = request
+    }
+  }
+}
+
 /// Service for fetching exchange rates from the fawazahmed0 currency API.
 ///
 /// Uses cdn.jsdelivr.net as CDN host. Accepts a `URLSession` for testability.
 final class ExchangeRateService: @unchecked Sendable {
   private let session: URLSession
+  private static let requestCoordinator = ExchangeRateRequestCoordinator()
+  private static let apiTimeZone = TimeZone.current
 
   init(session: URLSession = .shared) {
     self.session = session
@@ -59,12 +178,44 @@ final class ExchangeRateService: @unchecked Sendable {
   /// - Throws: `ExchangeRateError`
   func fetchRates(for date: Date, baseCurrency: String) async throws -> [String: Double] {
     let base = baseCurrency.lowercased()
-    let dateFormatter = DateFormatter()
-    dateFormatter.dateFormat = "yyyy-MM-dd"
-    let dateString = dateFormatter.string(from: date)
+    let dateString = Self.apiDateString(for: date, timeZone: Self.apiTimeZone)
 
+    guard !base.isEmpty else {
+      throw ExchangeRateError.invalidResponse
+    }
+
+    let rates = try await Self.requestCoordinator.fetch(key: "\(dateString)|\(base)") {
+      try await Self.performFetch(
+        session: self.session,
+        dateString: dateString,
+        baseCurrency: base
+      )
+    }
+    try Task.checkCancellation()
+    return rates
+  }
+
+  static func apiDateString(for date: Date, timeZone: TimeZone) -> String {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    let components = calendar.dateComponents([.year, .month, .day], from: date)
+    func padded(_ value: Int, toLength length: Int) -> String {
+      let string = String(value)
+      return String(repeating: "0", count: max(0, length - string.count)) + string
+    }
+    let year = padded(components.year ?? 0, toLength: 4)
+    let month = padded(components.month ?? 0, toLength: 2)
+    let day = padded(components.day ?? 0, toLength: 2)
+    return "\(year)-\(month)-\(day)"
+  }
+
+  private static func performFetch(
+    session: URLSession,
+    dateString: String,
+    baseCurrency: String
+  ) async throws -> [String: Double] {
     let urlString =
-      "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@\(dateString)/v1/currencies/\(base).min.json"
+      "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@\(dateString)/v1/currencies/\(baseCurrency).min.json"
 
     guard let url = URL(string: urlString) else {
       throw ExchangeRateError.invalidResponse
@@ -75,32 +226,51 @@ final class ExchangeRateService: @unchecked Sendable {
     do {
       (data, response) = try await session.data(from: url)
     } catch {
+      if Task.isCancelled || (error as? URLError)?.code == .cancelled {
+        throw CancellationError()
+      }
       throw ExchangeRateError.networkUnavailable
     }
 
-    if let httpResponse = response as? HTTPURLResponse {
-      if httpResponse.statusCode == 404 {
-        throw ExchangeRateError.ratesNotFound
-      }
-      guard (200...299).contains(httpResponse.statusCode) else {
-        throw ExchangeRateError.invalidResponse
-      }
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw ExchangeRateError.invalidResponse
+    }
+    if httpResponse.statusCode == 404 {
+      throw ExchangeRateError.ratesNotFound
+    }
+    guard (200...299).contains(httpResponse.statusCode) else {
+      throw ExchangeRateError.invalidResponse
     }
 
     // Parse JSON: {"date": "...", "{base}": {code: rate, ...}}
     guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let ratesDict = json[base] as? [String: Any]
+      let responseDate = json["date"] as? String,
+      responseDate == dateString,
+      let ratesDict = json[baseCurrency] as? [String: Any]
     else {
       throw ExchangeRateError.invalidResponse
     }
 
     var rates: [String: Double] = [:]
     for (key, value) in ratesDict {
+      let normalizedKey = key.lowercased()
       if let doubleValue = value as? Double {
-        rates[key] = doubleValue
+        guard doubleValue.isFinite, doubleValue > 0 else {
+          throw ExchangeRateError.invalidResponse
+        }
+        rates[normalizedKey] = doubleValue
       } else if let intValue = value as? Int {
-        rates[key] = Double(intValue)
+        guard intValue > 0 else {
+          throw ExchangeRateError.invalidResponse
+        }
+        rates[normalizedKey] = Double(intValue)
+      } else {
+        throw ExchangeRateError.invalidResponse
       }
+    }
+
+    guard !rates.isEmpty else {
+      throw ExchangeRateError.invalidResponse
     }
 
     return rates
@@ -108,9 +278,9 @@ final class ExchangeRateService: @unchecked Sendable {
 
   /// Batch-fetches missing exchange rates for snapshots that need currency conversion.
   ///
-  /// Skips snapshots that already have an `ExchangeRate` or don't need conversion
-  /// (all assets and cash flows use the display currency). Fetches sequentially to
-  /// avoid API hammering. Silently continues on per-snapshot errors.
+  /// Reuses a cached rate only when it has valid data for every currency used by
+  /// the snapshot. Fetches sequentially to avoid API hammering and returns a
+  /// result for every snapshot so callers can surface failures.
   ///
   /// - Parameters:
   ///   - snapshots: The snapshots to check and fetch rates for
@@ -121,43 +291,90 @@ final class ExchangeRateService: @unchecked Sendable {
     snapshots: [Snapshot],
     displayCurrency: String,
     modelContext: ModelContext
-  ) async {
+  ) async -> [ExchangeRateFetchResult] {
     let display = displayCurrency.lowercased()
+    var results: [ExchangeRateFetchResult] = []
 
     for snapshot in snapshots {
-      // Skip if already has an exchange rate
-      if snapshot.exchangeRate != nil {
-        continue
-      }
-
       // Check if any assets or cash flows use a different currency
       let assetValues = snapshot.assetValues ?? []
       let cashFlows = snapshot.cashFlowOperations ?? []
 
-      let needsConversion =
-        assetValues.contains {
-          let c = $0.asset?.currency ?? ""
-          return !c.isEmpty && c.lowercased() != display
+      let requiredCurrencies = Set(
+        assetValues.compactMap { value -> String? in
+          let currency =
+            value.asset?.currency
+            .trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+          return currency.isEmpty || currency == display ? nil : currency
         }
-        || cashFlows.contains {
-          !$0.currency.isEmpty && $0.currency.lowercased() != display
-        }
+          + cashFlows.compactMap { operation -> String? in
+            let currency = operation.currency
+              .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return currency.isEmpty || currency == display ? nil : currency
+          }
+      )
 
-      guard needsConversion else { continue }
+      guard !requiredCurrencies.isEmpty else {
+        results.append(ExchangeRateFetchResult(snapshotID: snapshot.id, status: .notNeeded))
+        continue
+      }
+
+      if let existing = snapshot.exchangeRate,
+        existing.baseCurrency.lowercased() == display,
+        existing.matchesDate(snapshot.date, timeZone: Self.apiTimeZone),
+        existing.supportsAll(requiredCurrencies)
+      {
+        results.append(ExchangeRateFetchResult(snapshotID: snapshot.id, status: .cached))
+        continue
+      }
 
       do {
         let rates = try await fetchRates(for: snapshot.date, baseCurrency: display)
+        try Task.checkCancellation()
+        guard Self.supportsAll(rates: rates, currencies: requiredCurrencies) else {
+          throw ExchangeRateError.invalidResponse
+        }
+        try Task.checkCancellation()
         let ratesJSON = try JSONEncoder().encode(rates)
-        let er = ExchangeRate(
-          baseCurrency: display,
-          ratesJSON: ratesJSON,
-          fetchDate: snapshot.date
-        )
-        er.snapshot = snapshot
-        modelContext.insert(er)
+        try Task.checkCancellation()
+        if let existing = snapshot.exchangeRate {
+          existing.updateRates(
+            baseCurrency: display,
+            ratesJSON: ratesJSON,
+            fetchDate: snapshot.date
+          )
+        } else {
+          let exchangeRate = ExchangeRate(
+            baseCurrency: display,
+            ratesJSON: ratesJSON,
+            fetchDate: snapshot.date
+          )
+          exchangeRate.snapshot = snapshot
+          modelContext.insert(exchangeRate)
+        }
+        results.append(ExchangeRateFetchResult(snapshotID: snapshot.id, status: .fetched))
+      } catch is CancellationError {
+        results.append(ExchangeRateFetchResult(snapshotID: snapshot.id, status: .cancelled))
+        break
       } catch {
-        continue
+        results.append(
+          ExchangeRateFetchResult(
+            snapshotID: snapshot.id,
+            status: .failed(error.localizedDescription)
+          )
+        )
       }
+    }
+
+    return results
+  }
+
+  private static func supportsAll(
+    rates: [String: Double], currencies: Set<String>
+  ) -> Bool {
+    currencies.allSatisfy { currency in
+      guard let rate = rates[currency.lowercased()] else { return false }
+      return rate.isFinite && rate > 0
     }
   }
 

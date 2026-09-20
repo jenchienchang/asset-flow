@@ -112,13 +112,18 @@ final class AssetDetailViewModel {
       let converted: Decimal?
       if needsConversion,
         CurrencyConversionService.canConvert(
-          from: assetCurrency, to: displayCurrency, using: sav.snapshot?.exchangeRate)
+          from: assetCurrency,
+          to: displayCurrency,
+          using: sav.snapshot?.exchangeRate,
+          forSnapshotDate: snapshotDate
+        )
       {
         converted = CurrencyConversionService.convert(
           value: sav.marketValue,
           from: assetCurrency,
           to: displayCurrency,
-          using: sav.snapshot?.exchangeRate
+          using: sav.snapshot?.exchangeRate,
+          forSnapshotDate: snapshotDate
         )
       } else if needsConversion {
         converted = nil

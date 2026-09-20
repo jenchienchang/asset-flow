@@ -440,6 +440,14 @@ Changes are applied immediately via `didSet` and persisted to UserDefaults.
 
 ______________________________________________________________________
 
+### ExchangeRateService
+
+**Purpose**: Fetch and cache date-specific exchange rates needed to convert snapshot values into the configured display currency.
+
+`fetchRates(for:baseCurrency:)` formats dates with Gregorian calendar components, requires the API response's `date` to match the requested date, validates a non-empty set of positive finite rates, and coalesces concurrent requests for the same date/base-currency key. Coalesced waiters are tracked independently: cancelling the last waiter cancels the network task, and every caller checks cancellation before a result can be cached. `fetchMissingRates(snapshots:displayCurrency:modelContext:)` treats a cached record as usable only when its base currency, Gregorian fetch date, and all required currencies match; otherwise it refreshes or replaces the record. It returns a status for each snapshot (`cached`, `fetched`, `failed`, `cancelled`, or `notNeeded`) so callers can expose incomplete conversion to users.
+
+______________________________________________________________________
+
 ### CurrencyService
 
 **Purpose**: Provides currency information (codes and names).
@@ -535,8 +543,9 @@ enum CurrencyConversionService {
     /// Convert a single value between currencies
     static func convert(
         value: Decimal, from: String, to: String,
-        using exchangeRate: ExchangeRate?
-    ) -> Decimal
+        using exchangeRate: ExchangeRate?,
+        forSnapshotDate snapshotDate: Date
+    ) -> Decimal?
 
     /// Sum all asset values in display currency
     static func totalValue(
@@ -559,12 +568,13 @@ enum CurrencyConversionService {
     /// Check if conversion is possible between currencies
     static func canConvert(
         from: String, to: String,
-        using exchangeRate: ExchangeRate?
+        using exchangeRate: ExchangeRate?,
+        forSnapshotDate snapshotDate: Date
     ) -> Bool
 }
 ```
 
-**Graceful degradation**: When `exchangeRate` is nil or a currency is missing from rates, the original unconverted value is returned. This ensures the app works offline without crashing.
+The snapshot date is required for every conversion check so that a rate from a different date cannot be used for historical data. When `exchangeRate` is nil, the required currency is missing, or the rate date does not match the snapshot, conversion is unavailable and the caller can present the original currency values instead. This ensures the app works offline without silently applying an incorrect rate.
 
 ______________________________________________________________________
 

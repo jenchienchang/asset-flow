@@ -77,7 +77,7 @@ The dashboard provides a portfolio overview using the latest snapshot.
 
 1. **Summary cards row**:
 
-   - Total Portfolio Value
+   - Total Portfolio Value (one display-currency value when all required rates are available; otherwise native totals grouped by currency)
    - Latest Snapshot Date
    - Number of Assets
    - Cumulative TWR (All Time) (since first snapshot)
@@ -114,11 +114,13 @@ The dashboard provides a portfolio overview using the latest snapshot.
    - "View all" link navigates to Snapshots screen
    - Each row is clickable and navigates to snapshot detail
 
+**Currency availability:** When a required exchange rate is missing, native totals remain visible by currency. Currency-dependent metric cards and charts remain visible with a blur/material overlay that says which rates are missing and, for historical metrics, which snapshots are affected.
+
 **Implementation notes (Charts)**:
 
 - **DashboardView** (`AssetFlow/Views/DashboardView.swift`): Replaced chart placeholders with 2x2 grid of interactive charts. Row 1: `CategoryAllocationPieChart` (with snapshot date picker, click-to-navigate to category) + `PortfolioValueLineChart` (with click-to-navigate to snapshot). Row 2: `CumulativeTWRLineChart` + `CategoryValueLineChart` (multi-line with legend toggle). Each line chart has an independent `ChartTimeRange` `@State` that defaults to `.all` and resets on navigation via `dashboardRefreshID`.
 - **`CategoryAllocationPieChart`**: HStack layout with pie chart (fixed square, centered) and dynamic multi-column legend panel (right-aligned). Legend uses `LazyVGrid` with column count adapting to both category count and available width — uses the fewest columns needed to display all categories without scrolling. Column width is measured dynamically from the widest legend item (capped at 180pt). Total content width is measured via `onGeometryChange` to derive available legend space.
-- **DashboardViewModel** (`AssetFlow/ViewModels/DashboardViewModel.swift`): Provides `snapshotDates`, `categoryValueHistory` (per-category `[DashboardDataPoint]`), and `categoryAllocations(forSnapshotDate:)` for historical pie chart data. It uses `SnapshotSummaryService` to build converted total/category caches in one pass per snapshot.
+- **DashboardViewModel** (`AssetFlow/ViewModels/DashboardViewModel.swift`): Provides `snapshotDates`, `categoryValueHistory` (per-category `[DashboardDataPoint]`), `categoryAllocations(forSnapshotDate:)`, and `categoryAllocationConversionStatus(forSnapshotDate:)` for historical pie chart data and availability. The pie chart overlay uses the selected snapshot's status, not only the latest snapshot's status. It uses `SnapshotSummaryService` to build converted total/category caches in one pass per snapshot.
 - **ChartDataService** (`AssetFlow/Services/ChartDataService.swift`): Stateless `enum` with `ChartTimeRange` (8 cases: 1W/1M/3M/6M/1Y/3Y/5Y/All), generic `filter()` for `ChartFilterable` data, `rebasedTWR()`, and `abbreviatedLabel(for:)` for K/M/B Y-axis formatting. Filtering uses latest data point's date as reference (not `Date.now`).
 - **Shared chart components** in `AssetFlow/Views/Charts/`: `ChartTimeRangeSelector` (segmented picker), `ChartStyles` (constants and color palette), and 5 chart views. All charts handle empty/edge states per SPEC 12.5.
 - **ContentView** (`AssetFlow/Views/ContentView.swift`): Added `navigateToCategoryByName(_:)` to wire pie chart click → sidebar Categories selection. Guards against "Uncategorized" (not a real Category).
@@ -149,8 +151,9 @@ ______________________________________________________________________
 
 - Full asset breakdown sorted by platform (alphabetical), then by asset name (alphabetical), rendered as `ForEach` rows with `HStack` layout (not a `Table`)
 - Each row shows: Asset Name (with Platform and Category as secondary caption), and Market Value aligned trailing; multi-currency assets also show the currency badge and an approximate converted value below the market value
-- Category allocation summary for this snapshot
-- Exchange rates section (only for multi-currency snapshots): shows used currency rates in "1 foreign = X base" format; auto-fetches when missing or when display currency changes
+- Category allocation summary for this snapshot (marked unavailable when required rates are missing)
+- Exchange rates section (only for multi-currency snapshots): shows every used currency, its "1 foreign = X base" rate when available, and an explicit unavailable state otherwise; auto-fetches when missing or when display currency changes
+- When conversion is incomplete, total value and net cash flow are shown as native-currency groups rather than being labelled as the display currency
 - Cash flow operations table: Description, Amount
 - Per-currency net cash flow summary (one line per currency, showing the net total for included rows)
 - Actions: Add asset, Edit values, Remove asset, Delete snapshot, Add cash flow, Edit cash flow, Remove cash flow

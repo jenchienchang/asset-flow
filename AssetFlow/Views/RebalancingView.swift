@@ -52,6 +52,7 @@ struct RebalancingView: View {
         summaryFooter
       }
     }
+    .conversionUnavailable(viewModel.conversionStatus.unavailableMessage)
   }
 
   // MARK: - Portfolio Value Bar

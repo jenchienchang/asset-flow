@@ -116,6 +116,8 @@ struct SnapshotRowData {
   let platforms: [String]
   let assetCount: Int
   let hasZeroValueAssets: Bool
+  let conversionStatus: CurrencyConversionStatus
+  let nativeCurrencyTotals: [String: Decimal]
 }
 
 /// Data for snapshot deletion confirmation dialog.
@@ -253,9 +255,10 @@ class SnapshotListViewModel {
     let directValues = snapshot.assetValues ?? []
 
     let displayCurrency = settingsService.mainCurrency
-    let totalValue = CurrencyConversionService.totalValue(
+    let report = CurrencyConversionService.totalValueReport(
       for: snapshot, displayCurrency: displayCurrency,
       exchangeRate: snapshot.exchangeRate)
+    let totalValue = report.convertedTotal ?? 0
 
     let platforms = Array(
       Set(directValues.compactMap { $0.asset?.platform })
@@ -268,7 +271,9 @@ class SnapshotListViewModel {
       totalValue: totalValue,
       platforms: platforms,
       assetCount: directValues.count,
-      hasZeroValueAssets: hasZeroValueAssets
+      hasZeroValueAssets: hasZeroValueAssets,
+      conversionStatus: report.status,
+      nativeCurrencyTotals: report.nativeTotals
     )
   }
 

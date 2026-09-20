@@ -50,8 +50,39 @@ final class ExchangeRate {
       return cached
     }
     let decoded = (try? JSONDecoder().decode([String: Double].self, from: ratesJSON)) ?? [:]
-    _cachedRates = decoded
-    return decoded
+    let normalized = decoded.reduce(into: [String: Double]()) { result, entry in
+      result[entry.key.lowercased()] = entry.value
+    }
+    _cachedRates = normalized
+    return normalized
+  }
+
+  /// Returns currencies that cannot be converted using this rate record.
+  func missingCurrencies(_ currencies: Set<String>) -> [String] {
+    let base = baseCurrency.lowercased()
+    return
+      currencies
+      .map { $0.lowercased() }
+      .filter { currency in
+        currency != base && (rates[currency] == nil || !isValidRate(rates[currency]))
+      }
+      .sorted()
+  }
+
+  /// Whether this record contains usable rates for every requested currency.
+  func supportsAll(_ currencies: Set<String>) -> Bool {
+    missingCurrencies(currencies).isEmpty
+  }
+
+  /// Whether this record was fetched for the same calendar date as the snapshot.
+  ///
+  /// Exchange-rate records are used for historical snapshots, so a complete rate
+  /// dictionary from another date must not be treated as valid for this snapshot.
+  func matchesDate(_ date: Date, timeZone: TimeZone = .current) -> Bool {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    return calendar.dateComponents([.year, .month, .day], from: fetchDate)
+      == calendar.dateComponents([.year, .month, .day], from: date)
   }
 
   /// Updates rate data in-place and clears the decoded cache.
@@ -105,8 +136,13 @@ final class ExchangeRate {
     let fromDecimal = Decimal(fromRate)
     let toDecimal = Decimal(toRate)
 
-    guard fromDecimal != 0 else { return nil }
+    guard isValidRate(fromRate), isValidRate(toRate), fromDecimal != 0 else { return nil }
 
     return value / fromDecimal * toDecimal
+  }
+
+  private func isValidRate(_ rate: Double?) -> Bool {
+    guard let rate else { return false }
+    return rate.isFinite && rate > 0
   }
 }

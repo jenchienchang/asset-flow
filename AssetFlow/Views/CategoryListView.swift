@@ -49,6 +49,11 @@ struct CategoryListView: View {
           .transition(.move(edge: .top).combined(with: .opacity))
       }
 
+      if let message = viewModel.conversionStatus.unavailableMessage {
+        warningBanner(message)
+          .transition(.move(edge: .top).combined(with: .opacity))
+      }
+
       if viewModel.categoryRows.isEmpty {
         emptyState
       } else {
@@ -185,10 +190,16 @@ struct CategoryListView: View {
               .font(.body)
               .foregroundStyle(.secondary)
           }
-          Text(rowData.currentValue.formatted(currency: SettingsService.shared.mainCurrency))
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
+          if viewModel.conversionStatus.isComplete {
+            Text(rowData.currentValue.formatted(currency: SettingsService.shared.mainCurrency))
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .monospacedDigit()
+          } else {
+            Text("—")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
 
         Text("\(rowData.assetCount)")

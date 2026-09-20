@@ -39,7 +39,11 @@ struct PlatformListView: View {
   }
 
   var body: some View {
-    Group {
+    VStack(spacing: 0) {
+      if let message = viewModel.conversionStatus.unavailableMessage {
+        warningBanner(message)
+      }
+
       if viewModel.platformRows.isEmpty {
         emptyState
       } else {
@@ -61,6 +65,18 @@ struct PlatformListView: View {
   }
 
   // MARK: - Platform List
+
+  private func warningBanner(_ message: String) -> some View {
+    HStack {
+      Image(systemName: "exclamationmark.triangle.fill")
+        .foregroundStyle(.orange)
+      Text(message)
+        .font(.caption)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.yellow.opacity(0.15))
+  }
 
   private var platformList: some View {
     List(selection: $selectedPlatform) {
@@ -85,9 +101,15 @@ struct PlatformListView: View {
       Spacer()
 
       HStack(spacing: 12) {
-        Text(rowData.totalValue.formatted(currency: SettingsService.shared.mainCurrency))
-          .font(.body)
-          .monospacedDigit()
+        if viewModel.conversionStatus.isComplete {
+          Text(rowData.totalValue.formatted(currency: SettingsService.shared.mainCurrency))
+            .font(.body)
+            .monospacedDigit()
+        } else {
+          Text("—")
+            .font(.body)
+            .foregroundStyle(.secondary)
+        }
 
         Text("\(rowData.assetCount)")
           .font(.caption)

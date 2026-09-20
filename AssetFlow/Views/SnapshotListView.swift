@@ -186,12 +186,30 @@ struct SnapshotListView: View {
                 table: "Snapshot"))
           }
 
-          Text(
-            rowData.totalValue.formatted(
-              currency: SettingsService.shared.mainCurrency)
-          )
-          .font(.body)
-          .monospacedDigit()
+          if rowData.conversionStatus.isComplete {
+            Text(
+              rowData.totalValue.formatted(
+                currency: SettingsService.shared.mainCurrency)
+            )
+            .font(.body)
+            .monospacedDigit()
+          } else {
+            Image(systemName: "exclamationmark.triangle.fill")
+              .foregroundStyle(.orange)
+              .helpWhenUnlocked(
+                rowData.conversionStatus.unavailableMessage
+                  ?? "Conversion is incomplete for this snapshot.")
+            VStack(alignment: .trailing, spacing: 1) {
+              ForEach(
+                rowData.nativeCurrencyTotals.sorted(by: { $0.key < $1.key }),
+                id: \.key
+              ) { code, value in
+                Text(value.formatted(currency: code))
+                  .font(.caption)
+                  .monospacedDigit()
+              }
+            }
+          }
 
           Text("\(rowData.assetCount)")
             .font(.caption)

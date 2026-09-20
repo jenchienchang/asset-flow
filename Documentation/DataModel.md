@@ -345,7 +345,10 @@ private var _cachedRates: [String: Double]?
 
 #### Computed Properties and Methods
 
-- `rates: [String: Double]` — Decodes `ratesJSON` to a dictionary (cached after first access via `_cachedRates`). Returns empty dict on decode failure.
+- `rates: [String: Double]` — Decodes `ratesJSON` to a lowercased dictionary (cached after first access via `_cachedRates`). Returns empty dict on decode failure.
+- `missingCurrencies(_:) -> [String]` — Returns requested currencies that are absent or have non-positive/non-finite rates.
+- `supportsAll(_:) -> Bool` — Returns whether the record has usable rates for every requested currency.
+- `matchesDate(_:timeZone:) -> Bool` — Verifies that `fetchDate` and the snapshot date have the same Gregorian calendar day in the supplied timezone, preventing a complete rate record from being reused for the wrong historical snapshot.
 - `func convert(value: Decimal, from: String, to: String) -> Decimal?` — Converts a value between currencies using cross-rates. Returns `nil` if either currency is missing from rates.
 - `func updateRates(baseCurrency:ratesJSON:fetchDate:)` — Updates rate data in-place (sets `baseCurrency`, `ratesJSON`, `fetchDate`, clears `isFallback` to `false`) and invalidates the decoded cache (`_cachedRates = nil`). Use this method to refresh exchange rate data without replacing the model object.
 

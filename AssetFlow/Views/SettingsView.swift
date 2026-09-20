@@ -319,7 +319,7 @@ struct SettingsView: View {
       Task {
         let service = ExchangeRateService()
         let snapshots = (try? modelContext.fetch(FetchDescriptor<Snapshot>())) ?? []
-        await service.fetchMissingRates(
+        _ = await service.fetchMissingRates(
           snapshots: snapshots,
           displayCurrency: settingsService.mainCurrency,
           modelContext: modelContext

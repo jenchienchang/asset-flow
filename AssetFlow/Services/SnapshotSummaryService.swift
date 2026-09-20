@@ -26,6 +26,8 @@ struct SnapshotSummary {
   let totalValue: Decimal
   let categoryValues: [String: Decimal]
   let platformValues: [String: Decimal]
+  let conversionStatus: CurrencyConversionStatus
+  let nativeCurrencyTotals: [String: Decimal]
 }
 
 /// Shared helpers for snapshot fetching and one-pass aggregate computation.
@@ -76,25 +78,39 @@ enum SnapshotSummaryService {
   ) -> SnapshotSummary {
     let assetValues = snapshot.assetValues ?? []
     let exchangeRate = snapshot.exchangeRate
+    let report = CurrencyConversionService.totalValueReport(
+      for: snapshot,
+      displayCurrency: displayCurrency,
+      exchangeRate: exchangeRate
+    )
     var totalValue: Decimal = 0
     var categoryValues: [String: Decimal] = [:]
     var platformValues: [String: Decimal] = [:]
 
-    for sav in assetValues {
-      let asset = sav.asset
-      let assetCurrency = asset?.currency ?? ""
-      let effectiveCurrency = assetCurrency.isEmpty ? displayCurrency : assetCurrency
-      let converted = CurrencyConversionService.convert(
-        value: sav.marketValue,
-        from: effectiveCurrency,
-        to: displayCurrency,
-        using: exchangeRate)
+    if let convertedTotal = report.convertedTotal {
+      totalValue = convertedTotal
+      if let convertedCategoryValues = CurrencyConversionService.categoryValues(
+        for: snapshot,
+        displayCurrency: displayCurrency,
+        exchangeRate: exchangeRate
+      ) {
+        categoryValues = convertedCategoryValues
+      }
 
-      totalValue += converted
-      categoryValues[asset?.category?.name ?? "", default: 0] += converted
-
-      if let platform = asset?.platform, !platform.isEmpty {
-        platformValues[platform, default: 0] += converted
+      for sav in assetValues {
+        if let platform = sav.asset?.platform, !platform.isEmpty,
+          let asset = sav.asset,
+          let converted = CurrencyConversionService.convert(
+            value: sav.marketValue,
+            from: asset.currency.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+              ? displayCurrency : asset.currency,
+            to: displayCurrency,
+            using: exchangeRate,
+            forSnapshotDate: snapshot.date
+          )
+        {
+          platformValues[platform, default: 0] += converted
+        }
       }
     }
 
@@ -104,7 +120,9 @@ enum SnapshotSummaryService {
       assetCount: assetValues.count,
       totalValue: totalValue,
       categoryValues: categoryValues,
-      platformValues: platformValues
+      platformValues: platformValues,
+      conversionStatus: report.status,
+      nativeCurrencyTotals: report.nativeTotals
     )
   }
 }

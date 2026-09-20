@@ -91,7 +91,7 @@ struct CategoryListViewModelCurrencyTests {
     #expect(stocksRow?.currentValue == Decimal(2000))
   }
 
-  @Test("Category total without exchange rate falls back to raw values")
+  @Test("Category total without exchange rate is marked unavailable")
   func testCategoryTotalWithoutExchangeRate() throws {
     let tc = createTestContext()
 
@@ -121,7 +121,7 @@ struct CategoryListViewModelCurrencyTests {
 
     let stocksRow = vm.categoryRows.first { $0.category.name == "Stocks" }
     #expect(stocksRow != nil)
-    // Without exchange rate, value is returned unconverted
-    #expect(stocksRow?.currentValue == Decimal(31500))
+    #expect(stocksRow?.currentValue == Decimal(0))
+    #expect(vm.conversionStatus == .missingRates(["twd"]))
   }
 }
