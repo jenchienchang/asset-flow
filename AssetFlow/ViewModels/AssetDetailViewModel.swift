@@ -36,6 +36,7 @@ struct AssetValueHistoryEntry: Identifiable {
 final class AssetDetailViewModel {
   let asset: Asset
   private let modelContext: ModelContext
+  private let fetcher: any ModelFetching
 
   var editedName: String
   var editedPlatform: String
@@ -50,9 +51,10 @@ final class AssetDetailViewModel {
   /// that would crash SwiftUI's AttributeGraph.
   private(set) var isDifferentCurrency = false
 
-  init(asset: Asset, modelContext: ModelContext) {
+  init(asset: Asset, modelContext: ModelContext, fetcher: (any ModelFetching)? = nil) {
     self.asset = asset
     self.modelContext = modelContext
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     self.editedName = asset.name
     self.editedPlatform = asset.platform
     self.editedCategory = asset.category
@@ -152,23 +154,29 @@ final class AssetDetailViewModel {
   // MARK: - Queries
 
   /// Returns all distinct, non-empty platforms from existing assets.
-  func existingPlatforms() -> [String] {
+  func existingPlatforms() throws -> [String] {
     let descriptor = FetchDescriptor<Asset>()
-    let allAssets = (try? modelContext.fetch(descriptor)) ?? []
+    let allAssets = try fetchModels(
+      descriptor,
+      from: fetcher,
+      operation: "load existing platforms")
     let platforms = Set(allAssets.map(\.platform).filter { !$0.isEmpty })
     return platforms.sorted()
   }
 
   /// Returns all existing categories sorted by display order, then by name.
-  func existingCategories() -> [Category] {
+  func existingCategories() throws -> [Category] {
     let descriptor = FetchDescriptor<Category>(
       sortBy: [SortDescriptor(\.displayOrder), SortDescriptor(\.name)])
-    return (try? modelContext.fetch(descriptor)) ?? []
+    return try fetchModels(
+      descriptor,
+      from: fetcher,
+      operation: "load existing categories")
   }
 
   /// Resolves a category by name, reusing existing (case-insensitive) or creating new.
-  func resolveCategory(name: String) -> Category? {
-    modelContext.resolveCategory(name: name)
+  func resolveCategory(name: String) throws -> Category? {
+    try modelContext.resolveCategory(name: name, fetcher: fetcher)
   }
 
   // MARK: - Save
@@ -183,7 +191,10 @@ final class AssetDetailViewModel {
 
     // Check for conflicts with other assets (exclude self)
     let descriptor = FetchDescriptor<Asset>()
-    let allAssets = (try? modelContext.fetch(descriptor)) ?? []
+    let allAssets = try fetchModels(
+      descriptor,
+      from: fetcher,
+      operation: "validate asset")
 
     let hasConflict = allAssets.contains { other in
       other.id != asset.id

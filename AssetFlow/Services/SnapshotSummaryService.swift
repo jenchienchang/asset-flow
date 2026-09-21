@@ -33,36 +33,59 @@ struct SnapshotSummary {
 /// Shared helpers for snapshot fetching and one-pass aggregate computation.
 @MainActor
 enum SnapshotSummaryService {
-  static func fetchSnapshots(modelContext: ModelContext) -> [Snapshot] {
+  static func fetchSnapshots(using fetcher: any ModelFetching) throws -> [Snapshot] {
     let descriptor = FetchDescriptor<Snapshot>(sortBy: [SortDescriptor(\.date)])
-    return (try? modelContext.fetch(descriptor)) ?? []
+    return try fetchModels(descriptor, from: fetcher, operation: "fetch snapshots")
   }
 
-  static func fetchLatestSnapshot(modelContext: ModelContext) -> Snapshot? {
+  static func fetchSnapshots(modelContext: ModelContext) throws -> [Snapshot] {
+    try fetchSnapshots(using: ModelContextFetcher(modelContext: modelContext))
+  }
+
+  static func fetchLatestSnapshot(using fetcher: any ModelFetching) throws -> Snapshot? {
     var descriptor = FetchDescriptor<Snapshot>(
       sortBy: [SortDescriptor(\.date, order: .reverse)])
     descriptor.fetchLimit = 1
-    return (try? modelContext.fetch(descriptor))?.first
+    return try fetchModels(descriptor, from: fetcher, operation: "fetch latest snapshot").first
   }
 
-  static func fetchSnapshot(on date: Date, modelContext: ModelContext) -> Snapshot? {
+  static func fetchLatestSnapshot(modelContext: ModelContext) throws -> Snapshot? {
+    try fetchLatestSnapshot(using: ModelContextFetcher(modelContext: modelContext))
+  }
+
+  static func fetchSnapshot(on date: Date, using fetcher: any ModelFetching) throws -> Snapshot? {
     var descriptor = FetchDescriptor<Snapshot>(
       predicate: #Predicate { $0.date == date }
     )
     descriptor.fetchLimit = 1
-    return (try? modelContext.fetch(descriptor))?.first
+    return try fetchModels(descriptor, from: fetcher, operation: "fetch snapshot by date").first
+  }
+
+  static func fetchSnapshot(on date: Date, modelContext: ModelContext) throws -> Snapshot? {
+    try fetchSnapshot(
+      on: date, using: ModelContextFetcher(modelContext: modelContext))
   }
 
   static func fetchLatestSnapshot(
     before date: Date,
-    modelContext: ModelContext
-  ) -> Snapshot? {
+    using fetcher: any ModelFetching
+  ) throws -> Snapshot? {
     var descriptor = FetchDescriptor<Snapshot>(
       predicate: #Predicate { $0.date < date },
       sortBy: [SortDescriptor(\.date, order: .reverse)]
     )
     descriptor.fetchLimit = 1
-    return (try? modelContext.fetch(descriptor))?.first
+    return try fetchModels(
+      descriptor, from: fetcher, operation: "fetch latest snapshot before date"
+    ).first
+  }
+
+  static func fetchLatestSnapshot(
+    before date: Date,
+    modelContext: ModelContext
+  ) throws -> Snapshot? {
+    try fetchLatestSnapshot(
+      before: date, using: ModelContextFetcher(modelContext: modelContext))
   }
 
   static func makeSummaries(

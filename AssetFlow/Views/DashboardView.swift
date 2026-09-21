@@ -59,7 +59,9 @@ struct DashboardView: View {
 
   var body: some View {
     Group {
-      if viewModel.isEmpty {
+      if case .failed(let message) = viewModel.loadState {
+        DataLoadErrorView(message: message) { viewModel.loadData() }
+      } else if viewModel.isEmpty {
         emptyState
       } else {
         dashboardContent

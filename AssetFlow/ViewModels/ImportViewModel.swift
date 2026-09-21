@@ -37,6 +37,7 @@ struct CopyForwardPlatformInfo: Identifiable {
 @MainActor
 class ImportViewModel {
   let modelContext: ModelContext
+  let fetcher: any ModelFetching
   private let settingsService: SettingsService
 
   // MARK: - State
@@ -132,6 +133,9 @@ class ImportViewModel {
   /// Error from import execution (e.g., future date).
   var importError: String?
 
+  /// Error from a persistence read required to validate or prepare an import.
+  var persistenceError: String?
+
   /// Whether a file has been loaded but not yet imported.
   var hasUnsavedChanges: Bool = false
 
@@ -195,12 +199,18 @@ class ImportViewModel {
       }
     }
     return !hasIncludedRows || !validationErrors.isEmpty || hasPerRowErrors
+      || persistenceError != nil
   }
 
   // MARK: - Init
 
-  init(modelContext: ModelContext, settingsService: SettingsService? = nil) {
+  init(
+    modelContext: ModelContext,
+    settingsService: SettingsService? = nil,
+    fetcher: (any ModelFetching)? = nil
+  ) {
     self.modelContext = modelContext
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     let resolvedService = settingsService ?? SettingsService.shared
     self.settingsService = resolvedService
 
@@ -319,31 +329,41 @@ class ImportViewModel {
   // MARK: - Category Resolution
 
   /// Resolves a category by name, reusing existing (case-insensitive) or creating new.
-  func resolveCategory(name: String) -> Category? {
-    modelContext.resolveCategory(name: name)
+  func resolveCategory(name: String) throws -> Category? {
+    try modelContext.resolveCategory(name: name, fetcher: fetcher)
   }
 
   // MARK: - Queries
 
   /// Returns all distinct, non-empty platforms from existing assets.
-  func existingPlatforms() -> [String] {
-    fetchExistingPlatforms()
+  func existingPlatforms() throws -> [String] {
+    try fetchExistingPlatforms()
   }
 
   /// Returns all existing categories.
-  func existingCategories() -> [Category] {
-    fetchExistingCategories()
+  func existingCategories() throws -> [Category] {
+    try fetchExistingCategories()
   }
 
   /// Refreshes cached picker options outside SwiftUI body evaluation.
   func refreshPickerOptions() {
-    availablePlatforms = fetchExistingPlatforms()
-    availableCategories = fetchExistingCategories()
+    do {
+      availablePlatforms = try fetchExistingPlatforms()
+      availableCategories = try fetchExistingCategories()
+      persistenceError = nil
+    } catch {
+      availablePlatforms = []
+      availableCategories = []
+      persistenceError = error.localizedDescription
+    }
   }
 
-  private func fetchExistingPlatforms() -> [String] {
+  private func fetchExistingPlatforms() throws -> [String] {
     let descriptor = FetchDescriptor<Asset>()
-    let allAssets = (try? modelContext.fetch(descriptor)) ?? []
+    let allAssets = try fetchModels(
+      descriptor,
+      from: fetcher,
+      operation: "load existing platforms")
 
     let platforms = Set(
       allAssets
@@ -354,10 +374,13 @@ class ImportViewModel {
     return platforms.sorted()
   }
 
-  private func fetchExistingCategories() -> [Category] {
+  private func fetchExistingCategories() throws -> [Category] {
     let descriptor = FetchDescriptor<Category>(
       sortBy: [SortDescriptor(\.displayOrder), SortDescriptor(\.name)])
-    return (try? modelContext.fetch(descriptor)) ?? []
+    return try fetchModels(
+      descriptor,
+      from: fetcher,
+      operation: "load existing categories")
   }
 
   // MARK: - Import Execution
@@ -381,21 +404,41 @@ class ImportViewModel {
 
     guard !isImportDisabled else { return nil }
 
-    // Find or create snapshot for this date
-    let snapshot = findOrCreateSnapshot(date: normalizedDate)
+    do {
+      let existingAssets: [Asset]
+      let latestPrior: Snapshot?
+      switch importType {
+      case .assets:
+        existingAssets = try fetchAllAssets()
+        latestPrior = try latestPriorSnapshotForImport(on: normalizedDate)
 
-    switch importType {
-    case .assets:
-      executeAssetImport(snapshot: snapshot)
+      case .cashFlows:
+        existingAssets = []
+        latestPrior = nil
+      }
 
-    case .cashFlows:
-      executeCashFlowImport(snapshot: snapshot)
+      // All reads complete before a new snapshot is inserted.
+      let snapshot = try findOrCreateSnapshot(date: normalizedDate)
+
+      switch importType {
+      case .assets:
+        try executeAssetImport(
+          snapshot: snapshot,
+          existingAssets: existingAssets,
+          latestPrior: latestPrior)
+
+      case .cashFlows:
+        executeCashFlowImport(snapshot: snapshot)
+      }
+
+      hasUnsavedChanges = false
+      importedSnapshot = snapshot
+      refreshPickerOptions()
+      return snapshot
+    } catch {
+      importError = error.localizedDescription
+      return nil
     }
-
-    hasUnsavedChanges = false
-    importedSnapshot = snapshot
-    refreshPickerOptions()
-    return snapshot
   }
 
   // MARK: - Reset
@@ -442,6 +485,15 @@ class ImportViewModel {
   /// Examines the most recent prior snapshot (before `snapshotDate`) and identifies
   /// platforms that are NOT present in the current import's resolved preview rows.
   func computeCopyForwardPlatforms() {
+    do {
+      try computeCopyForwardPlatformsThrowing()
+    } catch {
+      copyForwardPlatforms = []
+      persistenceError = error.localizedDescription
+    }
+  }
+
+  private func computeCopyForwardPlatformsThrowing() throws {
     guard importType == .assets else {
       copyForwardPlatforms = []
       return
@@ -450,15 +502,15 @@ class ImportViewModel {
     let normalizedDate = Calendar.current.startOfDay(for: snapshotDate)
 
     // No copy-forward when importing into an existing snapshot
-    if SnapshotSummaryService.fetchSnapshot(on: normalizedDate, modelContext: modelContext) != nil {
+    if try SnapshotSummaryService.fetchSnapshot(on: normalizedDate, using: fetcher) != nil {
       copyForwardPlatforms = []
       return
     }
 
     guard
-      let latestPrior = SnapshotSummaryService.fetchLatestSnapshot(
+      let latestPrior = try SnapshotSummaryService.fetchLatestSnapshot(
         before: normalizedDate,
-        modelContext: modelContext)
+        using: fetcher)
     else {
       copyForwardPlatforms = []
       return
@@ -522,7 +574,16 @@ class ImportViewModel {
   /// Rebuilds asset preview rows from base parse data, applying current
   /// platform/category settings and preserving exclusion state.
   func rebuildAssetPreviewRows() {
-    let assetLookup = AssetResolutionLookup(assets: fetchAllAssets())
+    do {
+      try rebuildAssetPreviewRowsThrowing()
+    } catch {
+      assetPreviewRows = []
+      persistenceError = error.localizedDescription
+    }
+  }
+
+  private func rebuildAssetPreviewRowsThrowing() throws {
+    let assetLookup = AssetResolutionLookup(assets: try fetchAllAssets())
     var hasAnyCategorized = false
     var hasAnyUncategorized = false
 

@@ -43,10 +43,16 @@ struct PlatformDetailView: View {
   }
 
   var body: some View {
-    Form {
-      platformDetailsSection
-      assetsSection
-      valueHistorySection
+    Group {
+      if case .failed(let message) = viewModel.loadState {
+        DataLoadErrorView(message: message) { viewModel.loadData() }
+      } else {
+        Form {
+          platformDetailsSection
+          assetsSection
+          valueHistorySection
+        }
+      }
     }
     .formStyle(.grouped)
     .navigationTitle(viewModel.platformName)

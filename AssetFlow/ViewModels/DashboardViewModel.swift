@@ -66,11 +66,14 @@ struct RecentSnapshotData {
 @MainActor
 class DashboardViewModel {
   private let modelContext: ModelContext
+  private let fetcher: any ModelFetching
 
   // MARK: - State
 
   /// Whether the dashboard has no data to show (empty state).
   var isEmpty: Bool = true
+
+  var loadState: DataLoadState = .idle
 
   /// Total portfolio value from latest snapshot.
   var totalPortfolioValue: Decimal = 0
@@ -146,8 +149,9 @@ class DashboardViewModel {
 
   // MARK: - Init
 
-  init(modelContext: ModelContext) {
+  init(modelContext: ModelContext, fetcher: (any ModelFetching)? = nil) {
     self.modelContext = modelContext
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
   }
 
   // MARK: - Load Data
@@ -158,6 +162,7 @@ class DashboardViewModel {
   /// property change (e.g. currency, asset values, exchange rates) automatically
   /// triggers a reload.
   func loadData() {
+    loadState = .loading
     withObservationTracking {
       performLoadData()
     } onChange: { [weak self] in
@@ -168,7 +173,13 @@ class DashboardViewModel {
   }
 
   private func performLoadData() {
-    allSnapshots = fetchAllSnapshots()
+    do {
+      allSnapshots = try fetchAllSnapshots()
+    } catch {
+      isEmpty = false
+      loadState = .failed(error.localizedDescription)
+      return
+    }
 
     guard !allSnapshots.isEmpty else {
       isEmpty = true
@@ -197,6 +208,7 @@ class DashboardViewModel {
       intermediateSnapshotsCache = [:]
       cachedDisplayCurrency = nil
       snapshotDates = []
+      loadState = .loaded
       return
     }
 
@@ -267,6 +279,7 @@ class DashboardViewModel {
     computeCategoryValueHistory(sortedSnapshots: sortedSnapshots)
     computeRecentSnapshots(sortedSnapshots: sortedSnapshots)
     snapshotDates = sortedSnapshots.map(\.date)
+    loadState = .loaded
   }
 
   // MARK: - Snapshot Dates
@@ -588,8 +601,8 @@ class DashboardViewModel {
 
   // MARK: - Private: Helpers
 
-  private func fetchAllSnapshots() -> [Snapshot] {
-    SnapshotSummaryService.fetchSnapshots(modelContext: modelContext)
+  private func fetchAllSnapshots() throws -> [Snapshot] {
+    try SnapshotSummaryService.fetchSnapshots(using: fetcher)
   }
 
   private func snapshotTotal(for snapshot: Snapshot) -> Decimal {

@@ -39,25 +39,29 @@ struct CategoryListView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      if let warning = viewModel.targetAllocationSumWarning {
-        warningBanner(warning)
-          .transition(.move(edge: .top).combined(with: .opacity))
-      }
-
-      if viewModel.hasSignificantDeviation {
-        deviationInfoBanner
-          .transition(.move(edge: .top).combined(with: .opacity))
-      }
-
-      if let message = viewModel.conversionStatus.unavailableMessage {
-        warningBanner(message)
-          .transition(.move(edge: .top).combined(with: .opacity))
-      }
-
-      if viewModel.categoryRows.isEmpty {
-        emptyState
+      if case .failed(let message) = viewModel.loadState {
+        DataLoadErrorView(message: message) { viewModel.loadCategories() }
       } else {
-        categoryList
+        if let warning = viewModel.targetAllocationSumWarning {
+          warningBanner(warning)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+
+        if viewModel.hasSignificantDeviation {
+          deviationInfoBanner
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+
+        if let message = viewModel.conversionStatus.unavailableMessage {
+          warningBanner(message)
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+
+        if viewModel.categoryRows.isEmpty {
+          emptyState
+        } else {
+          categoryList
+        }
       }
     }
     .navigationTitle("Categories")

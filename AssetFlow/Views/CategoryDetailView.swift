@@ -45,12 +45,18 @@ struct CategoryDetailView: View {
   }
 
   var body: some View {
-    Form {
-      categoryDetailsSection
-      assetsSection
-      valueHistorySection
-      allocationHistorySection
-      deleteSection
+    Group {
+      if case .failed(let message) = viewModel.loadState {
+        DataLoadErrorView(message: message) { viewModel.loadData() }
+      } else {
+        Form {
+          categoryDetailsSection
+          assetsSection
+          valueHistorySection
+          allocationHistorySection
+          deleteSection
+        }
+      }
     }
     .formStyle(.grouped)
     .navigationTitle(viewModel.category.name)

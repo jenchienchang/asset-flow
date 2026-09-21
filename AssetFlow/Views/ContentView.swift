@@ -107,6 +107,7 @@ struct ContentView: View {
   @State private var pendingSection: SidebarSection?
   @State private var pendingIsGoBack = false
   @State private var showDiscardConfirmation = false
+  @State private var persistenceError: String?
 
   // Navigation history
   @State private var sectionHistory: [SidebarSection] = [.dashboard]
@@ -177,6 +178,7 @@ struct ContentView: View {
     }
     .sheet(isPresented: $showBulkEntrySheet) {
       NewSnapshotSheet(
+        viewModel: SnapshotListViewModel(modelContext: modelContext),
         onCreate: { snapshot in
           pushHistory(.snapshots)
           selectedSnapshot = snapshot
@@ -204,12 +206,32 @@ struct ContentView: View {
     .task {
       await CurrencyService.shared.loadFromAPI()
       let service = ExchangeRateService()
-      let snapshots = (try? modelContext.fetch(FetchDescriptor<Snapshot>())) ?? []
-      _ = await service.fetchMissingRates(
-        snapshots: snapshots,
-        displayCurrency: SettingsService.shared.mainCurrency,
-        modelContext: modelContext
+      do {
+        let snapshots = try fetchModels(
+          FetchDescriptor<Snapshot>(),
+          from: ModelContextFetcher(modelContext: modelContext),
+          operation: "load snapshots for exchange rates")
+        _ = await service.fetchMissingRates(
+          snapshots: snapshots,
+          displayCurrency: SettingsService.shared.mainCurrency,
+          modelContext: modelContext
+        )
+      } catch {
+        persistenceError = error.localizedDescription
+      }
+    }
+    .alert(
+      "Data Error",
+      isPresented: .init(
+        get: { persistenceError != nil },
+        set: { if !$0 { persistenceError = nil } }
       )
+    ) {
+      Button("OK") { persistenceError = nil }
+    } message: {
+      if let persistenceError {
+        Text(persistenceError)
+      }
     }
   }
 
@@ -468,14 +490,19 @@ struct ContentView: View {
   private func navigateToCategoryByName(_ name: String) {
     guard name != "Uncategorized" else { return }
 
-    let descriptor = FetchDescriptor<Category>()
-    if let allCategories = try? modelContext.fetch(descriptor),
-      let match = allCategories.first(where: {
+    do {
+      let allCategories = try fetchModels(
+        FetchDescriptor<Category>(),
+        from: ModelContextFetcher(modelContext: modelContext),
+        operation: "navigate to category")
+      if let match = allCategories.first(where: {
         $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame
-      })
-    {
-      pushHistory(.categories)
-      selectedCategory = match
+      }) {
+        pushHistory(.categories)
+        selectedCategory = match
+      }
+    } catch {
+      persistenceError = error.localizedDescription
     }
   }
 
@@ -486,9 +513,17 @@ struct ContentView: View {
       predicate: #Predicate { $0.date == targetDate }
     )
     descriptor.fetchLimit = 1
-    if let match = (try? modelContext.fetch(descriptor))?.first {
-      pushHistory(.snapshots)
-      selectedSnapshot = match
+    do {
+      if let match = try fetchModels(
+        descriptor,
+        from: ModelContextFetcher(modelContext: modelContext),
+        operation: "navigate to snapshot"
+      ).first {
+        pushHistory(.snapshots)
+        selectedSnapshot = match
+      }
+    } catch {
+      persistenceError = error.localizedDescription
     }
   }
 
@@ -560,6 +595,24 @@ struct ContentView: View {
     sectionHistory.append(section)
     historyIndex = sectionHistory.count - 1
     selectedSection = section
+  }
+}
+
+/// Shared full-screen state for a failed SwiftData read.
+struct DataLoadErrorView: View {
+  let message: String
+  let retry: () -> Void
+
+  var body: some View {
+    ContentUnavailableView {
+      Label("Unable to load data", systemImage: "exclamationmark.triangle")
+    } description: {
+      Text(message)
+    } actions: {
+      Button("Retry", action: retry)
+        .buttonStyle(.borderedProminent)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
 

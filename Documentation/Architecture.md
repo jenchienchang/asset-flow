@@ -89,7 +89,7 @@ struct DashboardView: View {
 
 1. **ContentView**: Full sidebar navigation with `SidebarSection` enum, list-detail splits, discard confirmation, post-import navigation
 1. **DashboardView**: Summary cards, period performance (1M/3M/1Y), chart placeholders, recent snapshots
-1. **SnapshotListView**: `@Query` live list, New Snapshot sheet
+1. **SnapshotListView**: Throwing ViewModel-backed snapshot list, query-driven invalidation, New Snapshot sheet
 1. **SnapshotDetailView**: Asset breakdown, category allocation, cash flow CRUD
 1. **AssetListView**: Platform/category grouping, selection binding
 1. **AssetDetailView**: Edit fields, sparkline chart, value history, delete validation
@@ -133,7 +133,7 @@ ViewModels that compute aggregate or currency-converted values use `withObservat
 **Two complementary mechanisms:**
 
 1. `withObservationTracking` — detects property changes on existing objects (currency change, value edit, exchange rate update)
-1. `@Query` + `.onChange(of:)` in views — detects collection membership changes (new/deleted objects), which `modelContext.fetch()` inside `withObservationTracking` cannot track
+1. `@Query` + `.onChange(of:)` in views — detects collection membership changes (new/deleted objects), which `modelContext.fetch()` inside `withObservationTracking` cannot track. The query is an invalidation signal only; views must render the ViewModel's successfully fetched collection rather than treating a query failure as an empty state.
 
 **Applied to:** `DashboardViewModel`, `SnapshotDetailViewModel`, `SnapshotListViewModel`, `CategoryListViewModel`, `CategoryDetailViewModel`, `PlatformListViewModel`, `PlatformDetailViewModel`, `AssetListViewModel`, `AssetDetailViewModel`, `RebalancingViewModel`.
 
@@ -196,7 +196,7 @@ See [DataModel.md](DataModel.md) for detailed model documentation.
 
 1. **CurrencyConversionService** (`enum`): Stateless conversion logic used by ViewModels. Provides date-validated `convert(value:from:to:using:forSnapshotDate:)` and `canConvert(from:to:using:forSnapshotDate:)`, plus `totalValue(for:displayCurrency:exchangeRate:)`, `netCashFlow(for:displayCurrency:exchangeRate:)`, and `categoryValues(for:displayCurrency:exchangeRate:)`. Conversion is unavailable when the exchange rate is missing, incomplete, or does not match the snapshot date; callers can then present native-currency values.
 
-1. **SnapshotSummaryService** (`@MainActor enum`): Provides bounded snapshot fetch helpers (latest, latest prior, date lookup, sorted history) and one-pass converted snapshot summaries containing total value, asset count, category totals, and platform totals. ViewModels use this to avoid repeated full-table fetches and duplicate aggregate traversal logic.
+1. **SnapshotSummaryService** (`@MainActor enum`): Provides bounded, throwing snapshot fetch helpers (latest, latest prior, date lookup, sorted history) and one-pass converted snapshot summaries containing total value, asset count, category totals, and platform totals. ViewModels use this to avoid repeated full-table fetches and duplicate aggregate traversal logic. `ModelFetching`/`ModelContextFetcher` provide dependency injection for persistence-read failures.
 
 **Duplicate Detection**: AssetFlow handles duplicate detection in two layers:
 
@@ -331,9 +331,11 @@ class SnapshotDetailViewModel {
 ### Strategy
 
 - Typed errors with custom `Error` conformances
-- Error propagation via `throws`
+- Error propagation via `throws`; failed SwiftData reads are never converted to empty collections
 - User-facing error messages (localized)
 - Logging for debugging via `os.log` (no `print()` statements)
+
+Read-oriented ViewModels expose `DataLoadState` (`idle`, `loading`, `loaded`, or `failed`) so the UI distinguishes a valid empty data set from an unavailable store. `DataLoadErrorView` presents the localized failure and a retry action.
 
 ```swift
 enum ImportError: LocalizedError {

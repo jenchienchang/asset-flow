@@ -595,7 +595,7 @@ ______________________________________________________________________
 
 ### SnapshotSummaryService
 
-**Purpose**: Shared snapshot fetch and aggregation helper used by ViewModels that need converted totals. Fetch helpers use bounded descriptors for latest, latest-prior, and date-specific snapshot lookups.
+**Purpose**: Shared snapshot fetch and aggregation helper used by ViewModels that need converted totals. Fetch helpers use bounded descriptors for latest, latest-prior, and date-specific snapshot lookups. Fetch failures are throwing persistence errors; an empty result is only returned when SwiftData successfully reports no matching records.
 
 **File**: `AssetFlow/Services/SnapshotSummaryService.swift`
 
@@ -611,13 +611,13 @@ struct SnapshotSummary {
 
 @MainActor
 enum SnapshotSummaryService {
-    static func fetchSnapshots(modelContext: ModelContext) -> [Snapshot]
-    static func fetchLatestSnapshot(modelContext: ModelContext) -> Snapshot?
-    static func fetchSnapshot(on date: Date, modelContext: ModelContext) -> Snapshot?
+    static func fetchSnapshots(modelContext: ModelContext) throws -> [Snapshot]
+    static func fetchLatestSnapshot(modelContext: ModelContext) throws -> Snapshot?
+    static func fetchSnapshot(on date: Date, modelContext: ModelContext) throws -> Snapshot?
     static func fetchLatestSnapshot(
         before date: Date,
         modelContext: ModelContext
-    ) -> Snapshot?
+    ) throws -> Snapshot?
     static func makeSummaries(
         for snapshots: [Snapshot],
         displayCurrency: String
@@ -629,7 +629,9 @@ enum SnapshotSummaryService {
 }
 ```
 
-**Usage**: List and workflow ViewModels use `fetchLatestSnapshot` / `fetchLatestSnapshot(before:)` when only one snapshot is needed. Dashboard, category detail, and platform detail use `makeSummaries` so total, category, and platform history values are computed in one converted pass per snapshot.
+`ModelFetching` is the injectable abstraction used by ViewModels and tests. `ModelContextFetcher` is the production adapter, and `fetchModels` wraps underlying SwiftData errors in `PersistenceError` with an operation name.
+
+**Usage**: List and workflow ViewModels use `fetchLatestSnapshot` / `fetchLatestSnapshot(before:)` when only one snapshot is needed. Dashboard, category detail, and platform detail use `makeSummaries` so total, category, and platform history values are computed in one converted pass per snapshot. ViewModels expose `DataLoadState` and views show a retryable error state instead of treating a failed fetch as an empty portfolio.
 
 ______________________________________________________________________
 

@@ -40,14 +40,18 @@ struct PlatformListView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      if let message = viewModel.conversionStatus.unavailableMessage {
-        warningBanner(message)
-      }
-
-      if viewModel.platformRows.isEmpty {
-        emptyState
+      if case .failed(let message) = viewModel.loadState {
+        DataLoadErrorView(message: message) { viewModel.loadPlatforms() }
       } else {
-        platformList
+        if let message = viewModel.conversionStatus.unavailableMessage {
+          warningBanner(message)
+        }
+
+        if viewModel.platformRows.isEmpty {
+          emptyState
+        } else {
+          platformList
+        }
       }
     }
     .navigationTitle("Platforms")

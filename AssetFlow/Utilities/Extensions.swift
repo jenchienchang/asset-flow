@@ -153,12 +153,21 @@ extension Decimal {
 // MARK: - ModelContext Extensions
 extension ModelContext {
   /// Finds an existing asset by normalized (name, platform) or creates a new one.
-  func findOrCreateAsset(name: String, platform: String) -> Asset {
+  @MainActor
+  func findOrCreateAsset(
+    name: String,
+    platform: String,
+    fetcher: (any ModelFetching)? = nil
+  ) throws -> Asset {
     let normalizedName = name.normalizedForIdentity
     let normalizedPlatform = platform.normalizedForIdentity
 
     let descriptor = FetchDescriptor<Asset>()
-    let allAssets = (try? fetch(descriptor)) ?? []
+    let resolvedFetcher = fetcher ?? ModelContextFetcher(modelContext: self)
+    let allAssets = try fetchModels(
+      descriptor,
+      from: resolvedFetcher,
+      operation: "find or create asset")
 
     if let existing = allAssets.first(where: {
       $0.normalizedName == normalizedName && $0.normalizedPlatform == normalizedPlatform
@@ -172,14 +181,22 @@ extension ModelContext {
   }
 
   /// Resolves a category by name, reusing an existing one (case-insensitive) or creating a new one.
-  func resolveCategory(name: String) -> Category? {
+  @MainActor
+  func resolveCategory(
+    name: String,
+    fetcher: (any ModelFetching)? = nil
+  ) throws -> Category? {
     let trimmed = name.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty else { return nil }
 
     let normalizedInput = trimmed.lowercased()
 
     let descriptor = FetchDescriptor<Category>()
-    let allCategories = (try? fetch(descriptor)) ?? []
+    let resolvedFetcher = fetcher ?? ModelContextFetcher(modelContext: self)
+    let allCategories = try fetchModels(
+      descriptor,
+      from: resolvedFetcher,
+      operation: "resolve category")
 
     if let existing = allCategories.first(where: { $0.name.lowercased() == normalizedInput }) {
       return existing

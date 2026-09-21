@@ -40,6 +40,8 @@ final class BulkEntryViewModel {
   var lastImportFeedback: CSVImportFeedback?
 
   private let modelContext: ModelContext
+  private let fetcher: any ModelFetching
+  var loadState: DataLoadState = .idle
 
   // MARK: - Structural Caches (observation-ignored)
 
@@ -92,16 +94,34 @@ final class BulkEntryViewModel {
       || !cashFlowRows.isEmpty
   }
 
-  init(modelContext: ModelContext, date: Date) {
+  init(modelContext: ModelContext, date: Date, fetcher: (any ModelFetching)? = nil) {
     self.modelContext = modelContext
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     self.snapshotDate = Calendar.current.startOfDay(for: date)
     self.rows = []
-    loadRowsFromLatestSnapshot()
+    do {
+      try loadRowsFromLatestSnapshot()
+      loadState = .loaded
+    } catch {
+      loadState = .failed(error.localizedDescription)
+    }
     rebuildStructuralCaches()
     recomputeToolbarStats()
   }
 
   // MARK: - Pending Buffer Setters (called from row views on every keystroke)
+
+  func retryLoad() {
+    loadState = .loading
+    do {
+      try loadRowsFromLatestSnapshot()
+      rebuildStructuralCaches()
+      recomputeToolbarStats()
+      loadState = .loaded
+    } catch {
+      loadState = .failed(error.localizedDescription)
+    }
+  }
 
   func setPendingValue(_ rowID: UUID, to value: String) {
     _pendingValues[rowID] = value
@@ -386,7 +406,11 @@ final class BulkEntryViewModel {
       predicate: #Predicate { $0.date == targetDate }
     )
     dateCheckDescriptor.fetchLimit = 1
-    if ((try? modelContext.fetch(dateCheckDescriptor)) ?? []).first != nil {
+    if try fetchModels(
+      dateCheckDescriptor,
+      from: fetcher,
+      operation: "validate bulk snapshot date"
+    ).first != nil {
       throw SnapshotError.dateAlreadyExists(snapshotDate)
     }
 
@@ -420,7 +444,10 @@ final class BulkEntryViewModel {
     let existingAssets: [Asset]
     if hasNewAssets {
       let assetDescriptor = FetchDescriptor<Asset>()
-      existingAssets = (try? modelContext.fetch(assetDescriptor)) ?? []
+      existingAssets = try fetchModels(
+        assetDescriptor,
+        from: fetcher,
+        operation: "prepare bulk asset entry")
     } else {
       existingAssets = []
     }
@@ -434,7 +461,10 @@ final class BulkEntryViewModel {
     var categoryLookup: CategoryResolutionLookup
     if hasNewAssetCategories {
       let categoryDescriptor = FetchDescriptor<Category>()
-      let categories = (try? modelContext.fetch(categoryDescriptor)) ?? []
+      let categories = try fetchModels(
+        categoryDescriptor,
+        from: fetcher,
+        operation: "prepare bulk category entry")
       categoryLookup = CategoryResolutionLookup(categories: categories)
     } else {
       categoryLookup = CategoryResolutionLookup(categories: [])
@@ -695,12 +725,12 @@ final class BulkEntryViewModel {
       errors: errors, parserWarnings: parserWarnings)
   }
 
-  private func loadRowsFromLatestSnapshot() {
+  private func loadRowsFromLatestSnapshot() throws {
     let targetDate = snapshotDate
     guard
-      let latestBefore = SnapshotSummaryService.fetchLatestSnapshot(
+      let latestBefore = try SnapshotSummaryService.fetchLatestSnapshot(
         before: targetDate,
-        modelContext: modelContext),
+        using: fetcher),
       let assetValues = latestBefore.assetValues
     else { return }
 

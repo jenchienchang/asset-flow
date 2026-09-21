@@ -231,7 +231,7 @@ struct SnapshotDetailViewModelTests {
     context.insert(existingCategory)
 
     let viewModel = SnapshotDetailViewModel(snapshot: snapshot, modelContext: context)
-    let resolved = viewModel.resolveCategory(name: "equities")
+    let resolved = try viewModel.resolveCategory(name: "equities")
 
     #expect(resolved?.id == existingCategory.id)
     #expect(resolved?.name == "Equities")
@@ -248,7 +248,7 @@ struct SnapshotDetailViewModelTests {
     let (context, snapshot) = (tc.context, tc.snapshot)
 
     let viewModel = SnapshotDetailViewModel(snapshot: snapshot, modelContext: context)
-    let resolved = viewModel.resolveCategory(name: "Crypto")
+    let resolved = try viewModel.resolveCategory(name: "Crypto")
 
     #expect(resolved?.name == "Crypto")
     #expect(resolved?.targetAllocationPercentage == nil)

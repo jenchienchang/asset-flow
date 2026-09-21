@@ -53,6 +53,7 @@ struct UncategorizedRowData {
 @MainActor
 final class RebalancingViewModel {
   private let modelContext: ModelContext
+  private let fetcher: any ModelFetching
 
   var suggestions: [RebalancingRowData] = []
   var noTargetRows: [NoTargetRowData] = []
@@ -60,14 +61,17 @@ final class RebalancingViewModel {
   var summaryTexts: [String] = []
   var totalPortfolioValue: Decimal = 0
   var conversionStatus: CurrencyConversionStatus = .notNeeded
+  var loadState: DataLoadState = .idle
 
   var isEmpty: Bool {
-    suggestions.isEmpty && noTargetRows.isEmpty && uncategorizedRow == nil
+    if case .failed = loadState { return false }
+    return suggestions.isEmpty && noTargetRows.isEmpty && uncategorizedRow == nil
       && conversionStatus.isComplete
   }
 
-  init(modelContext: ModelContext) {
+  init(modelContext: ModelContext, fetcher: (any ModelFetching)? = nil) {
     self.modelContext = modelContext
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
   }
 
   // MARK: - Loading
@@ -77,6 +81,7 @@ final class RebalancingViewModel {
   /// Wraps the load in `withObservationTracking` so that any `@Observable`/`@Model`
   /// property change automatically triggers a reload.
   func loadRebalancing() {
+    loadState = .loading
     withObservationTracking {
       performLoadRebalancing()
     } onChange: { [weak self] in
@@ -87,86 +92,94 @@ final class RebalancingViewModel {
   }
 
   private func performLoadRebalancing() {
-    let allCategories = fetchAllCategories()
+    defer {
+      if case .loading = loadState { loadState = .loaded }
+    }
 
-    // Clear state
-    suggestions = []
-    noTargetRows = []
-    uncategorizedRow = nil
-    summaryTexts = []
-    totalPortfolioValue = 0
-    conversionStatus = .notNeeded
+    do {
+      let allCategories = try fetchAllCategories()
 
-    guard
-      let latestSnapshot = SnapshotSummaryService.fetchLatestSnapshot(modelContext: modelContext)
-    else { return }
+      // Clear state
+      suggestions = []
+      noTargetRows = []
+      uncategorizedRow = nil
+      summaryTexts = []
+      totalPortfolioValue = 0
+      conversionStatus = .notNeeded
 
-    conversionStatus =
-      CurrencyConversionService.totalValueReport(
-        for: latestSnapshot,
-        displayCurrency: SettingsService.shared.mainCurrency,
-        exchangeRate: latestSnapshot.exchangeRate
-      ).status
+      guard
+        let latestSnapshot = try SnapshotSummaryService.fetchLatestSnapshot(using: fetcher)
+      else { return }
 
-    let displayCurrency = SettingsService.shared.mainCurrency
-    guard
-      let totalPortfolioValue = CurrencyConversionService.totalValue(
-        for: latestSnapshot, displayCurrency: displayCurrency,
-        exchangeRate: latestSnapshot.exchangeRate)
-    else { return }
-    self.totalPortfolioValue = totalPortfolioValue
+      conversionStatus =
+        CurrencyConversionService.totalValueReport(
+          for: latestSnapshot,
+          displayCurrency: SettingsService.shared.mainCurrency,
+          exchangeRate: latestSnapshot.exchangeRate
+        ).status
 
-    guard totalPortfolioValue > 0 else { return }
+      let displayCurrency = SettingsService.shared.mainCurrency
+      guard
+        let totalPortfolioValue = CurrencyConversionService.totalValue(
+          for: latestSnapshot, displayCurrency: displayCurrency,
+          exchangeRate: latestSnapshot.exchangeRate)
+      else { return }
+      self.totalPortfolioValue = totalPortfolioValue
 
-    // Group values by category with currency conversion
-    guard
-      let catValues = CurrencyConversionService.categoryValues(
-        for: latestSnapshot, displayCurrency: displayCurrency,
-        exchangeRate: latestSnapshot.exchangeRate)
-    else { return }
+      guard totalPortfolioValue > 0 else { return }
 
-    var categoryValueLookup: [String: Decimal] = [:]
-    var uncategorizedValue: Decimal = 0
+      // Group values by category with currency conversion
+      guard
+        let catValues = CurrencyConversionService.categoryValues(
+          for: latestSnapshot, displayCurrency: displayCurrency,
+          exchangeRate: latestSnapshot.exchangeRate)
+      else { return }
 
-    for (name, value) in catValues {
-      if name.isEmpty {
-        uncategorizedValue += value
-      } else {
-        categoryValueLookup[name, default: 0] += value
+      var categoryValueLookup: [String: Decimal] = [:]
+      var uncategorizedValue: Decimal = 0
+
+      for (name, value) in catValues {
+        if name.isEmpty {
+          uncategorizedValue += value
+        } else {
+          categoryValueLookup[name, default: 0] += value
+        }
       }
+
+      // Build CategoryAllocation array for the calculator
+      let categoryAllocations: [CategoryAllocation] = allCategories.map { category in
+        CategoryAllocation(
+          name: category.name,
+          currentValue: categoryValueLookup[category.name] ?? 0,
+          targetPercentage: category.targetAllocationPercentage
+        )
+      }
+
+      // Calculate rebalancing actions (only categories with targets)
+      let actions = RebalancingCalculator.calculateAdjustments(
+        categories: categoryAllocations, totalValue: totalPortfolioValue)
+
+      let currency = SettingsService.shared.mainCurrency
+
+      suggestions = buildSuggestionRows(actions: actions, currency: currency)
+
+      noTargetRows = buildNoTargetRows(
+        categories: allCategories,
+        categoryValues: categoryValueLookup)
+
+      if uncategorizedValue > 0 {
+        let percentage = CalculationService.categoryAllocation(
+          categoryValue: uncategorizedValue, totalValue: totalPortfolioValue)
+        uncategorizedRow = UncategorizedRowData(
+          currentValue: uncategorizedValue,
+          currentPercentage: percentage
+        )
+      }
+
+      summaryTexts = buildSummaryTexts(actions: actions, currency: currency)
+    } catch {
+      loadState = .failed(error.localizedDescription)
     }
-
-    // Build CategoryAllocation array for the calculator
-    let categoryAllocations: [CategoryAllocation] = allCategories.map { category in
-      CategoryAllocation(
-        name: category.name,
-        currentValue: categoryValueLookup[category.name] ?? 0,
-        targetPercentage: category.targetAllocationPercentage
-      )
-    }
-
-    // Calculate rebalancing actions (only categories with targets)
-    let actions = RebalancingCalculator.calculateAdjustments(
-      categories: categoryAllocations, totalValue: totalPortfolioValue)
-
-    let currency = SettingsService.shared.mainCurrency
-
-    suggestions = buildSuggestionRows(actions: actions, currency: currency)
-
-    noTargetRows = buildNoTargetRows(
-      categories: allCategories,
-      categoryValues: categoryValueLookup)
-
-    if uncategorizedValue > 0 {
-      let percentage = CalculationService.categoryAllocation(
-        categoryValue: uncategorizedValue, totalValue: totalPortfolioValue)
-      uncategorizedRow = UncategorizedRowData(
-        currentValue: uncategorizedValue,
-        currentPercentage: percentage
-      )
-    }
-
-    summaryTexts = buildSummaryTexts(actions: actions, currency: currency)
   }
 
   // MARK: - Private Helpers
@@ -226,10 +239,10 @@ final class RebalancingViewModel {
       }
   }
 
-  private func fetchAllCategories() -> [Category] {
+  private func fetchAllCategories() throws -> [Category] {
     let descriptor = FetchDescriptor<Category>(
       sortBy: [SortDescriptor(\.displayOrder), SortDescriptor(\.name)])
-    return (try? modelContext.fetch(descriptor)) ?? []
+    return try fetchModels(descriptor, from: fetcher, operation: "fetch categories")
   }
 
   /// Builds human-readable summary texts pairing sell and buy categories

@@ -26,16 +26,21 @@ extension ImportViewModel {
 
   /// Re-runs duplicate detection considering only included rows.
   func revalidate() {
-    switch importType {
-    case .assets:
-      revalidateAssets()
+    do {
+      switch importType {
+      case .assets:
+        try revalidateAssets()
 
-    case .cashFlows:
-      revalidateCashFlows()
+      case .cashFlows:
+        try revalidateCashFlows()
+      }
+      persistenceError = nil
+    } catch {
+      persistenceError = error.localizedDescription
     }
   }
 
-  private func revalidateAssets() {
+  private func revalidateAssets() throws {
     // Clear per-row duplicate errors first (marketValueWarning is set during rebuild)
     for idx in assetPreviewRows.indices {
       assetPreviewRows[idx].duplicateError = nil
@@ -69,7 +74,11 @@ extension ImportViewModel {
       predicate: #Predicate { $0.date == normalizedDate }
     )
     snapshotDescriptor.fetchLimit = 1
-    if let existingSnapshot = ((try? modelContext.fetch(snapshotDescriptor)) ?? []).first {
+    if let existingSnapshot = try fetchModels(
+      snapshotDescriptor,
+      from: fetcher,
+      operation: "validate asset import"
+    ).first {
       let snapshotValueLookup = SnapshotAssetValueLookup(
         values: existingSnapshot.assetValues ?? [])
       for (index, row) in assetPreviewRows.enumerated() where row.isIncluded {
@@ -105,7 +114,7 @@ extension ImportViewModel {
     validationWarnings = baseAssetWarnings.filter { $0.row <= 1 }
   }
 
-  private func revalidateCashFlows() {
+  private func revalidateCashFlows() throws {
     // Clear all per-row errors first
     for idx in cashFlowPreviewRows.indices {
       cashFlowPreviewRows[idx].duplicateError = nil
@@ -134,7 +143,11 @@ extension ImportViewModel {
       predicate: #Predicate { $0.date == normalizedDate }
     )
     snapshotDescriptor.fetchLimit = 1
-    if let existingSnapshot = ((try? modelContext.fetch(snapshotDescriptor)) ?? []).first {
+    if let existingSnapshot = try fetchModels(
+      snapshotDescriptor,
+      from: fetcher,
+      operation: "validate cash flow import"
+    ).first {
       let cashFlowLookup = CashFlowDescriptionLookup(
         operations: existingSnapshot.cashFlowOperations ?? [])
       for (index, row) in cashFlowPreviewRows.enumerated() where row.isIncluded {
@@ -157,13 +170,17 @@ extension ImportViewModel {
 
   // MARK: - Import Execution
 
-  func findOrCreateSnapshot(date: Date) -> Snapshot {
+  func findOrCreateSnapshot(date: Date) throws -> Snapshot {
     var descriptor = FetchDescriptor<Snapshot>(
       predicate: #Predicate { $0.date == date }
     )
     descriptor.fetchLimit = 1
 
-    if let existing = ((try? modelContext.fetch(descriptor)) ?? []).first {
+    if let existing = try fetchModels(
+      descriptor,
+      from: fetcher,
+      operation: "find or create import snapshot"
+    ).first {
       return existing
     }
 
@@ -172,9 +189,13 @@ extension ImportViewModel {
     return snapshot
   }
 
-  func executeAssetImport(snapshot: Snapshot) {
+  func executeAssetImport(
+    snapshot: Snapshot,
+    existingAssets: [Asset],
+    latestPrior: Snapshot?
+  ) throws {
     let includedRows = assetPreviewRows.filter { $0.isIncluded }
-    var assetLookup = AssetResolutionLookup(assets: fetchAllAssets())
+    var assetLookup = AssetResolutionLookup(assets: existingAssets)
     var snapshotValueLookup = SnapshotAssetValueLookup(values: snapshot.assetValues ?? [])
 
     for previewRow in includedRows {
@@ -227,22 +248,16 @@ extension ImportViewModel {
 
     // Copy-forward: copy assets from selected platforms in prior snapshot
     if copyForwardEnabled {
-      executeCopyForward(snapshot: snapshot)
+      executeCopyForward(snapshot: snapshot, latestPrior: latestPrior)
     }
   }
 
   /// Copies asset values from selected platforms in the most recent prior snapshot.
-  private func executeCopyForward(snapshot: Snapshot) {
+  private func executeCopyForward(snapshot: Snapshot, latestPrior: Snapshot?) {
     let selectedPlatforms = copyForwardPlatforms.filter { $0.isSelected }
     guard !selectedPlatforms.isEmpty else { return }
 
-    let normalizedDate = Calendar.current.startOfDay(for: snapshotDate)
-
-    guard
-      let latestPrior = SnapshotSummaryService.fetchLatestSnapshot(
-        before: normalizedDate,
-        modelContext: modelContext)
-    else { return }
+    guard let latestPrior else { return }
 
     let selectedPlatformNames = Set(selectedPlatforms.map { $0.platformName.lowercased() })
     let priorValues = latestPrior.assetValues ?? []
@@ -304,9 +319,13 @@ extension ImportViewModel {
     pendingPartialMapping = [:]
   }
 
-  func fetchAllAssets() -> [Asset] {
+  func latestPriorSnapshotForImport(on date: Date) throws -> Snapshot? {
+    try SnapshotSummaryService.fetchLatestSnapshot(before: date, using: fetcher)
+  }
+
+  func fetchAllAssets() throws -> [Asset] {
     let descriptor = FetchDescriptor<Asset>()
-    return (try? modelContext.fetch(descriptor)) ?? []
+    return try fetchModels(descriptor, from: fetcher, operation: "prepare asset import")
   }
 
 }

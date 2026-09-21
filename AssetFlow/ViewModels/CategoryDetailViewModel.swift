@@ -43,6 +43,7 @@ struct CategoryAllocationHistoryEntry: Identifiable {
 final class CategoryDetailViewModel {
   let category: Category
   private let modelContext: ModelContext
+  private let fetcher: any ModelFetching
   private let settingsService: SettingsService
 
   var editedName: String
@@ -66,11 +67,18 @@ final class CategoryDetailViewModel {
   var valueHistory: [CategoryValueHistoryEntry] = []
   var allocationHistory: [CategoryAllocationHistoryEntry] = []
   var conversionStatus: CurrencyConversionStatus = .notNeeded
+  var loadState: DataLoadState = .idle
   private var summaries: [SnapshotSummary] = []
 
-  init(category: Category, modelContext: ModelContext, settingsService: SettingsService? = nil) {
+  init(
+    category: Category,
+    modelContext: ModelContext,
+    settingsService: SettingsService? = nil,
+    fetcher: (any ModelFetching)? = nil
+  ) {
     self.category = category
     self.modelContext = modelContext
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     self.settingsService = settingsService ?? .shared
     self.editedName = category.name
     self.editedTargetAllocation = category.targetAllocationPercentage
@@ -112,15 +120,20 @@ final class CategoryDetailViewModel {
   }
 
   private func performLoadData() {
-    let allSnapshots = SnapshotSummaryService.fetchSnapshots(modelContext: modelContext)
-    summaries = SnapshotSummaryService.makeSummaries(
-      for: allSnapshots,
-      displayCurrency: settingsService.mainCurrency)
-    conversionStatus = CurrencyConversionStatus.merged(
-      summaries.map(\.conversionStatus))
+    do {
+      let allSnapshots = try SnapshotSummaryService.fetchSnapshots(using: fetcher)
+      summaries = SnapshotSummaryService.makeSummaries(
+        for: allSnapshots,
+        displayCurrency: settingsService.mainCurrency)
+      conversionStatus = CurrencyConversionStatus.merged(
+        summaries.map(\.conversionStatus))
 
-    loadAssets(allSnapshots: allSnapshots)
-    loadHistory()
+      loadAssets(allSnapshots: allSnapshots)
+      loadHistory()
+      loadState = .loaded
+    } catch {
+      loadState = .failed(error.localizedDescription)
+    }
   }
 
   // MARK: - Save
@@ -140,7 +153,10 @@ final class CategoryDetailViewModel {
 
     // Check for conflicts with other categories (exclude self)
     let descriptor = FetchDescriptor<Category>()
-    let allCategories = (try? modelContext.fetch(descriptor)) ?? []
+    let allCategories = try fetchModels(
+      descriptor,
+      from: fetcher,
+      operation: "validate category")
 
     let hasConflict = allCategories.contains { other in
       other.id != category.id

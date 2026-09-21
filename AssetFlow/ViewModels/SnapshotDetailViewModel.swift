@@ -34,6 +34,7 @@ struct CategoryAllocationData: Sendable, Equatable {
 class SnapshotDetailViewModel {
   let snapshot: Snapshot
   private let modelContext: ModelContext
+  private let fetcher: any ModelFetching
   private let settingsService: SettingsService
 
   /// Direct asset values in this snapshot.
@@ -51,10 +52,16 @@ class SnapshotDetailViewModel {
   /// Error message from exchange rate fetch.
   var ratesFetchError: String?
 
-  init(snapshot: Snapshot, modelContext: ModelContext, settingsService: SettingsService? = nil) {
+  init(
+    snapshot: Snapshot,
+    modelContext: ModelContext,
+    settingsService: SettingsService? = nil,
+    fetcher: (any ModelFetching)? = nil
+  ) {
     self.snapshot = snapshot
     self.modelContext = modelContext
     self.settingsService = settingsService ?? .shared
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
   }
 
   // MARK: - Computed Properties
@@ -322,7 +329,10 @@ class SnapshotDetailViewModel {
     }
 
     // Find or create the asset record
-    let asset = modelContext.findOrCreateAsset(name: name, platform: platform)
+    let asset = try modelContext.findOrCreateAsset(
+      name: name,
+      platform: platform,
+      fetcher: fetcher)
 
     // Assign currency if provided
     if !currency.isEmpty {
@@ -430,8 +440,8 @@ class SnapshotDetailViewModel {
   // MARK: - Category Resolution
 
   /// Resolves a category by name, reusing an existing one (case-insensitive) or creating a new one.
-  func resolveCategory(name: String) -> Category? {
-    modelContext.resolveCategory(name: name)
+  func resolveCategory(name: String) throws -> Category? {
+    try modelContext.resolveCategory(name: name, fetcher: fetcher)
   }
 
 }

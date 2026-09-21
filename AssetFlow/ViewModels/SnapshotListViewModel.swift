@@ -135,13 +135,21 @@ struct SnapshotConfirmationData {
 @MainActor
 class SnapshotListViewModel {
   private let modelContext: ModelContext
+  private let fetcher: any ModelFetching
   private let settingsService: SettingsService
 
   /// Pre-computed row data for all snapshots, keyed by snapshot ID.
+  var snapshots: [Snapshot] = []
   var rowDataMap: [UUID: SnapshotRowData] = [:]
+  var loadState: DataLoadState = .idle
 
-  init(modelContext: ModelContext, settingsService: SettingsService? = nil) {
+  init(
+    modelContext: ModelContext,
+    settingsService: SettingsService? = nil,
+    fetcher: (any ModelFetching)? = nil
+  ) {
     self.modelContext = modelContext
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     self.settingsService = settingsService ?? .shared
   }
 
@@ -151,9 +159,10 @@ class SnapshotListViewModel {
   ///
   /// Wraps the load in `withObservationTracking` so that any `@Observable`/`@Model`
   /// property change (e.g. currency, asset values) automatically triggers a reload.
-  func loadRowData(snapshots: [Snapshot]? = nil) {
+  func loadRowData() {
+    loadState = .loading
     withObservationTracking {
-      performLoadRowData(snapshots: snapshots)
+      performLoadRowData()
     } onChange: { [weak self] in
       Task { @MainActor [weak self] in
         // Re-fetch the current collection instead of capturing SwiftData models
@@ -163,8 +172,16 @@ class SnapshotListViewModel {
     }
   }
 
-  private func performLoadRowData(snapshots: [Snapshot]?) {
-    rowDataMap = loadAllSnapshotRowData(snapshots: snapshots)
+  private func performLoadRowData() {
+    do {
+      let loadedSnapshots = try fetchAllSnapshots()
+      let loadedRowData = buildAllSnapshotRowData(for: loadedSnapshots)
+      snapshots = loadedSnapshots
+      rowDataMap = loadedRowData
+      loadState = .loaded
+    } catch {
+      loadState = .failed(error.localizedDescription)
+    }
   }
 
   // MARK: - Creation
@@ -191,15 +208,25 @@ class SnapshotListViewModel {
       predicate: #Predicate { $0.date == normalizedDate }
     )
     dateCheckDescriptor.fetchLimit = 1
-    if try modelContext.fetch(dateCheckDescriptor).first != nil {
+    if try fetchModels(
+      dateCheckDescriptor, from: fetcher, operation: "check snapshot date"
+    ).first != nil {
       throw SnapshotError.dateAlreadyExists(normalizedDate)
+    }
+
+    let latestPrior: Snapshot?
+    if copyFromLatest {
+      latestPrior = try SnapshotSummaryService.fetchLatestSnapshot(
+        before: normalizedDate, using: fetcher)
+    } else {
+      latestPrior = nil
     }
 
     let snapshot = Snapshot(date: normalizedDate)
     modelContext.insert(snapshot)
 
     if copyFromLatest {
-      copyValuesFromLatest(to: snapshot)
+      copyValuesFromLatest(to: snapshot, from: latestPrior)
     }
 
     return snapshot
@@ -208,13 +235,15 @@ class SnapshotListViewModel {
   /// Whether "Copy from latest" is available for the given date.
   ///
   /// Returns true if at least one snapshot exists with a date before the selected date.
-  func canCopyFromLatest(for date: Date) -> Bool {
+  func canCopyFromLatest(for date: Date) throws -> Bool {
     let normalizedDate = Calendar.current.startOfDay(for: date)
     var descriptor = FetchDescriptor<Snapshot>(
       predicate: #Predicate { $0.date < normalizedDate }
     )
     descriptor.fetchLimit = 1
-    return ((try? modelContext.fetch(descriptor)) ?? []).first != nil
+    return try fetchModels(
+      descriptor, from: fetcher, operation: "check copy-forward availability"
+    ).first != nil
   }
 
   // MARK: - Deletion
@@ -236,11 +265,13 @@ class SnapshotListViewModel {
   // MARK: - Row Data
 
   /// Computes row data for all snapshots in a single batch.
-  func loadAllSnapshotRowData(snapshots: [Snapshot]? = nil) -> [UUID: SnapshotRowData] {
-    let allSnapshots = snapshots ?? fetchAllSnapshots()
+  func loadAllSnapshotRowData() throws -> [UUID: SnapshotRowData] {
+    buildAllSnapshotRowData(for: try fetchAllSnapshots())
+  }
 
+  private func buildAllSnapshotRowData(for snapshots: [Snapshot]) -> [UUID: SnapshotRowData] {
     var result: [UUID: SnapshotRowData] = [:]
-    for snapshot in allSnapshots {
+    for snapshot in snapshots {
       result[snapshot.id] = buildRowData(for: snapshot)
     }
     return result
@@ -279,22 +310,13 @@ class SnapshotListViewModel {
 
   // MARK: - Private Helpers
 
-  private func fetchAllSnapshots() -> [Snapshot] {
-    SnapshotSummaryService.fetchSnapshots(modelContext: modelContext)
+  private func fetchAllSnapshots() throws -> [Snapshot] {
+    try SnapshotSummaryService.fetchSnapshots(using: fetcher)
   }
 
   /// Copies all direct asset values from the most recent prior snapshot to the new snapshot.
-  private func copyValuesFromLatest(to snapshot: Snapshot) {
-    // Find the most recent snapshot before the new snapshot's date
-    let snapshotDate = snapshot.date
-    var priorDescriptor = FetchDescriptor<Snapshot>(
-      predicate: #Predicate { $0.date < snapshotDate },
-      sortBy: [SortDescriptor(\.date, order: .reverse)]
-    )
-    priorDescriptor.fetchLimit = 1
-
-    guard let latestPrior = (try? modelContext.fetch(priorDescriptor))?.first else { return }
-
+  private func copyValuesFromLatest(to snapshot: Snapshot, from latestPrior: Snapshot?) {
+    guard let latestPrior else { return }
     let latestValues = latestPrior.assetValues ?? []
 
     for priorSAV in latestValues {

@@ -318,12 +318,21 @@ struct SettingsView: View {
       // Fetch missing exchange rates for restored snapshots
       Task {
         let service = ExchangeRateService()
-        let snapshots = (try? modelContext.fetch(FetchDescriptor<Snapshot>())) ?? []
-        _ = await service.fetchMissingRates(
-          snapshots: snapshots,
-          displayCurrency: settingsService.mainCurrency,
-          modelContext: modelContext
-        )
+        do {
+          let snapshots = try fetchModels(
+            FetchDescriptor<Snapshot>(),
+            from: ModelContextFetcher(modelContext: modelContext),
+            operation: "load restored snapshots for exchange rates")
+          _ = await service.fetchMissingRates(
+            snapshots: snapshots,
+            displayCurrency: settingsService.mainCurrency,
+            modelContext: modelContext
+          )
+        } catch {
+          resultMessage = error.localizedDescription
+          isError = true
+          showResultAlert = true
+        }
       }
     } catch {
       resultMessage = error.localizedDescription

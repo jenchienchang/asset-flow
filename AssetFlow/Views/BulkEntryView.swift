@@ -64,10 +64,14 @@ struct BulkEntryView: View {
           viewModel: viewModel,
           onSave: { handleSave() })
         Divider()
-        BulkEntryContentArea(
-          viewModel: viewModel,
-          cachedCategoryNames: $cachedCategoryNames,
-          csvImportTarget: $csvImportTarget)
+        if case .failed(let message) = viewModel.loadState {
+          DataLoadErrorView(message: message) { viewModel.retryLoad() }
+        } else {
+          BulkEntryContentArea(
+            viewModel: viewModel,
+            cachedCategoryNames: $cachedCategoryNames,
+            csvImportTarget: $csvImportTarget)
+        }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .onAppear {
@@ -215,8 +219,16 @@ struct BulkEntryView: View {
   private func loadCachedCategoryNames() {
     let descriptor = FetchDescriptor<Category>(
       sortBy: [SortDescriptor(\.displayOrder), SortDescriptor(\.name)])
-    let categories = (try? modelContext.fetch(descriptor)) ?? []
-    cachedCategoryNames = categories.map(\.name)
+    do {
+      let categories = try fetchModels(
+        descriptor,
+        from: ModelContextFetcher(modelContext: modelContext),
+        operation: "load bulk category names")
+      cachedCategoryNames = categories.map(\.name)
+    } catch {
+      errorMessage = error.localizedDescription
+      showError = true
+    }
   }
 
   private func showImportResultAlert(for feedback: CSVImportFeedback?) {

@@ -39,15 +39,22 @@ let significantDeviationThreshold: Decimal = 5
 @MainActor
 final class CategoryListViewModel {
   private let modelContext: ModelContext
+  private let fetcher: any ModelFetching
   private let settingsService: SettingsService
 
   var categoryRows: [CategoryRowData] = []
+  var loadState: DataLoadState = .idle
   var targetAllocationSumWarning: String?
   var hasSignificantDeviation = false
   var conversionStatus: CurrencyConversionStatus = .notNeeded
 
-  init(modelContext: ModelContext, settingsService: SettingsService? = nil) {
+  init(
+    modelContext: ModelContext,
+    settingsService: SettingsService? = nil,
+    fetcher: (any ModelFetching)? = nil
+  ) {
     self.modelContext = modelContext
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     self.settingsService = settingsService ?? .shared
   }
 
@@ -69,59 +76,64 @@ final class CategoryListViewModel {
   }
 
   private func performLoadCategories() {
-    let allCategories = fetchAllCategories()
-    let latestSnapshot = SnapshotSummaryService.fetchLatestSnapshot(modelContext: modelContext)
-    conversionStatus =
-      latestSnapshot.map {
-        CurrencyConversionService.totalValueReport(
-          for: $0,
-          displayCurrency: settingsService.mainCurrency,
-          exchangeRate: $0.exchangeRate
-        ).status
-      } ?? .notNeeded
+    do {
+      let allCategories = try fetchAllCategories()
+      let latestSnapshot = try SnapshotSummaryService.fetchLatestSnapshot(using: fetcher)
+      conversionStatus =
+        latestSnapshot.map {
+          CurrencyConversionService.totalValueReport(
+            for: $0,
+            displayCurrency: settingsService.mainCurrency,
+            exchangeRate: $0.exchangeRate
+          ).status
+        } ?? .notNeeded
 
-    // Build latest value lookup grouped by category
-    let categoryValues = buildCategoryValueLookup(
-      latestSnapshot: latestSnapshot)
+      // Build latest value lookup grouped by category
+      let categoryValues = buildCategoryValueLookup(
+        latestSnapshot: latestSnapshot)
 
-    let totalValue = categoryValues.values.reduce(Decimal(0), +)
-    let hasSnapshots = latestSnapshot != nil
+      let totalValue = categoryValues.values.reduce(Decimal(0), +)
+      let hasSnapshots = latestSnapshot != nil
 
-    normalizeDisplayOrderIfNeeded(allCategories)
+      normalizeDisplayOrderIfNeeded(allCategories)
 
-    categoryRows =
-      allCategories.map { category in
-        let value = categoryValues[category.id] ?? 0
-        let allocation: Decimal? =
-          hasSnapshots
-          ? conversionStatus.isComplete
-            ? CalculationService.categoryAllocation(
-              categoryValue: value, totalValue: totalValue)
+      categoryRows =
+        allCategories.map { category in
+          let value = categoryValues[category.id] ?? 0
+          let allocation: Decimal? =
+            hasSnapshots
+            ? conversionStatus.isComplete
+              ? CalculationService.categoryAllocation(
+                categoryValue: value, totalValue: totalValue)
+              : nil
             : nil
-          : nil
-        return CategoryRowData(
-          category: category,
-          targetAllocation: category.targetAllocationPercentage,
-          currentAllocation: allocation,
-          currentValue: value,
-          assetCount: (category.assets ?? []).count
-        )
-      }
-      .sorted {
-        if $0.category.displayOrder != $1.category.displayOrder {
-          return $0.category.displayOrder < $1.category.displayOrder
+          return CategoryRowData(
+            category: category,
+            targetAllocation: category.targetAllocationPercentage,
+            currentAllocation: allocation,
+            currentValue: value,
+            assetCount: (category.assets ?? []).count
+          )
         }
-        return $0.category.name.localizedCaseInsensitiveCompare($1.category.name)
-          == .orderedAscending
-      }
+        .sorted {
+          if $0.category.displayOrder != $1.category.displayOrder {
+            return $0.category.displayOrder < $1.category.displayOrder
+          }
+          return $0.category.name.localizedCaseInsensitiveCompare($1.category.name)
+            == .orderedAscending
+        }
 
-    targetAllocationSumWarning = computeTargetAllocationWarning(categories: allCategories)
+      targetAllocationSumWarning = computeTargetAllocationWarning(categories: allCategories)
 
-    hasSignificantDeviation = categoryRows.contains { row in
-      guard let target = row.targetAllocation, let current = row.currentAllocation else {
-        return false
+      hasSignificantDeviation = categoryRows.contains { row in
+        guard let target = row.targetAllocation, let current = row.currentAllocation else {
+          return false
+        }
+        return abs(current - target) > significantDeviationThreshold
       }
-      return abs(current - target) > significantDeviationThreshold
+      loadState = .loaded
+    } catch {
+      loadState = .failed(error.localizedDescription)
     }
   }
 
@@ -141,12 +153,12 @@ final class CategoryListViewModel {
       guard target >= 0 && target <= 100 else { throw CategoryError.invalidTargetAllocation }
     }
 
-    guard !isDuplicateName(trimmed, excludingID: nil) else {
+    guard try !isDuplicateName(trimmed, excludingID: nil) else {
       throw CategoryError.duplicateName(trimmed)
     }
 
     let category = Category(name: trimmed, targetAllocationPercentage: targetAllocation)
-    category.displayOrder = nextDisplayOrder()
+    category.displayOrder = try nextDisplayOrder()
     modelContext.insert(category)
     return category
   }
@@ -168,7 +180,7 @@ final class CategoryListViewModel {
       guard target >= 0 && target <= 100 else { throw CategoryError.invalidTargetAllocation }
     }
 
-    guard !isDuplicateName(trimmed, excludingID: category.id) else {
+    guard try !isDuplicateName(trimmed, excludingID: category.id) else {
       throw CategoryError.duplicateName(trimmed)
     }
 
@@ -187,7 +199,7 @@ final class CategoryListViewModel {
       throw CategoryError.cannotDelete(assetCount: assets.count)
     }
     modelContext.delete(category)
-    compactDisplayOrder()
+    try compactDisplayOrder()
   }
 
   // MARK: - Move
@@ -215,21 +227,21 @@ final class CategoryListViewModel {
 
   // MARK: - Private Helpers
 
-  private func fetchAllCategories() -> [Category] {
+  private func fetchAllCategories() throws -> [Category] {
     let descriptor = FetchDescriptor<Category>(
       sortBy: [SortDescriptor(\.displayOrder), SortDescriptor(\.name)])
-    return (try? modelContext.fetch(descriptor)) ?? []
+    return try fetchModels(descriptor, from: fetcher, operation: "fetch categories")
   }
 
   /// Returns the next available displayOrder value.
-  private func nextDisplayOrder() -> Int {
-    let allCategories = fetchAllCategories()
+  private func nextDisplayOrder() throws -> Int {
+    let allCategories = try fetchAllCategories()
     return (allCategories.map(\.displayOrder).max() ?? -1) + 1
   }
 
   /// Compacts displayOrder values after a deletion to remove gaps.
-  private func compactDisplayOrder() {
-    let allCategories = fetchAllCategories()
+  private func compactDisplayOrder() throws {
+    let allCategories = try fetchAllCategories()
     for (index, category) in allCategories.enumerated() {
       category.displayOrder = index
     }
@@ -283,10 +295,11 @@ final class CategoryListViewModel {
   }
 
   /// Checks if a category name already exists (case-insensitive), optionally excluding one ID.
-  private func isDuplicateName(_ name: String, excludingID: UUID?) -> Bool {
+  private func isDuplicateName(_ name: String, excludingID: UUID?) throws -> Bool {
     let normalized = name.lowercased()
     let descriptor = FetchDescriptor<Category>()
-    let allCategories = (try? modelContext.fetch(descriptor)) ?? []
+    let allCategories = try fetchModels(
+      descriptor, from: fetcher, operation: "check category uniqueness")
 
     return allCategories.contains { category in
       category.name.lowercased() == normalized

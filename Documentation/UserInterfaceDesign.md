@@ -200,7 +200,7 @@ ______________________________________________________________________
 
 - **AssetListView** (`AssetFlow/Views/AssetListView.swift`): Uses `AssetListViewModel` with `@State`. Segmented control binds to `viewModel.groupingMode`. List sections iterate over `viewModel.groups`. Context menu on rows provides delete action for eligible assets.
 - **AssetDetailView** (`AssetFlow/Views/AssetDetailView.swift`): Uses `AssetDetailViewModel` with `@State`. Form with `.grouped` style. Platform picker is provided by `PlatformPickerField`. Value history section shows a `ChartTimeRangeSelector` and an interactive 250pt line chart (`ChartConstants.standardChartHeight`) with hover tooltips via `.onContinuousHoverWhenUnlocked`. When the asset currency differs from the display currency, a `showConvertedChart` toggle button appears next to the range selector; activating it switches the chart to show values converted to the display currency (in green) and adds a "Converted Value" column to the value history table. Delete confirmation dialog before deletion. Value history table supports inline editing: double-click a market value or right-click and choose "Edit Value" to open a popover for editing the value in place.
-- **AssetListViewModel** (`AssetFlow/ViewModels/AssetListViewModel.swift`): Groups assets by platform or category. Computes latest values from the most recent snapshot using a bounded latest-snapshot fetch. "(No Platform)" and "(Uncategorized)" groups always sorted last. Reads `SettingsService.hideStaleAssets` inside `withObservationTracking` so toggling the filter automatically reloads. `hasHiddenStaleAssets` is true when the filter dropped at least one asset; the View uses it to swap the empty-state message.
+- **AssetListViewModel** (`AssetFlow/ViewModels/AssetListViewModel.swift`): Groups assets by platform or category. Computes latest values from the most recent snapshot using a bounded latest-snapshot fetch. "(No Platform)" and "(Uncategorized)" groups always sorted last. Reads `SettingsService.hideStaleAssets` inside `withObservationTracking` so toggling the filter automatically reloads. `hasHiddenStaleAssets` is true when the filter dropped at least one asset; the View uses it to swap the empty-state message. Persistence failures are represented by `DataLoadState.failed` and shown with a retry action.
 - **AssetDetailViewModel** (`AssetFlow/ViewModels/AssetDetailViewModel.swift`): Editable fields (`editedName`, `editedPlatform`, `editedCategory`) initialized from asset. `save()` validates normalized identity uniqueness. `loadValueHistory()` returns direct SAVs sorted chronologically. `editAssetValue(_:newValue:)` mutates the `SnapshotAssetValue` market value and refreshes the history.
 
 ______________________________________________________________________
@@ -226,7 +226,7 @@ ______________________________________________________________________
 **Implementation notes:**
 
 - **CategoryListView** (`AssetFlow/Views/CategoryListView.swift`): Takes `modelContext` and `selectedCategory: Binding<Category?>`. Uses `@State private var viewModel: CategoryListViewModel`. List selection drives the binding. Toolbar "+" button opens add category sheet. Target allocation sum warning banner shown at top when allocations don't sum to 100%. Deviation indicator (orange `exclamationmark.triangle.fill`) shown when `abs(current - target) > 5`. Empty state uses folder icon.
-- **CategoryListViewModel** (`AssetFlow/ViewModels/CategoryListViewModel.swift`): `CategoryRowData` struct bundles category, target/current allocation, value, and asset count. `loadCategories()` computes values from a bounded latest-snapshot fetch. `createCategory`/`editCategory`/`deleteCategory` with validation via `CategoryError`. `moveCategories(from:to:)` handles drag-to-reorder by updating `displayOrder` on each category. On first load, if all categories have the same `displayOrder` (migration scenario), they are normalized alphabetically.
+- **CategoryListViewModel** (`AssetFlow/ViewModels/CategoryListViewModel.swift`): `CategoryRowData` struct bundles category, target/current allocation, value, and asset count. `loadCategories()` computes values from a bounded latest-snapshot fetch. `createCategory`/`editCategory`/`deleteCategory` with validation via `CategoryError`. `moveCategories(from:to:)` handles drag-to-reorder by updating `displayOrder` on each category. On first load, if all categories have the same `displayOrder` (migration scenario), they are normalized alphabetically. Failed reads use the retryable load-error state rather than the empty state.
 - **CategoryDetailView** (`AssetFlow/Views/CategoryDetailView.swift`): Takes `category`, `modelContext`, `onDelete`. Parent must apply `.id(category.id)` for proper state reset. Form sections: Category Details (name + target allocation), Assets in Category (`AssetTableView` with "Platform" second column), Value History (LineMark + PointMark chart), Allocation History (LineMark + PointMark chart), Danger Zone (delete button).
 - **CategoryDetailViewModel** (`AssetFlow/ViewModels/CategoryDetailViewModel.swift`): `editedName`/`editedTargetAllocation` initialized from category. `loadData()` computes the asset list with latest values plus value/allocation history across all snapshots, using `SnapshotSummaryService` for converted historical totals. Single snapshot renders as PointMark only.
 
@@ -411,6 +411,8 @@ ______________________________________________________________________
 ## Empty States
 
 All empty states use `ContentUnavailableView` (macOS 14.0+), which provides a consistent native macOS layout with `Label` (icon + title), `description` text, and optional `actions`. This replaced the custom `EmptyStateView` component for better platform consistency.
+
+Read failures are not empty states: list and detail screens show an `Unable to load data` error with the localized persistence message and a `Retry` action. The empty state is shown only after a successful load with no matching records.
 
 | Screen      | Icon                       | Title                | Message                                                                                          | Actions                         |
 | ----------- | -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------- |
@@ -703,14 +705,26 @@ For sections with list-detail (Snapshots, Assets, Categories, Platforms), the ou
 
 ```swift
 struct SnapshotsSplitView: View {
-    @Query(sort: \Snapshot.date, order: .reverse)
-    private var snapshots: [Snapshot]
+    @State private var viewModel: SnapshotListViewModel
     @State private var selectedSnapshot: Snapshot?
+
+    init(modelContext: ModelContext) {
+        _viewModel = State(
+            initialValue: SnapshotListViewModel(modelContext: modelContext))
+    }
 
     var body: some View {
         NavigationSplitView {
-            List(snapshots, selection: $selectedSnapshot) { snapshot in
-                SnapshotRowView(snapshot: snapshot)
+            Group {
+                if case .failed(let message) = viewModel.loadState {
+                    DataLoadErrorView(message: message) {
+                        viewModel.loadRowData()
+                    }
+                } else {
+                    List(viewModel.snapshots, selection: $selectedSnapshot) { snapshot in
+                        SnapshotRowView(snapshot: snapshot)
+                    }
+                }
             }
             .toolbar {
                 Button("New Snapshot", systemImage: "plus") { /* ... */ }
@@ -729,6 +743,8 @@ struct SnapshotsSplitView: View {
     }
 }
 ```
+
+`SnapshotListView` may retain an `@Query` as an invalidation signal for collection membership changes, but it must not render that query directly or pass its results into row loading. Snapshot display and creation both use the throwing `SnapshotListViewModel`, so a failed fetch cannot become “No Snapshots” and a failed date check cannot insert a duplicate.
 
 ### Popover Pattern for Quick Edits
 
@@ -920,7 +936,7 @@ All animations use shared constants from `AnimationConstants` (`Utilities/Animat
 
 **Animation patterns:**
 
-- **Empty state transitions**: Views using ViewModel-based loading (`.onAppear`) must NOT use `.animation(_:value:)` — it animates the initial data load, causing a flash of the empty state. Do NOT add `.transition(.opacity)` to empty/content branches either — the transition is unnecessary and may cause jitter on navigation. The `withAnimation` in user-action code paths (e.g., `onChange`, delete handlers) smoothly updates list content; the empty↔content switch itself should be instant. Views using `@Query` (e.g., `SnapshotListView`) can use `.animation(_:value:)` safely since `@Query` provides data synchronously.
+- **Empty state transitions**: Views using ViewModel-based loading (`.onAppear`) must NOT use `.animation(_:value:)` — it animates the initial data load, causing a flash of the empty state. Do NOT add `.transition(.opacity)` to empty/content branches either — the transition is unnecessary and may cause jitter on navigation. The `withAnimation` in user-action code paths (e.g., `onChange`, delete handlers) smoothly updates list content; the empty↔content switch itself should be instant. A view may use `@Query` to invalidate a throwing ViewModel load, but it must render the ViewModel's loaded collection so query failures cannot display a false empty state.
 - **Chart data cross-fade**: When switching between datasets (e.g., pie chart snapshot picker), use `.id(selectedValue)` + `.transition(.opacity)` on the chart content with `.animation()` on the parent container. This produces a clean dissolve instead of morphing artifacts.
 - **Lock screen**: Only the unlock transition animates (security constraint — lock must appear instantly).
 - **Numeric text**: Use `.contentTransition(.numericText())` for metric values that change in place.
@@ -975,7 +991,7 @@ ______________________________________________________________________
 | ------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ContentView (Navigation Shell) | Implemented | Full 7-section sidebar with SidebarSection enum, list-detail splits, discard confirmation, post-import navigation                                                                                                                                         |
 | DashboardView                  | Implemented | Summary cards with `.helpWhenUnlocked()` tooltips, period performance (1M/3M/1Y), interactive charts, ContentUnavailableView, recent snapshots                                                                                                            |
-| SnapshotListView               | Implemented | @Query live list, relative time bucket grouping (collapsible sections), New Snapshot sheet (NavigationStack), ContentUnavailableView, Delete key shortcut                                                                                                 |
+| SnapshotListView               | Implemented | Throwing ViewModel-backed list with query invalidation, relative time bucket grouping (collapsible sections), New Snapshot sheet (NavigationStack), retryable persistence error state, ContentUnavailableView, Delete key shortcut                        |
 | SnapshotDetailView             | Implemented | Asset breakdown, category allocation, cash flow CRUD, edit popovers, delete confirmation                                                                                                                                                                  |
 | AssetListView                  | Implemented | Platform/category grouping, selection binding, ContentUnavailableView, Delete key shortcut                                                                                                                                                                |
 | AssetDetailView                | Implemented | Edit fields, interactive 250pt value history chart with time range selector and hover tooltips, converted value chart toggle, inline editing, delete validation                                                                                           |

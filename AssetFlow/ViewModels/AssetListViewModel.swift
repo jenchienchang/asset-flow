@@ -45,18 +45,25 @@ struct AssetGroup {
 @MainActor
 final class AssetListViewModel {
   private let modelContext: ModelContext
+  private let fetcher: any ModelFetching
   private let settingsService: SettingsService
 
   var groupingMode: AssetGroupingMode = .byPlatform
   var groups: [AssetGroup] = []
+  var loadState: DataLoadState = .idle
 
   /// Whether the most recent load hid at least one stale asset due to the
   /// "Hide Stale Assets" filter. Drives the empty-state messaging in
   /// `AssetListView` so users know assets are filtered, not absent.
   var hasHiddenStaleAssets: Bool = false
 
-  init(modelContext: ModelContext, settingsService: SettingsService? = nil) {
+  init(
+    modelContext: ModelContext,
+    settingsService: SettingsService? = nil,
+    fetcher: (any ModelFetching)? = nil
+  ) {
     self.modelContext = modelContext
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     self.settingsService = settingsService ?? .shared
   }
 
@@ -78,26 +85,31 @@ final class AssetListViewModel {
   }
 
   private func performLoadAssets() {
-    let allAssets = fetchAllAssets()
-    // Build latest value lookup from most recent snapshot
-    let latestValueLookup = buildLatestValueLookup(
-      latestSnapshot: SnapshotSummaryService.fetchLatestSnapshot(modelContext: modelContext))
+    do {
+      let allAssets = try fetchAllAssets()
+      // Build latest value lookup from most recent snapshot
+      let latestValueLookup = buildLatestValueLookup(
+        latestSnapshot: try SnapshotSummaryService.fetchLatestSnapshot(using: fetcher))
 
-    // Build row data for each asset
-    let allRows = allAssets.map { asset in
-      AssetRowData(
-        asset: asset,
-        latestValue: latestValueLookup[asset.id]
-      )
+      // Build row data for each asset
+      let allRows = allAssets.map { asset in
+        AssetRowData(
+          asset: asset,
+          latestValue: latestValueLookup[asset.id]
+        )
+      }
+
+      // Apply the "Hide Stale Assets" filter — stale = no value in the latest snapshot.
+      let hideStale = settingsService.hideStaleAssets
+      let visibleRows = hideStale ? allRows.filter { $0.latestValue != nil } : allRows
+      hasHiddenStaleAssets = hideStale && visibleRows.count < allRows.count
+
+      // Group and sort
+      groups = buildGroups(from: visibleRows)
+      loadState = .loaded
+    } catch {
+      loadState = .failed(error.localizedDescription)
     }
-
-    // Apply the "Hide Stale Assets" filter — stale = no value in the latest snapshot.
-    let hideStale = settingsService.hideStaleAssets
-    let visibleRows = hideStale ? allRows.filter { $0.latestValue != nil } : allRows
-    hasHiddenStaleAssets = hideStale && visibleRows.count < allRows.count
-
-    // Group and sort
-    groups = buildGroups(from: visibleRows)
   }
 
   // MARK: - Deletion
@@ -116,9 +128,9 @@ final class AssetListViewModel {
 
   // MARK: - Private Helpers
 
-  private func fetchAllAssets() -> [Asset] {
+  private func fetchAllAssets() throws -> [Asset] {
     let descriptor = FetchDescriptor<Asset>(sortBy: [SortDescriptor(\.name)])
-    return (try? modelContext.fetch(descriptor)) ?? []
+    return try fetchModels(descriptor, from: fetcher, operation: "fetch assets")
   }
 
   /// Builds a lookup of asset ID → latest market value from the most recent snapshot.

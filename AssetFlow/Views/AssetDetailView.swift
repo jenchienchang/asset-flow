@@ -58,8 +58,13 @@ struct AssetDetailView: View {
     .navigationTitle(viewModel.asset.name)
     .onAppear {
       viewModel.loadValueHistory()
-      cachedPlatforms = viewModel.existingPlatforms()
-      cachedCategories = viewModel.existingCategories()
+      do {
+        cachedPlatforms = try viewModel.existingPlatforms()
+        cachedCategories = try viewModel.existingCategories()
+      } catch {
+        saveErrorMessage = error.localizedDescription
+        showSaveError = true
+      }
     }
     .onChange(of: viewModel.isDifferentCurrency) { _, newValue in
       if !newValue { showConvertedChart = false }
@@ -120,8 +125,12 @@ struct AssetDetailView: View {
     CategoryPickerField(
       selectedCategory: $viewModel.editedCategory,
       cachedCategories: $cachedCategories,
-      resolveCategory: { viewModel.resolveCategory(name: $0) },
-      onCommit: { saveChanges() }
+      resolveCategory: { try viewModel.resolveCategory(name: $0) },
+      onCommit: { saveChanges() },
+      onError: { message in
+        saveErrorMessage = message
+        showSaveError = true
+      }
     )
     .accessibilityIdentifier("Category Picker")
   }
@@ -362,8 +371,8 @@ struct AssetDetailView: View {
   private func saveChanges() {
     do {
       try viewModel.save()
-      cachedPlatforms = viewModel.existingPlatforms()
-      cachedCategories = viewModel.existingCategories()
+      cachedPlatforms = try viewModel.existingPlatforms()
+      cachedCategories = try viewModel.existingCategories()
     } catch {
       saveErrorMessage = error.localizedDescription
       showSaveError = true

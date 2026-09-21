@@ -95,13 +95,21 @@ struct ImportView: View {
     .alert(
       "Import Error",
       isPresented: .init(
-        get: { viewModel.importError != nil },
-        set: { if !$0 { viewModel.importError = nil } }
+        get: { viewModel.importError != nil || viewModel.persistenceError != nil },
+        set: {
+          if !$0 {
+            viewModel.importError = nil
+            viewModel.persistenceError = nil
+          }
+        }
       )
     ) {
-      Button("OK") { viewModel.importError = nil }
+      Button("OK") {
+        viewModel.importError = nil
+        viewModel.persistenceError = nil
+      }
     } message: {
-      if let error = viewModel.importError {
+      if let error = viewModel.importError ?? viewModel.persistenceError {
         Text(error)
       }
     }
@@ -407,12 +415,16 @@ struct ImportView: View {
     let trimmed = newCategoryName.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty else { return }
 
-    let resolved = viewModel.resolveCategory(name: trimmed)
-    viewModel.refreshPickerOptions()
-    viewModel.selectedCategory = resolved
+    do {
+      let resolved = try viewModel.resolveCategory(name: trimmed)
+      viewModel.refreshPickerOptions()
+      viewModel.selectedCategory = resolved
 
-    showNewCategoryField = false
-    newCategoryName = ""
+      showNewCategoryField = false
+      newCategoryName = ""
+    } catch {
+      viewModel.persistenceError = error.localizedDescription
+    }
   }
 
   // MARK: - Copy Forward Section

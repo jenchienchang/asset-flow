@@ -39,6 +39,7 @@ final class PlatformDetailViewModel {
   /// The current canonical platform name (updated after successful rename).
   private(set) var platformName: String
   private let modelContext: ModelContext
+  private let fetcher: any ModelFetching
   private let settingsService: SettingsService
 
   /// Text field binding for the platform name.
@@ -53,11 +54,18 @@ final class PlatformDetailViewModel {
   /// Platform total value per snapshot across all snapshots.
   var valueHistory: [PlatformValueHistoryEntry] = []
   var conversionStatus: CurrencyConversionStatus = .notNeeded
+  var loadState: DataLoadState = .idle
   private var summaries: [SnapshotSummary] = []
 
-  init(platformName: String, modelContext: ModelContext, settingsService: SettingsService? = nil) {
+  init(
+    platformName: String,
+    modelContext: ModelContext,
+    settingsService: SettingsService? = nil,
+    fetcher: (any ModelFetching)? = nil
+  ) {
     self.platformName = platformName
     self.modelContext = modelContext
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     self.settingsService = settingsService ?? .shared
     self.editedName = platformName
   }
@@ -79,15 +87,20 @@ final class PlatformDetailViewModel {
   }
 
   private func performLoadData() {
-    let allSnapshots = SnapshotSummaryService.fetchSnapshots(modelContext: modelContext)
-    summaries = SnapshotSummaryService.makeSummaries(
-      for: allSnapshots,
-      displayCurrency: settingsService.mainCurrency)
-    conversionStatus = CurrencyConversionStatus.merged(
-      summaries.map(\.conversionStatus))
+    do {
+      let allSnapshots = try SnapshotSummaryService.fetchSnapshots(using: fetcher)
+      summaries = SnapshotSummaryService.makeSummaries(
+        for: allSnapshots,
+        displayCurrency: settingsService.mainCurrency)
+      conversionStatus = CurrencyConversionStatus.merged(
+        summaries.map(\.conversionStatus))
 
-    loadAssets(allSnapshots: allSnapshots)
-    loadHistory()
+      try loadAssets(allSnapshots: allSnapshots)
+      loadHistory()
+      loadState = .loaded
+    } catch {
+      loadState = .failed(error.localizedDescription)
+    }
   }
 
   // MARK: - Save (Rename)
@@ -101,7 +114,7 @@ final class PlatformDetailViewModel {
 
     guard !trimmed.isEmpty else { throw PlatformError.emptyName }
 
-    let allAssets = fetchAllAssets()
+    let allAssets = try fetchAllAssets()
 
     // Check for duplicate (case-insensitive), allowing self-rename with different casing
     let normalizedNew = trimmed.lowercased()
@@ -130,13 +143,13 @@ final class PlatformDetailViewModel {
 
   // MARK: - Private Helpers
 
-  private func fetchAllAssets() -> [Asset] {
+  private func fetchAllAssets() throws -> [Asset] {
     let descriptor = FetchDescriptor<Asset>(sortBy: [SortDescriptor(\.name)])
-    return (try? modelContext.fetch(descriptor)) ?? []
+    return try fetchModels(descriptor, from: fetcher, operation: "fetch assets")
   }
 
   /// Loads assets on this platform with their latest values.
-  private func loadAssets(allSnapshots: [Snapshot]) {
+  private func loadAssets(allSnapshots: [Snapshot]) throws {
     // Build latest value lookup from most recent snapshot
     var latestValueLookup: [UUID: Decimal] = [:]
     if let latestSnapshot = allSnapshots.last {
@@ -147,7 +160,7 @@ final class PlatformDetailViewModel {
     }
 
     // Collect all assets that belong to this platform
-    let platformAssets = fetchAllAssets().filter { $0.platform == platformName }
+    let platformAssets = try fetchAllAssets().filter { $0.platform == platformName }
 
     let displayCurrency = settingsService.mainCurrency
     let latestExchangeRate = allSnapshots.last?.exchangeRate

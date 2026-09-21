@@ -152,7 +152,7 @@ struct SnapshotListViewModelTests {
     let viewModel = createViewModel(context: context)
 
     let date = makeDate(year: 2025, month: 3, day: 1)
-    let result = viewModel.canCopyFromLatest(for: date)
+    let result = try viewModel.canCopyFromLatest(for: date)
     #expect(result == false)
   }
 
@@ -166,7 +166,7 @@ struct SnapshotListViewModelTests {
     context.insert(snap)
 
     let selectedDate = makeDate(year: 2025, month: 1, day: 15)
-    let result = viewModel.canCopyFromLatest(for: selectedDate)
+    let result = try viewModel.canCopyFromLatest(for: selectedDate)
     #expect(result == false)
   }
 
@@ -180,7 +180,7 @@ struct SnapshotListViewModelTests {
     context.insert(snap)
 
     let selectedDate = makeDate(year: 2025, month: 3, day: 1)
-    let result = viewModel.canCopyFromLatest(for: selectedDate)
+    let result = try viewModel.canCopyFromLatest(for: selectedDate)
     #expect(result == true)
   }
 
@@ -402,18 +402,18 @@ struct SnapshotListViewModelTests {
   // MARK: - Row Data Map
 
   @Test("loadAllSnapshotRowData returns empty map when no snapshots exist")
-  func loadAllSnapshotRowDataEmptyContext() {
+  func loadAllSnapshotRowDataEmptyContext() throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = createViewModel(context: context)
 
-    let rowDataMap = viewModel.loadAllSnapshotRowData()
+    let rowDataMap = try viewModel.loadAllSnapshotRowData()
 
     #expect(rowDataMap.isEmpty)
   }
 
   @Test("loadAllSnapshotRowData keys results by snapshot UUID")
-  func loadAllSnapshotRowDataKeyedByUUID() {
+  func loadAllSnapshotRowDataKeyedByUUID() throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = createViewModel(context: context)
@@ -424,7 +424,7 @@ struct SnapshotListViewModelTests {
       name: "AAPL", platform: "Firstrade", marketValue: 5000,
       snapshot: snap, context: context)
 
-    let rowDataMap = viewModel.loadAllSnapshotRowData()
+    let rowDataMap = try viewModel.loadAllSnapshotRowData()
 
     #expect(rowDataMap.count == 1)
     #expect(rowDataMap[snap.id] != nil)

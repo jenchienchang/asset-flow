@@ -38,7 +38,9 @@ struct AssetListView: View {
 
   var body: some View {
     Group {
-      if viewModel.groups.isEmpty {
+      if case .failed(let message) = viewModel.loadState {
+        DataLoadErrorView(message: message) { viewModel.loadAssets() }
+      } else if viewModel.groups.isEmpty {
         emptyState
       } else {
         assetList

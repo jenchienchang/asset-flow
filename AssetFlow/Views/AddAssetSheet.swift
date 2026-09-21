@@ -101,8 +101,13 @@ struct AddAssetSheet: View {
     }
     .frame(minWidth: 400, minHeight: 300)
     .onAppear {
-      cachedPlatforms = existingPlatforms()
-      cachedCategories = existingCategories()
+      do {
+        cachedPlatforms = existingPlatforms()
+        cachedCategories = try existingCategories()
+      } catch {
+        errorMessage = error.localizedDescription
+        showError = true
+      }
       focusedField = mode == .selectExisting ? .marketValue : .newName
     }
     .onChange(of: mode) {
@@ -178,7 +183,11 @@ struct AddAssetSheet: View {
     CategoryPickerField(
       selectedCategory: $newCategory,
       cachedCategories: $cachedCategories,
-      resolveCategory: { viewModel.resolveCategory(name: $0) }
+      resolveCategory: { try viewModel.resolveCategory(name: $0) },
+      onError: { message in
+        errorMessage = message
+        showError = true
+      }
     )
   }
 
@@ -232,9 +241,12 @@ struct AddAssetSheet: View {
     return platforms.sorted()
   }
 
-  private func existingCategories() -> [Category] {
+  private func existingCategories() throws -> [Category] {
     let descriptor = FetchDescriptor<Category>(
       sortBy: [SortDescriptor(\.displayOrder), SortDescriptor(\.name)])
-    return (try? modelContext.fetch(descriptor)) ?? []
+    return try fetchModels(
+      descriptor,
+      from: ModelContextFetcher(modelContext: modelContext),
+      operation: "load existing categories")
   }
 }

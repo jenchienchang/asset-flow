@@ -35,13 +35,20 @@ struct PlatformRowData: Identifiable {
 @MainActor
 final class PlatformListViewModel {
   private let modelContext: ModelContext
+  private let fetcher: any ModelFetching
   private let settingsService: SettingsService
 
   var platformRows: [PlatformRowData] = []
+  var loadState: DataLoadState = .idle
   var conversionStatus: CurrencyConversionStatus = .notNeeded
 
-  init(modelContext: ModelContext, settingsService: SettingsService? = nil) {
+  init(
+    modelContext: ModelContext,
+    settingsService: SettingsService? = nil,
+    fetcher: (any ModelFetching)? = nil
+  ) {
     self.modelContext = modelContext
+    self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     self.settingsService = settingsService ?? .shared
   }
 
@@ -63,68 +70,73 @@ final class PlatformListViewModel {
   }
 
   private func performLoadPlatforms() {
-    let allAssets = fetchAllAssets()
+    do {
+      let allAssets = try fetchAllAssets()
 
-    // Group assets by non-empty platform
-    let assetsByPlatform = Dictionary(
-      grouping: allAssets.filter { !$0.platform.isEmpty },
-      by: { $0.platform }
-    )
+      // Group assets by non-empty platform
+      let assetsByPlatform = Dictionary(
+        grouping: allAssets.filter { !$0.platform.isEmpty },
+        by: { $0.platform }
+      )
 
-    // Build platform → total value lookup from latest snapshot
-    let latestSnapshot = SnapshotSummaryService.fetchLatestSnapshot(modelContext: modelContext)
-    conversionStatus =
-      latestSnapshot.map {
-        CurrencyConversionService.totalValueReport(
-          for: $0,
-          displayCurrency: settingsService.mainCurrency,
-          exchangeRate: $0.exchangeRate
-        ).status
-      } ?? .notNeeded
-    let platformValues = buildPlatformValueLookup(latestSnapshot: latestSnapshot)
+      // Build platform → total value lookup from latest snapshot
+      let latestSnapshot = try SnapshotSummaryService.fetchLatestSnapshot(using: fetcher)
+      conversionStatus =
+        latestSnapshot.map {
+          CurrencyConversionService.totalValueReport(
+            for: $0,
+            displayCurrency: settingsService.mainCurrency,
+            exchangeRate: $0.exchangeRate
+          ).status
+        } ?? .notNeeded
+      let platformValues = buildPlatformValueLookup(latestSnapshot: latestSnapshot)
 
-    let rows =
-      assetsByPlatform.map { platform, assets in
-        PlatformRowData(
-          name: platform,
-          assetCount: assets.count,
-          totalValue: platformValues[platform] ?? 0
-        )
+      let rows =
+        assetsByPlatform.map { platform, assets in
+          PlatformRowData(
+            name: platform,
+            assetCount: assets.count,
+            totalValue: platformValues[platform] ?? 0
+          )
+        }
+
+      // Sort by stored order; unknown platforms go to the end alphabetically
+      let storedOrder = settingsService.platformOrder
+      let orderLookup = Dictionary(
+        uniqueKeysWithValues: storedOrder.enumerated().map { ($1, $0) }
+      )
+
+      platformRows = rows.sorted { lhs, rhs in
+        let lhsIndex = orderLookup[lhs.name]
+        let rhsIndex = orderLookup[rhs.name]
+        switch (lhsIndex, rhsIndex) {
+        case (.some(let lhsOrder), .some(let rhsOrder)):
+          return lhsOrder < rhsOrder
+
+        case (.some, .none):
+          return true
+
+        case (.none, .some):
+          return false
+
+        case (.none, .none):
+          return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
       }
 
-    // Sort by stored order; unknown platforms go to the end alphabetically
-    let storedOrder = settingsService.platformOrder
-    let orderLookup = Dictionary(
-      uniqueKeysWithValues: storedOrder.enumerated().map { ($1, $0) }
-    )
-
-    platformRows = rows.sorted { lhs, rhs in
-      let lhsIndex = orderLookup[lhs.name]
-      let rhsIndex = orderLookup[rhs.name]
-      switch (lhsIndex, rhsIndex) {
-      case (.some(let lhsOrder), .some(let rhsOrder)):
-        return lhsOrder < rhsOrder
-
-      case (.some, .none):
-        return true
-
-      case (.none, .some):
-        return false
-
-      case (.none, .none):
-        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+      // Sync stored order: prune removed platforms, append new ones
+      let currentNames = Set(platformRows.map(\.name))
+      var updatedOrder = storedOrder.filter { currentNames.contains($0) }
+      let knownNames = Set(updatedOrder)
+      for row in platformRows where !knownNames.contains(row.name) {
+        updatedOrder.append(row.name)
       }
-    }
-
-    // Sync stored order: prune removed platforms, append new ones
-    let currentNames = Set(platformRows.map(\.name))
-    var updatedOrder = storedOrder.filter { currentNames.contains($0) }
-    let knownNames = Set(updatedOrder)
-    for row in platformRows where !knownNames.contains(row.name) {
-      updatedOrder.append(row.name)
-    }
-    if updatedOrder != storedOrder {
-      settingsService.platformOrder = updatedOrder
+      if updatedOrder != storedOrder {
+        settingsService.platformOrder = updatedOrder
+      }
+      loadState = .loaded
+    } catch {
+      loadState = .failed(error.localizedDescription)
     }
   }
 
@@ -160,7 +172,7 @@ final class PlatformListViewModel {
 
     guard !trimmed.isEmpty else { throw PlatformError.emptyName }
 
-    let allAssets = fetchAllAssets()
+    let allAssets = try fetchAllAssets()
 
     // Check for duplicate (case-insensitive), allowing self-rename with different casing
     let normalizedNew = trimmed.lowercased()
@@ -188,9 +200,9 @@ final class PlatformListViewModel {
 
   // MARK: - Private Helpers
 
-  private func fetchAllAssets() -> [Asset] {
+  private func fetchAllAssets() throws -> [Asset] {
     let descriptor = FetchDescriptor<Asset>(sortBy: [SortDescriptor(\.name)])
-    return (try? modelContext.fetch(descriptor)) ?? []
+    return try fetchModels(descriptor, from: fetcher, operation: "fetch assets")
   }
 
   /// Builds a lookup of platform name → total market value from the latest snapshot.

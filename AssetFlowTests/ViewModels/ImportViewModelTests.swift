@@ -580,13 +580,13 @@ struct ImportViewModelTests {
   }
 
   @Test("New category with existing name reuses existing category")
-  func newCategoryReusesExisting() {
+  func newCategoryReusesExisting() throws {
     let tc = createTestContext()
     let existing = Category(name: "Equities", targetAllocationPercentage: 60)
     tc.context.insert(existing)
 
     let viewModel = ImportViewModel(modelContext: tc.context)
-    let resolved = viewModel.resolveCategory(name: "equities")
+    let resolved = try viewModel.resolveCategory(name: "equities")
 
     #expect(resolved?.id == existing.id)
   }
@@ -595,7 +595,7 @@ struct ImportViewModelTests {
   func newCategoryCreatesNew() throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
-    let resolved = viewModel.resolveCategory(name: "Crypto")
+    let resolved = try viewModel.resolveCategory(name: "Crypto")
 
     #expect(resolved != nil)
     #expect(resolved?.name == "Crypto")
@@ -1230,7 +1230,7 @@ struct ImportViewModelTests {
   // MARK: - Existing Platforms List
 
   @Test("Existing platforms list includes platforms from all assets")
-  func existingPlatformsList() {
+  func existingPlatformsList() throws {
     let tc = createTestContext()
 
     let asset1 = Asset(name: "AAPL", platform: "Firstrade")
@@ -1241,7 +1241,7 @@ struct ImportViewModelTests {
     tc.context.insert(asset3)
 
     let viewModel = ImportViewModel(modelContext: tc.context)
-    let platforms = viewModel.existingPlatforms()
+    let platforms = try viewModel.existingPlatforms()
 
     #expect(platforms.contains("Firstrade"))
     #expect(platforms.contains("Coinbase"))
@@ -1260,7 +1260,7 @@ struct ImportViewModelTests {
     tc.context.insert(cat2)
 
     let viewModel = ImportViewModel(modelContext: tc.context)
-    let categories = viewModel.existingCategories()
+    let categories = try viewModel.existingCategories()
 
     #expect(categories.count == 2)
   }
@@ -2415,7 +2415,7 @@ struct ImportViewModelTests {
   // MARK: - findOrCreateSnapshot
 
   @Test("findOrCreateSnapshot returns existing snapshot when date matches")
-  func findOrCreateSnapshotReturnsExisting() {
+  func findOrCreateSnapshotReturnsExisting() throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2423,7 +2423,7 @@ struct ImportViewModelTests {
     let existing = Snapshot(date: date)
     tc.context.insert(existing)
 
-    let result = viewModel.findOrCreateSnapshot(date: date)
+    let result = try viewModel.findOrCreateSnapshot(date: date)
     #expect(result.id == existing.id)
   }
 
@@ -2433,7 +2433,7 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     let date = makeDate(year: 2025, month: 6, day: 15)
-    let result = viewModel.findOrCreateSnapshot(date: date)
+    let result = try viewModel.findOrCreateSnapshot(date: date)
 
     #expect(result.date == date)
 
@@ -2451,7 +2451,7 @@ struct ImportViewModelTests {
     let existing = Snapshot(date: date)
     tc.context.insert(existing)
 
-    _ = viewModel.findOrCreateSnapshot(date: date)
+    _ = try viewModel.findOrCreateSnapshot(date: date)
 
     let descriptor = FetchDescriptor<Snapshot>()
     let all = try tc.context.fetch(descriptor)

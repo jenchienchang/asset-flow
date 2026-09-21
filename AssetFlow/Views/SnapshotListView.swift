@@ -28,7 +28,9 @@ struct SnapshotListView: View {
   @Binding var selectedSnapshot: Snapshot?
   @Environment(\.isAppLocked) private var isAppLocked
 
-  @Query(sort: \Snapshot.date, order: .reverse) private var snapshots: [Snapshot]
+  // The query is used only to invalidate the throwing view-model load when
+  // SwiftData changes. Its result is never used as display or mutation data.
+  @Query(sort: \Snapshot.date, order: .reverse) private var querySnapshots: [Snapshot]
 
   @Binding var showNewSnapshotSheet: Bool
   @State private var snapshotToDelete: Snapshot?
@@ -54,7 +56,11 @@ struct SnapshotListView: View {
 
   var body: some View {
     Group {
-      if snapshots.isEmpty {
+      if case .failed(let message) = viewModel.loadState {
+        DataLoadErrorView(message: message) {
+          viewModel.loadRowData()
+        }
+      } else if viewModel.snapshots.isEmpty {
         emptyState
           .transition(.opacity)
       } else {
@@ -63,7 +69,7 @@ struct SnapshotListView: View {
       }
     }
     .navigationTitle("Snapshots")
-    .animation(AnimationConstants.standard, value: snapshots.isEmpty)
+    .animation(AnimationConstants.standard, value: viewModel.snapshots.isEmpty)
     .toolbar {
       ToolbarItem(placement: .automatic) {
         Button {
@@ -77,10 +83,10 @@ struct SnapshotListView: View {
       }
     }
     .onAppear {
-      viewModel.loadRowData(snapshots: snapshots)
+      viewModel.loadRowData()
     }
-    .onChange(of: snapshots) {
-      viewModel.loadRowData(snapshots: snapshots)
+    .onChange(of: querySnapshots) {
+      viewModel.loadRowData()
     }
     .sheet(isPresented: $showNewSnapshotSheet) {
       NewSnapshotSheet(
@@ -121,7 +127,9 @@ struct SnapshotListView: View {
   // MARK: - Snapshot List
 
   private var groupedSnapshots: [(bucket: SnapshotTimeBucket, snapshots: [Snapshot])] {
-    let grouped = Dictionary(grouping: snapshots) { SnapshotTimeBucket.bucket(for: $0.date) }
+    let grouped = Dictionary(grouping: viewModel.snapshots) {
+      SnapshotTimeBucket.bucket(for: $0.date)
+    }
     return SnapshotTimeBucket.allCases.compactMap { bucket in
       guard let items = grouped[bucket], !items.isEmpty else { return nil }
       return (bucket: bucket, snapshots: items)
@@ -283,12 +291,11 @@ enum SnapshotCreationMode: String, CaseIterable {
 }
 
 struct NewSnapshotSheet: View {
-  var viewModel: SnapshotListViewModel?
+  let viewModel: SnapshotListViewModel
   var onCreate: ((Snapshot) -> Void)?
   let onBulkEntry: (Date) -> Void
 
   @Environment(\.dismiss) private var dismiss
-  @Environment(\.modelContext) private var modelContext
 
   @Query(sort: \Snapshot.date) private var allSnapshots: [Snapshot]
 
@@ -365,16 +372,8 @@ struct NewSnapshotSheet: View {
       return
     }
     do {
-      let snapshot: Snapshot
-      if let viewModel {
-        snapshot = try viewModel.createSnapshot(
-          date: snapshotDate, copyFromLatest: false)
-      } else {
-        // Sidebar context: create empty snapshot directly via modelContext
-        let normalizedDate = Calendar.current.startOfDay(for: snapshotDate)
-        snapshot = Snapshot(date: normalizedDate)
-        modelContext.insert(snapshot)
-      }
+      let snapshot = try viewModel.createSnapshot(
+        date: snapshotDate, copyFromLatest: false)
       onCreate?(snapshot)
       dismiss()
     } catch {

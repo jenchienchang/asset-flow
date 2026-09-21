@@ -25,8 +25,9 @@ import SwiftUI
 struct CategoryPickerField: View {
   @Binding var selectedCategory: Category?
   @Binding var cachedCategories: [Category]
-  var resolveCategory: (String) -> Category?
+  var resolveCategory: (String) throws -> Category?
   var onCommit: (() -> Void)?
+  var onError: ((String) -> Void)?
 
   @State private var showNewField = false
   @State private var newName = ""
@@ -82,17 +83,21 @@ struct CategoryPickerField: View {
     let trimmed = newName.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty else { return }
 
-    let resolved = resolveCategory(trimmed)
-    selectedCategory = resolved
+    do {
+      let resolved = try resolveCategory(trimmed)
+      selectedCategory = resolved
 
-    // Refresh cache if a new category was created
-    if let resolved, !cachedCategories.contains(where: { $0.id == resolved.id }) {
-      cachedCategories.append(resolved)
-      cachedCategories.sort { ($0.displayOrder, $0.name) < ($1.displayOrder, $1.name) }
+      // Refresh cache if a new category was created
+      if let resolved, !cachedCategories.contains(where: { $0.id == resolved.id }) {
+        cachedCategories.append(resolved)
+        cachedCategories.sort { ($0.displayOrder, $0.name) < ($1.displayOrder, $1.name) }
+      }
+
+      showNewField = false
+      newName = ""
+      onCommit?()
+    } catch {
+      onError?(error.localizedDescription)
     }
-
-    showNewField = false
-    newName = ""
-    onCommit?()
   }
 }
