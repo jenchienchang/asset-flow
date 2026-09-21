@@ -7,6 +7,15 @@ description: Use when building the AssetFlow Xcode application or verifying comp
 
 Run the repository's Xcode build with compact console output and a complete log saved for diagnostics. This skill is for compilation and packaging verification; use the `test` skill for test execution.
 
+## Required execution rule
+
+1. Before invoking the runner, request host-level execution through `exec_command` with `sandbox_permissions: "require_escalated"` and a justification that Xcode services need host access.
+1. After approval, run the build script once.
+1. If approval is denied or unavailable, stop and report the blocker; do not run a sandboxed substitute.
+1. If a run nevertheless contains `CoreSimulatorService`, `Operation not permitted`, `AppIcon.icon` could not be opened, or `sandbox`, stop immediately and request host-level execution. Do not modify the icon or build settings.
+
+The temporary log and DerivedData notices printed by the runner are expected; they are not failure markers.
+
 ## Usage
 
 ```bash
@@ -23,6 +32,10 @@ Run the repository's Xcode build with compact console output and a complete log 
 
 # Stream the full log as well as saving it
 .codex/skills/build/run-build.py --verbose
+
+# Explicitly place logs in a writable temporary directory when the Codex
+# workspace exposes .codex as read-only
+.codex/skills/build/run-build.py --results-dir /private/tmp/assetflow-build-results
 ```
 
 ## Options
@@ -40,6 +53,8 @@ Run the repository's Xcode build with compact console output and a complete log 
 - `--show-warnings` — include filtered warning lines in the summary.
 - `--max-diagnostics N` — maximum filtered diagnostic lines to print, default `40`.
 - `--dry-run` — print the assembled command without running it.
+- If the default `.codex/skills/build/results` directory is unavailable, the runner automatically uses the system temporary directory and prints the actual log path. An explicitly supplied `--results-dir` is never replaced.
+- If Xcode's default `~/Library/Developer/Xcode/DerivedData` is unavailable, the runner automatically uses a writable system-temporary DerivedData path and prints it. Pass `--derived-data-path` to choose a location explicitly.
 - Runner options must appear before `--`; arguments after `--` are passed directly to `xcodebuild` before the `build` action.
 
 ## Output and troubleshooting
@@ -47,8 +62,12 @@ Run the repository's Xcode build with compact console output and a complete log 
 The runner always prints the build result, elapsed time, warning count when available, and the complete log path. On failure it also prints a bounded set of error and failed-command lines. The full log should be inspected when the summary is insufficient:
 
 ```bash
-rg -n -i 'error:|fatal error:|warning:|failed|BUILD FAILED' \
-  .codex/skills/build/results/BUILD_LOG.txt
+# Replace LOG_PATH with the path printed by the runner.
+rg -n -i 'error:|fatal error:|warning:|failed|BUILD FAILED' LOG_PATH
 ```
 
 The process exit status is preserved, so a failed build remains failed when called from another script or CI job.
+
+## Diagnostic reference
+
+`xcodebuild` launches `actool` and `ibtoold`, which communicate with CoreSimulator and Xcode services. The `AppIcon.icon` message can be a downstream symptom of blocked host access rather than an invalid icon.
