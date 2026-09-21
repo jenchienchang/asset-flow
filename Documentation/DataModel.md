@@ -319,12 +319,12 @@ Records exchange rate data for currency conversion at a specific snapshot date. 
 
 #### Properties
 
-| Property       | Type     | Description                                                     | Required |
-| -------------- | -------- | --------------------------------------------------------------- | -------- |
-| `baseCurrency` | `String` | Base currency code (lowercase, e.g., "usd")                     | Yes      |
-| `ratesJSON`    | `Data`   | JSON-encoded `[String: Double]` mapping currency codes to rates | Yes      |
-| `fetchDate`    | `Date`   | Date these rates apply to                                       | Yes      |
-| `isFallback`   | `Bool`   | Whether rates came from a fallback source                       | Yes      |
+| Property       | Type     | Description                                                      | Required |
+| -------------- | -------- | ---------------------------------------------------------------- | -------- |
+| `baseCurrency` | `String` | Base currency code (lowercase, e.g., "usd")                      | Yes      |
+| `ratesJSON`    | `Data`   | JSON-encoded `[String: Decimal]` mapping currency codes to rates | Yes      |
+| `fetchDate`    | `Date`   | Date these rates apply to                                        | Yes      |
+| `isFallback`   | `Bool`   | Whether rates came from a fallback source                        | Yes      |
 
 #### Relationships
 
@@ -338,14 +338,14 @@ var snapshot: Snapshot?  // Inverse of Snapshot.exchangeRate
 
 ```swift
 @Transient
-private var _cachedRates: [String: Double]?
+private var _cachedRates: [String: Decimal]?
 ```
 
 - `_cachedRates` is a `@Transient` property that caches the decoded `rates` dictionary after first access. It is not persisted by SwiftData. The cache is cleared whenever `updateRates(baseCurrency:ratesJSON:fetchDate:)` is called.
 
 #### Computed Properties and Methods
 
-- `rates: [String: Double]` — Decodes `ratesJSON` to a lowercased dictionary (cached after first access via `_cachedRates`). Returns empty dict on decode failure.
+- `rates: [String: Decimal]` — Decodes `ratesJSON` to a lowercased dictionary (cached after first access via `_cachedRates`). Returns empty dict on decode failure.
 - `missingCurrencies(_:) -> [String]` — Returns requested currencies that are absent or have non-positive/non-finite rates.
 - `supportsAll(_:) -> Bool` — Returns whether the record has usable rates for every requested currency.
 - `matchesDate(_:timeZone:) -> Bool` — Verifies that `fetchDate` and the snapshot date have the same Gregorian calendar day in the supplied timezone, preventing a complete rate record from being reused for the wrong historical snapshot.
@@ -357,7 +357,10 @@ private var _cachedRates: [String: Double]?
 ```swift
 let exchangeRate = ExchangeRate(
     baseCurrency: "usd",
-    ratesJSON: try JSONEncoder().encode(["twd": 31.5, "eur": 0.92]),
+    ratesJSON: try JSONEncoder().encode([
+        "twd": Decimal(string: "31.5")!,
+        "eur": Decimal(string: "0.92")!,
+    ]),
     fetchDate: Date(),
     isFallback: false
 )

@@ -38,7 +38,7 @@ struct CurrencyConversionServiceTests {
 
   private func makeExchangeRate(
     base: String = "usd",
-    rates: [String: Double],
+    rates: [String: Decimal],
     fetchDate: Date = Date()
   ) throws -> ExchangeRate {
     let ratesJSON = try JSONEncoder().encode(rates)

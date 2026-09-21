@@ -399,6 +399,8 @@ var marketValue: Double  // NO
 var targetAllocation: Float  // NO
 ```
 
+Exchange-rate values are financial inputs and must also remain `Decimal` from API decoding through conversion and persistence. Converting them to `Double` is permitted only at visualization boundaries such as chart coordinates.
+
 ### Display Currency
 
 - Default display currency: `"USD"` (cosmetic only, no FX conversion)

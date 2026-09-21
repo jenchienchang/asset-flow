@@ -446,7 +446,7 @@ class DashboardViewModel {
         Calendar.current.dateComponents(
           [.day], from: firstSnapshot.date, to: latestSnapshot.date
         ).day ?? 0
-      let years = Double(days) / 365.25
+      let years = Decimal(days) / Decimal(string: "365.25")!
       if assetConversionStatus(for: firstSnapshot).isComplete,
         assetConversionStatus(for: latestSnapshot).isComplete
       {

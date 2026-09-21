@@ -53,13 +53,48 @@ struct ExchangeRateFetchResult: Equatable, Sendable {
   let status: ExchangeRateFetchStatus
 }
 
+private struct DynamicCodingKey: CodingKey {
+  let stringValue: String
+  let intValue: Int? = nil
+
+  init?(stringValue: String) {
+    self.stringValue = stringValue
+  }
+
+  init?(intValue: Int) {
+    nil
+  }
+}
+
+private struct ExchangeRateAPIResponse: Decodable {
+  let date: String
+  let ratesByBaseCurrency: [String: [String: Decimal]]
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: DynamicCodingKey.self)
+    let dateKey = DynamicCodingKey(stringValue: "date")!
+    date = try container.decode(String.self, forKey: dateKey)
+
+    var ratesByBaseCurrency: [String: [String: Decimal]] = [:]
+    for key in container.allKeys where key.stringValue != "date" {
+      let decodedRates = try container.decode([String: Decimal].self, forKey: key)
+      ratesByBaseCurrency[key.stringValue.lowercased()] = decodedRates.reduce(
+        into: [String: Decimal]()
+      ) { result, entry in
+        result[entry.key.lowercased()] = entry.value
+      }
+    }
+    self.ratesByBaseCurrency = ratesByBaseCurrency
+  }
+}
+
 private actor ExchangeRateRequestCoordinator {
   private final class CancellationAwareWaiter: @unchecked Sendable {
     private let lock = NSLock()
-    private var continuation: CheckedContinuation<[String: Double], Error>?
-    private var result: Result<[String: Double], Error>?
+    private var continuation: CheckedContinuation<[String: Decimal], Error>?
+    private var result: Result<[String: Decimal], Error>?
 
-    func install(_ continuation: CheckedContinuation<[String: Double], Error>) {
+    func install(_ continuation: CheckedContinuation<[String: Decimal], Error>) {
       lock.lock()
       if let result {
         lock.unlock()
@@ -70,7 +105,7 @@ private actor ExchangeRateRequestCoordinator {
       }
     }
 
-    func complete(_ result: Result<[String: Double], Error>) {
+    func complete(_ result: Result<[String: Decimal], Error>) {
       lock.lock()
       let continuation = self.continuation
       if continuation != nil {
@@ -89,7 +124,7 @@ private actor ExchangeRateRequestCoordinator {
   }
 
   private struct InFlightRequest {
-    let task: Task<[String: Double], Error>
+    let task: Task<[String: Decimal], Error>
     var waiters: Set<UUID>
   }
 
@@ -97,10 +132,10 @@ private actor ExchangeRateRequestCoordinator {
 
   func fetch(
     key: String,
-    operation: @escaping @Sendable () async throws -> [String: Double]
-  ) async throws -> [String: Double] {
+    operation: @escaping @Sendable () async throws -> [String: Decimal]
+  ) async throws -> [String: Decimal] {
     let waiterID = UUID()
-    let task: Task<[String: Double], Error>
+    let task: Task<[String: Decimal], Error>
 
     if var request = inFlight[key] {
       request.waiters.insert(waiterID)
@@ -119,8 +154,8 @@ private actor ExchangeRateRequestCoordinator {
     return try await withTaskCancellationHandler(
       operation: {
         try Task.checkCancellation()
-        let rates: [String: Double] = try await withCheckedThrowingContinuation {
-          (continuation: CheckedContinuation<[String: Double], Error>) in
+        let rates: [String: Decimal] = try await withCheckedThrowingContinuation {
+          (continuation: CheckedContinuation<[String: Decimal], Error>) in
           waiter.install(continuation)
           Task {
             do {
@@ -176,7 +211,7 @@ final class ExchangeRateService: @unchecked Sendable {
   ///   - baseCurrency: The base currency code (lowercase, e.g., "usd")
   /// - Returns: Dictionary of currency code to rate
   /// - Throws: `ExchangeRateError`
-  func fetchRates(for date: Date, baseCurrency: String) async throws -> [String: Double] {
+  func fetchRates(for date: Date, baseCurrency: String) async throws -> [String: Decimal] {
     let base = baseCurrency.lowercased()
     let dateString = Self.apiDateString(for: date, timeZone: Self.apiTimeZone)
 
@@ -213,7 +248,7 @@ final class ExchangeRateService: @unchecked Sendable {
     session: URLSession,
     dateString: String,
     baseCurrency: String
-  ) async throws -> [String: Double] {
+  ) async throws -> [String: Decimal] {
     let urlString =
       "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@\(dateString)/v1/currencies/\(baseCurrency).min.json"
 
@@ -242,31 +277,22 @@ final class ExchangeRateService: @unchecked Sendable {
       throw ExchangeRateError.invalidResponse
     }
 
-    // Parse JSON: {"date": "...", "{base}": {code: rate, ...}}
-    guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let responseDate = json["date"] as? String,
-      responseDate == dateString,
-      let ratesDict = json[baseCurrency] as? [String: Any]
+    // Parse JSON: {"date": "...", "{base}": {code: rate, ...}}.
+    // Decoding Decimal directly preserves the decimal representation from the
+    // response instead of first converting every number through Double.
+    guard let response = try? JSONDecoder().decode(ExchangeRateAPIResponse.self, from: data),
+      response.date == dateString,
+      let ratesDict = response.ratesByBaseCurrency[baseCurrency]
     else {
       throw ExchangeRateError.invalidResponse
     }
 
-    var rates: [String: Double] = [:]
-    for (key, value) in ratesDict {
-      let normalizedKey = key.lowercased()
-      if let doubleValue = value as? Double {
-        guard doubleValue.isFinite, doubleValue > 0 else {
-          throw ExchangeRateError.invalidResponse
-        }
-        rates[normalizedKey] = doubleValue
-      } else if let intValue = value as? Int {
-        guard intValue > 0 else {
-          throw ExchangeRateError.invalidResponse
-        }
-        rates[normalizedKey] = Double(intValue)
-      } else {
+    var rates: [String: Decimal] = [:]
+    for (key, decimalValue) in ratesDict {
+      guard decimalValue.isFinite, decimalValue > 0 else {
         throw ExchangeRateError.invalidResponse
       }
+      rates[key.lowercased()] = decimalValue
     }
 
     guard !rates.isEmpty else {
@@ -370,7 +396,7 @@ final class ExchangeRateService: @unchecked Sendable {
   }
 
   private static func supportsAll(
-    rates: [String: Double], currencies: Set<String>
+    rates: [String: Decimal], currencies: Set<String>
   ) -> Bool {
     currencies.allSatisfy { currency in
       guard let rate = rates[currency.lowercased()] else { return false }

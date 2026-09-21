@@ -90,7 +90,7 @@ Exchange rate data for currency conversion at a specific snapshot date.
 **Key Properties:**
 
 - `baseCurrency` - Base currency code (lowercase, e.g., "usd")
-- `ratesJSON` - `Data` blob containing JSON-encoded `[String: Double]` of currency rates
+- `ratesJSON` - `Data` blob containing JSON-encoded `[String: Decimal]` of currency rates
 - `fetchDate` - Date these rates apply to
 - `isFallback` - Whether rates came from a fallback source
 
@@ -100,7 +100,7 @@ Exchange rate data for currency conversion at a specific snapshot date.
 
 **Computed Properties:**
 
-- `rates` - Decoded, lowercased `[String: Double]` from `ratesJSON`
+- `rates` - Decoded, lowercased `[String: Decimal]` from `ratesJSON`
 - `missingCurrencies(_:)` / `supportsAll(_:)` - Validate that requested currencies have usable positive finite rates
 - `convert(value:from:to:)` - Cross-rate currency conversion
 

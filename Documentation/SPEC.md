@@ -604,16 +604,16 @@ The net cash flow for a snapshot is always derived: `netCashFlow = sum(CashFlowO
 
 ### 7.6 ExchangeRate
 
-| Field        | Type   | Notes                                                                          |
-| ------------ | ------ | ------------------------------------------------------------------------------ |
-| baseCurrency | String | Base currency code for the stored rates (e.g., "usd")                          |
-| ratesJSON    | Data   | JSON-encoded `[String: Double]` dictionary of currency codes to exchange rates |
-| fetchDate    | Date   | When the rates were fetched from the remote source                             |
-| isFallback   | Bool   | `true` if these rates are stale/cached due to a network failure                |
+| Field        | Type   | Notes                                                                           |
+| ------------ | ------ | ------------------------------------------------------------------------------- |
+| baseCurrency | String | Base currency code for the stored rates (e.g., "usd")                           |
+| ratesJSON    | Data   | JSON-encoded `[String: Decimal]` dictionary of currency codes to exchange rates |
+| fetchDate    | Date   | When the rates were fetched from the remote source                              |
+| isFallback   | Bool   | `true` if these rates are stale/cached due to a network failure                 |
 
 **Relationship:** 1:1 with Snapshot (each snapshot has at most one ExchangeRate record).
 
-**Computed property:** `rates: [String: Double]` — decoded rates dictionary from `ratesJSON`, cached in memory after first access.
+**Computed property:** `rates: [String: Decimal]` — decoded rates dictionary from `ratesJSON`, cached in memory after first access.
 
 Exchange rates are fetched from cdn.jsdelivr.net and stored per snapshot so that historical value conversions remain stable and reproducible. The `convert(value:from:to:)` method applies the formula `value / rates[from] * rates[to]`, where the base currency's rate is implicitly 1.0.
 
@@ -801,7 +801,7 @@ This is the standard time-weighted return methodology that eliminates the distor
 CAGR = (Ending_Value / Beginning_Value) ^ (1 / Years) - 1
 ```
 
-Where `Years` = (end date - start date) / 365.25
+Where `Years` = (end date - start date) / 365.25. The implementation keeps the year interval, portfolio ratio, and fractional power in Decimal arithmetic to preserve financial precision.
 
 Available for portfolio-level only in v1.
 

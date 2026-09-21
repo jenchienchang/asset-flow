@@ -179,9 +179,31 @@ struct ExchangeRateServiceTests {
     let rates = try await service.fetchRates(
       for: Date(), baseCurrency: "usd")
 
-    #expect(rates["eur"] == 0.92)
-    #expect(rates["twd"] == 31.5)
-    #expect(rates["jpy"] == 149.5)
+    #expect(rates["eur"] == Decimal(string: "0.92")!)
+    #expect(rates["twd"] == Decimal(string: "31.5")!)
+    #expect(rates["jpy"] == Decimal(string: "149.5")!)
+  }
+
+  @Test("Fetch rates preserves high-precision decimal values")
+  func testFetchRatesPreservesPrecision() async throws {
+    let session = createMockSession()
+    MockURLProtocol.requestHandler = { request in
+      let json = """
+        {"date": "\(requestedAPIResponseDate(from: request))", "usd": {"eur": 0.920000000000000000123456789}}
+        """
+      let response = HTTPURLResponse(
+        url: URL(string: "https://example.com")!,
+        statusCode: 200,
+        httpVersion: nil,
+        headerFields: nil
+      )!
+      return (response, json.data(using: .utf8)!)
+    }
+
+    let service = ExchangeRateService(session: session)
+    let rates = try await service.fetchRates(for: Date(), baseCurrency: "usd")
+
+    #expect(rates["eur"] == Decimal(string: "0.920000000000000000123456789")!)
   }
 
   @Test("Fetch rates throws networkUnavailable on error")
@@ -345,14 +367,14 @@ struct ExchangeRateServiceTests {
 
     let service = ExchangeRateService(session: session)
     let date = Date(timeIntervalSince1970: 1_771_747_200)
-    try await withThrowingTaskGroup(of: [String: Double].self) { group in
+    try await withThrowingTaskGroup(of: [String: Decimal].self) { group in
       for _ in 0..<2 {
         group.addTask {
           try await service.fetchRates(for: date, baseCurrency: "USD")
         }
       }
       for try await rates in group {
-        #expect(rates["eur"] == 0.92)
+        #expect(rates["eur"] == Decimal(string: "0.92")!)
       }
     }
 
@@ -497,7 +519,7 @@ struct ExchangeRateServiceTests {
     )
 
     #expect(networkCallCount == 1)
-    #expect(snapshot.exchangeRate?.rates["eur"] == 0.92)
+    #expect(snapshot.exchangeRate?.rates["eur"] == Decimal(string: "0.92")!)
   }
 
   @Test("fetchMissingRates refreshes a complete cached record with the wrong date")
@@ -665,7 +687,7 @@ struct ExchangeRateServiceTests {
 
     #expect(snapshot.exchangeRate != nil)
     #expect(snapshot.exchangeRate?.baseCurrency == "usd")
-    #expect(snapshot.exchangeRate?.rates["eur"] == 0.92)
+    #expect(snapshot.exchangeRate?.rates["eur"] == Decimal(string: "0.92")!)
   }
 
   @Test("fetchMissingRates continues on per-snapshot failure")

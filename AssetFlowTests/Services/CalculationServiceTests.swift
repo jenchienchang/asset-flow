@@ -223,6 +223,26 @@ struct CalculationServiceTests {
     let result = CalculationService.cagr(
       beginValue: Decimal(100000), endValue: Decimal(110000), years: 0.5)
     #expect(result != nil)
+    if let result {
+      let expected = Decimal(string: "0.21")!
+      let tolerance = Decimal(string: "0.000000000000000000000000000001")!
+      #expect(abs(result - expected) < tolerance)
+    }
+  }
+
+  @Test("CAGR preserves a sub-Double increment in a large portfolio")
+  func testCAGRPreservesPrecisionForLargeValues() {
+    let beginValue = Decimal(string: "10000000000000000")!
+    let endValue = Decimal(string: "10000000000000001")!
+    let expected = Decimal(string: "0.0000000000000001")!
+
+    let result = CalculationService.cagr(
+      beginValue: beginValue, endValue: endValue, years: 1.0)
+
+    #expect(result != nil)
+    if let result {
+      #expect(abs(result - expected) < Decimal(string: "0.00000000000000000001")!)
+    }
   }
 
   @Test("CAGR with zero beginning value returns nil")

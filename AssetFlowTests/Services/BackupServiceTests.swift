@@ -1703,7 +1703,10 @@ struct BackupServiceTests {
     cashFlow.snapshot = snapshot
     context.insert(cashFlow)
 
-    let ratesJSON = try JSONEncoder().encode(["eur": 0.92, "twd": 32.5])
+    let ratesJSON = try JSONEncoder().encode([
+      "eur": Decimal(string: "0.92")!,
+      "twd": Decimal(string: "32.5")!,
+    ])
     let exchangeRate = ExchangeRate(
       baseCurrency: "USD", ratesJSON: ratesJSON,
       fetchDate: snapshotDate, isFallback: true)
@@ -1758,7 +1761,11 @@ struct BackupServiceTests {
     #expect(exchangeRates.count == 1)
     #expect(exchangeRates.first?.snapshot?.id == expected.snapshotID)
     #expect(exchangeRates.first?.baseCurrency == "USD")
-    #expect(exchangeRates.first?.rates == ["eur": 0.92, "twd": 32.5])
+    #expect(
+      exchangeRates.first?.rates == [
+        "eur": Decimal(string: "0.92")!,
+        "twd": Decimal(string: "32.5")!,
+      ])
     #expect(exchangeRates.first?.isFallback == true)
     #expect(testContext.settingsService.mainCurrency == currency)
     #expect(testContext.settingsService.dateFormat == dateFormat)

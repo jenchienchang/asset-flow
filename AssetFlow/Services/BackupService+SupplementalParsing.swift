@@ -158,7 +158,7 @@ extension BackupService {
         continue
       }
       do {
-        let rates = try JSONDecoder().decode([String: Double].self, from: ratesData)
+        let rates = try JSONDecoder().decode([String: Decimal].self, from: ratesData)
         let hasInvalidRate = rates.contains {
           $0.key.isEmpty || !$0.value.isFinite || $0.value <= 0
         }

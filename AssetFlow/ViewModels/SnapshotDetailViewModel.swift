@@ -107,7 +107,7 @@ class SnapshotDetailViewModel {
   ///
   /// Returns `(code, rate)` pairs where `rate` is the inverse rate (1 foreign = X base),
   /// sorted alphabetically by currency code.
-  var usedCurrencyRates: [(code: String, rate: Double)] = []
+  var usedCurrencyRates: [(code: String, rate: Decimal)] = []
 
   /// All foreign currencies used by this snapshot, including currencies whose
   /// rates are currently unavailable.
@@ -239,7 +239,7 @@ class SnapshotDetailViewModel {
     usedCurrencyRates =
       usedCodes.compactMap { code in
         if let rate = rates[code], rate.isFinite, rate > 0 {
-          return (code: code, rate: 1.0 / rate)
+          return (code: code, rate: Decimal(1) / rate)
         }
         return nil
       }.sorted { $0.code < $1.code }

@@ -155,7 +155,10 @@ struct BackupServiceCurrencyTests {
         from: DateComponents(year: 2025, month: 6, day: 15))!)
     tc.context.insert(snapshot)
 
-    let ratesData = try JSONEncoder().encode(["twd": 31.5, "eur": 0.92])
+    let ratesData = try JSONEncoder().encode([
+      "twd": Decimal(string: "31.500000000000000000123456789")!,
+      "eur": Decimal(string: "0.920000000000000000123456789")!,
+    ])
     let exchangeRate = ExchangeRate(
       baseCurrency: "usd",
       ratesJSON: ratesData,
@@ -324,7 +327,10 @@ struct BackupServiceCurrencyTests {
         from: DateComponents(year: 2025, month: 6, day: 15))!)
     tc.context.insert(snapshot)
 
-    let ratesData = try JSONEncoder().encode(["twd": 31.5, "eur": 0.92])
+    let ratesData = try JSONEncoder().encode([
+      "twd": Decimal(string: "31.500000000000000000123456789")!,
+      "eur": Decimal(string: "0.920000000000000000123456789")!,
+    ])
     let exchangeRate = ExchangeRate(
       baseCurrency: "usd",
       ratesJSON: ratesData,
@@ -352,7 +358,11 @@ struct BackupServiceCurrencyTests {
     #expect(restoredRate != nil)
     #expect(restoredRate?.baseCurrency == "usd")
     #expect(restoredRate?.isFallback == false)
-    #expect(restoredRate?.rates["twd"] == 31.5)
-    #expect(restoredRate?.rates["eur"] == 0.92)
+    #expect(
+      restoredRate?.rates["twd"] == Decimal(string: "31.500000000000000000123456789")!
+    )
+    #expect(
+      restoredRate?.rates["eur"] == Decimal(string: "0.920000000000000000123456789")!
+    )
   }
 }

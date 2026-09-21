@@ -29,7 +29,7 @@ final class ExchangeRate {
   var snapshot: Snapshot?
 
   @Transient
-  private var _cachedRates: [String: Double]?
+  private var _cachedRates: [String: Decimal]?
 
   init(
     baseCurrency: String,
@@ -45,12 +45,12 @@ final class ExchangeRate {
   }
 
   /// Decoded rates dictionary from JSON (cached after first access).
-  var rates: [String: Double] {
+  var rates: [String: Decimal] {
     if let cached = _cachedRates {
       return cached
     }
-    let decoded = (try? JSONDecoder().decode([String: Double].self, from: ratesJSON)) ?? [:]
-    let normalized = decoded.reduce(into: [String: Double]()) { result, entry in
+    let decoded = (try? JSONDecoder().decode([String: Decimal].self, from: ratesJSON)) ?? [:]
+    let normalized = decoded.reduce(into: [String: Decimal]()) { result, entry in
       result[entry.key.lowercased()] = entry.value
     }
     _cachedRates = normalized
@@ -113,9 +113,9 @@ final class ExchangeRate {
     let currentRates = rates
 
     // Get rate for source currency (base currency rate is implicitly 1.0)
-    let fromRate: Double
+    let fromRate: Decimal
     if fromLower == baseCurrency.lowercased() {
-      fromRate = 1.0
+      fromRate = 1
     } else if let rate = currentRates[fromLower] {
       fromRate = rate
     } else {
@@ -123,25 +123,22 @@ final class ExchangeRate {
     }
 
     // Get rate for target currency (base currency rate is implicitly 1.0)
-    let toRate: Double
+    let toRate: Decimal
     if toLower == baseCurrency.lowercased() {
-      toRate = 1.0
+      toRate = 1
     } else if let rate = currentRates[toLower] {
       toRate = rate
     } else {
       return nil
     }
 
+    guard isValidRate(fromRate), isValidRate(toRate), fromRate != 0 else { return nil }
+
     // Convert: value / fromRate * toRate
-    let fromDecimal = Decimal(fromRate)
-    let toDecimal = Decimal(toRate)
-
-    guard isValidRate(fromRate), isValidRate(toRate), fromDecimal != 0 else { return nil }
-
-    return value / fromDecimal * toDecimal
+    return value / fromRate * toRate
   }
 
-  private func isValidRate(_ rate: Double?) -> Bool {
+  private func isValidRate(_ rate: Decimal?) -> Bool {
     guard let rate else { return false }
     return rate.isFinite && rate > 0
   }

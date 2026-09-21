@@ -164,7 +164,7 @@ This is the standard time-weighted return methodology that eliminates the distor
 CAGR = (Ending_Value / Beginning_Value) ^ (1 / Years) - 1
 ```
 
-Where `Years` = (end date - start date) / 365.25
+Where `Years` = (end date - start date) / 365.25, calculated as Decimal. CAGR keeps the ratio and fractional exponent in Decimal arithmetic; it does not convert portfolio values through Double.
 
 Available for portfolio-level only in v1.
 
@@ -678,6 +678,6 @@ ______________________________________________________________________
 
 ### Implementation
 
-- Swift `Decimal` type for precision
+- Swift `Decimal` type for precision, including exchange rates and annualized return calculations
 - Swift Charts for visualization
 - Specification: `SPEC.md` Sections 2, 4, 5, 6, 7, 8, 9, 10, 11

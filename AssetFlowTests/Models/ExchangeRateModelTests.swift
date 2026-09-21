@@ -40,7 +40,7 @@ struct ExchangeRateModelTests {
 
   @Test("Converting same currency returns original value")
   func testExchangeRateConvertSameCurrency() throws {
-    let rates: [String: Double] = ["eur": 0.92, "twd": 31.5]
+    let rates: [String: Decimal] = ["eur": 0.92, "twd": 31.5]
     let ratesJSON = try JSONEncoder().encode(rates)
     let exchangeRate = ExchangeRate(
       baseCurrency: "usd",
@@ -54,7 +54,7 @@ struct ExchangeRateModelTests {
 
   @Test("Converting base currency to target currency")
   func testExchangeRateConvertBaseToTarget() throws {
-    let rates: [String: Double] = ["twd": 31.5, "eur": 0.92]
+    let rates: [String: Decimal] = ["twd": 31.5, "eur": 0.92]
     let ratesJSON = try JSONEncoder().encode(rates)
     let exchangeRate = ExchangeRate(
       baseCurrency: "usd",
@@ -69,7 +69,7 @@ struct ExchangeRateModelTests {
 
   @Test("Converting target currency to base currency")
   func testExchangeRateConvertTargetToBase() throws {
-    let rates: [String: Double] = ["twd": 31.5, "eur": 0.92]
+    let rates: [String: Decimal] = ["twd": 31.5, "eur": 0.92]
     let ratesJSON = try JSONEncoder().encode(rates)
     let exchangeRate = ExchangeRate(
       baseCurrency: "usd",
@@ -81,11 +81,27 @@ struct ExchangeRateModelTests {
     #expect(result == Decimal(100))
   }
 
+  @Test("Conversion preserves high-precision decimal exchange rates")
+  func testExchangeRateConversionPreservesPrecision() {
+    let ratesJSON = Data(
+      #"{"twd":31.500000000000000000123456789}"#.utf8)
+    let exchangeRate = ExchangeRate(
+      baseCurrency: "usd",
+      ratesJSON: ratesJSON,
+      fetchDate: Date()
+    )
+    let expected = Decimal(string: "31.500000000000000000123456789")!
+
+    let result = exchangeRate.convert(value: Decimal(1), from: "usd", to: "twd")
+
+    #expect(result == expected)
+  }
+
   @Test("Converting cross-rate between two non-base currencies")
   func testExchangeRateConvertCrossRate() throws {
     // EUR → TWD: value / rates["eur"] * rates["twd"]
     // 100 EUR → 100 / 0.92 * 31.5 = 3423.913...
-    let rates: [String: Double] = ["twd": 31.5, "eur": 0.92]
+    let rates: [String: Decimal] = ["twd": 31.5, "eur": 0.92]
     let ratesJSON = try JSONEncoder().encode(rates)
     let exchangeRate = ExchangeRate(
       baseCurrency: "usd",
@@ -105,7 +121,7 @@ struct ExchangeRateModelTests {
 
   @Test("Converting with missing currency returns nil")
   func testExchangeRateConvertMissingCurrency() throws {
-    let rates: [String: Double] = ["twd": 31.5]
+    let rates: [String: Decimal] = ["twd": 31.5]
     let ratesJSON = try JSONEncoder().encode(rates)
     let exchangeRate = ExchangeRate(
       baseCurrency: "usd",
@@ -119,7 +135,7 @@ struct ExchangeRateModelTests {
 
   @Test("Rates JSON encode/decode roundtrip")
   func testExchangeRateRatesDecoding() throws {
-    let originalRates: [String: Double] = ["twd": 31.5, "eur": 0.92, "jpy": 149.5]
+    let originalRates: [String: Decimal] = ["twd": 31.5, "eur": 0.92, "jpy": 149.5]
     let ratesJSON = try JSONEncoder().encode(originalRates)
     let exchangeRate = ExchangeRate(
       baseCurrency: "usd",
@@ -138,7 +154,7 @@ struct ExchangeRateModelTests {
 
   @Test("updateRates updates all fields and clears cache")
   func testUpdateRatesClearsCacheAndUpdatesFields() throws {
-    let oldRates: [String: Double] = ["twd": 31.5]
+    let oldRates: [String: Decimal] = ["twd": 31.5]
     let oldJSON = try JSONEncoder().encode(oldRates)
     let oldDate = Date(timeIntervalSince1970: 1_000_000)
     let exchangeRate = ExchangeRate(
@@ -151,7 +167,7 @@ struct ExchangeRateModelTests {
     // Access rates to populate cache
     _ = exchangeRate.rates
 
-    let newRates: [String: Double] = ["eur": 0.92, "jpy": 149.5]
+    let newRates: [String: Decimal] = ["eur": 0.92, "jpy": 149.5]
     let newJSON = try JSONEncoder().encode(newRates)
     let newDate = Date(timeIntervalSince1970: 2_000_000)
 
@@ -209,7 +225,7 @@ struct ExchangeRateModelTests {
     let snapshot = Snapshot(date: Date())
     tc.context.insert(snapshot)
 
-    let rates: [String: Double] = ["twd": 31.5]
+    let rates: [String: Decimal] = ["twd": 31.5]
     let ratesJSON = try JSONEncoder().encode(rates)
     let exchangeRate = ExchangeRate(
       baseCurrency: "usd",
@@ -229,7 +245,7 @@ struct ExchangeRateModelTests {
     let snapshot = Snapshot(date: Date())
     tc.context.insert(snapshot)
 
-    let rates: [String: Double] = ["twd": 31.5]
+    let rates: [String: Decimal] = ["twd": 31.5]
     let ratesJSON = try JSONEncoder().encode(rates)
     let exchangeRate = ExchangeRate(
       baseCurrency: "usd",

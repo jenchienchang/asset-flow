@@ -348,7 +348,8 @@ struct SnapshotDetailView: View {
       ForEach(viewModel.usedCurrencyCodes, id: \.self) { code in
         LabeledContent(code.uppercased()) {
           if let entry = viewModel.usedCurrencyRates.first(where: { $0.code == code }) {
-            Text("1 \(code.uppercased()) = \(entry.rate) \(baseCurrency.uppercased())")
+            let rate = entry.rate.description
+            Text("1 \(code.uppercased()) = \(rate) \(baseCurrency.uppercased())")
               .monospacedDigit()
           } else {
             Text("Unavailable")

@@ -241,13 +241,13 @@ enum CalculationService {
     /// - Parameters:
     ///   - beginValue: Beginning portfolio value
     ///   - endValue: Ending portfolio value
-    ///   - years: Number of years (can be fractional)
+    ///   - years: Number of years (can be fractional), represented as Decimal
     /// - Returns: CAGR as a decimal, or nil if beginning value is zero/negative
     ///   or years is zero/negative
     static func cagr(
         beginValue: Decimal,
         endValue: Decimal,
-        years: Double
+        years: Decimal
     ) -> Decimal?
 
     /// Calculate category allocation percentage (SPEC Section 10.2)
@@ -459,7 +459,7 @@ ______________________________________________________________________
 
 **Purpose**: Fetch and cache date-specific exchange rates needed to convert snapshot values into the configured display currency.
 
-`fetchRates(for:baseCurrency:)` formats dates with Gregorian calendar components, requires the API response's `date` to match the requested date, validates a non-empty set of positive finite rates, and coalesces concurrent requests for the same date/base-currency key. Coalesced waiters are tracked independently: cancelling the last waiter cancels the network task, and every caller checks cancellation before a result can be cached. `fetchMissingRates(snapshots:displayCurrency:modelContext:)` treats a cached record as usable only when its base currency, Gregorian fetch date, and all required currencies match; otherwise it refreshes or replaces the record. It returns a status for each snapshot (`cached`, `fetched`, `failed`, `cancelled`, or `notNeeded`) so callers can expose incomplete conversion to users.
+`fetchRates(for:baseCurrency:)` formats dates with Gregorian calendar components, decodes rate values directly as `Decimal`, requires the API response's `date` to match the requested date, validates a non-empty set of positive finite rates, and coalesces concurrent requests for the same date/base-currency key. Coalesced waiters are tracked independently: cancelling the last waiter cancels the network task, and every caller checks cancellation before a result can be cached. `fetchMissingRates(snapshots:displayCurrency:modelContext:)` treats a cached record as usable only when its base currency, Gregorian fetch date, and all required currencies match; otherwise it refreshes or replaces the record. It returns a status for each snapshot (`cached`, `fetched`, `failed`, `cancelled`, or `notNeeded`) so callers can expose incomplete conversion to users.
 
 ______________________________________________________________________
 
@@ -506,7 +506,7 @@ final class ExchangeRateService {
     func fetchRates(
         for date: Date,
         baseCurrency: String
-    ) async throws -> [String: Double]
+    ) async throws -> [String: Decimal]
 
     /// Fetch the full currency list (code → name)
     func fetchCurrencyList() async throws -> [String: String]

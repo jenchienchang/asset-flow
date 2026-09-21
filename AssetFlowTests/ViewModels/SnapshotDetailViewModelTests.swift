@@ -599,7 +599,7 @@ struct SnapshotDetailViewModelTests {
     sav2.asset = twStock
     context.insert(sav2)
 
-    let rates: [String: Double] = ["twd": 31.5, "eur": 0.92]
+    let rates: [String: Decimal] = ["twd": 31.5, "eur": 0.92]
     let ratesJSON = try JSONEncoder().encode(rates)
     let er = ExchangeRate(baseCurrency: "usd", ratesJSON: ratesJSON, fetchDate: Date())
     er.snapshot = snapshot
@@ -615,7 +615,10 @@ struct SnapshotDetailViewModelTests {
     #expect(result.count == 1)
     #expect(result[0].code == "twd")
     // Inverse rate: 1 / 31.5
-    #expect(abs(result[0].rate - (1.0 / 31.5)) < 0.0001)
+    #expect(
+      abs(result[0].rate - Decimal(1) / Decimal(string: "31.5")!)
+        < Decimal(string: "0.0001")!
+    )
   }
 
   @Test("usedCurrencyRates is empty when all assets use display currency")
@@ -630,7 +633,7 @@ struct SnapshotDetailViewModelTests {
       name: "AAPL", platform: "Firstrade", marketValue: 15000,
       snapshot: snapshot, context: context)
 
-    let rates: [String: Double] = ["twd": 31.5]
+    let rates: [String: Decimal] = ["twd": 31.5]
     let ratesJSON = try JSONEncoder().encode(rates)
     let er = ExchangeRate(baseCurrency: "usd", ratesJSON: ratesJSON, fetchDate: Date())
     er.snapshot = snapshot
@@ -657,7 +660,7 @@ struct SnapshotDetailViewModelTests {
     cf.snapshot = snapshot
     context.insert(cf)
 
-    let rates: [String: Double] = ["twd": 31.5, "eur": 0.92]
+    let rates: [String: Decimal] = ["twd": 31.5, "eur": 0.92]
     let ratesJSON = try JSONEncoder().encode(rates)
     let er = ExchangeRate(baseCurrency: "usd", ratesJSON: ratesJSON, fetchDate: Date())
     er.snapshot = snapshot
@@ -697,7 +700,7 @@ struct SnapshotDetailViewModelTests {
     sav2.asset = euStock
     context.insert(sav2)
 
-    let rates: [String: Double] = ["twd": 31.5, "eur": 0.92]
+    let rates: [String: Decimal] = ["twd": 31.5, "eur": 0.92]
     let ratesJSON = try JSONEncoder().encode(rates)
     let er = ExchangeRate(baseCurrency: "usd", ratesJSON: ratesJSON, fetchDate: Date())
     er.snapshot = snapshot
