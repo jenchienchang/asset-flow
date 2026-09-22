@@ -21,7 +21,7 @@ import Foundation
 
 extension BackupService {
 
-  static func parseCategories(
+  nonisolated static func parseCategories(
     _ document: BackupCSVDocument?,
     version: BackupFormatVersion,
     issues: inout [BackupValidationIssue]
@@ -118,7 +118,7 @@ extension BackupService {
     return result
   }
 
-  static func parseAssets(
+  nonisolated static func parseAssets(
     _ document: BackupCSVDocument?,
     version: BackupFormatVersion,
     issues: inout [BackupValidationIssue]
@@ -184,7 +184,7 @@ extension BackupService {
     return result
   }
 
-  static func parseSnapshots(
+  nonisolated static func parseSnapshots(
     _ document: BackupCSVDocument?,
     issues: inout [BackupValidationIssue]
   ) -> [BackupSnapshotRecord] {
@@ -240,7 +240,7 @@ extension BackupService {
     return result
   }
 
-  static func parseSnapshotAssetValues(
+  nonisolated static func parseSnapshotAssetValues(
     _ document: BackupCSVDocument?,
     issues: inout [BackupValidationIssue]
   ) -> [BackupSnapshotAssetValueRecord] {

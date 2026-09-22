@@ -18,7 +18,7 @@
 import Foundation
 
 /// Import type selector: Assets or Cash Flows.
-enum ImportType: String, CaseIterable {
+enum ImportType: String, CaseIterable, Sendable {
   case assets
   case cashFlows
 }

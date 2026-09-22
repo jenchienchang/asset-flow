@@ -21,7 +21,7 @@ import Foundation
 
 extension BackupService {
 
-  static func parseCashFlowOperations(
+  nonisolated static func parseCashFlowOperations(
     _ document: BackupCSVDocument?,
     version: BackupFormatVersion,
     issues: inout [BackupValidationIssue]
@@ -95,7 +95,7 @@ extension BackupService {
     return result
   }
 
-  static func parseExchangeRates(
+  nonisolated static func parseExchangeRates(
     _ document: BackupCSVDocument?,
     issues: inout [BackupValidationIssue]
   ) -> [BackupExchangeRateRecord] {
@@ -201,7 +201,7 @@ extension BackupService {
     return result
   }
 
-  static func parseSettings(
+  nonisolated static func parseSettings(
     _ document: BackupCSVDocument?,
     issues: inout [BackupValidationIssue]
   ) -> BackupSettingsRecord? {

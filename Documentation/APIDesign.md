@@ -41,7 +41,7 @@ ______________________________________________________________________
 
 **Purpose**: Parse CSV files according to the asset and cash flow schemas defined in SPEC Section 4.2.
 
-CSV record syntax is delegated to Apple’s `TabularData` framework through the internal `CSVRecordReader`. It enables RFC-style quoting, escaped double quotes, embedded newlines, and structural error reporting without a custom character-level parser. Columns are read back as strings so AssetFlow can retain exact field content and continue parsing monetary values as `Decimal` rather than floating-point values. `CSVParsingService` remains responsible for headers, schema validation, warnings, and raw within-CSV duplicate diagnostics. Import flows perform final duplicate validation after applying their context-specific platform rules. All user-facing import errors and warnings are resolved through the `Import` string catalog, including errors translated from `CSVRecordReader` reasons; framework-localized parser descriptions are not surfaced directly.
+CSV record syntax is delegated to Apple’s `TabularData` framework through the internal `CSVRecordReader`. It enables RFC-style quoting, escaped double quotes, embedded newlines, and structural error reporting without a custom character-level parser. Columns are read back as strings so AssetFlow can retain exact field content and continue parsing monetary values as `Decimal` rather than floating-point values. `CSVParsingService` remains responsible for headers, schema validation, warnings, and raw within-CSV duplicate diagnostics. `CSVImportPreparationService` uses cancellable async parsing workers that check cancellation between record materialization, row validation, and duplicate detection. Import flows perform final duplicate validation after applying their context-specific platform rules. All user-facing import errors and warnings are resolved through the `Import` string catalog, including errors translated from `CSVRecordReader` reasons; framework-localized parser descriptions are not surfaced directly.
 
 ```swift
 enum CSVParsingService {
@@ -313,29 +313,30 @@ ______________________________________________________________________
 
 **Purpose**: Export all application data to a ZIP archive and restore from a backup archive.
 
-**Note**: BackupService requires `@MainActor` because it accepts `ModelContext`, which is `@MainActor`-isolated. This is an exception to the general service layer principle that services are not `@MainActor`.
+**Note**: BackupService's model-facing façade is `@MainActor` because it accepts `ModelContext`, but its archive and parsing helpers are nonisolated. This keeps required SwiftData access on the main actor without performing file or archive work there.
 
 ```swift
-@MainActor
 enum BackupService {
     /// Export all data to a ZIP archive at the specified URL
+    @MainActor
     static func exportBackup(
         to url: URL,
         modelContext: ModelContext,
         settingsService: SettingsService
-    ) throws
+    ) async throws
 
     /// Validate a backup archive without modifying data
     static func validateBackup(
         at url: URL
-    ) throws -> BackupManifest
+    ) async throws -> BackupManifest
 
     /// Restore all data from a backup archive (replaces ALL existing data)
+    @MainActor
     static func restoreFromBackup(
         at url: URL,
         modelContext: ModelContext,
         settingsService: SettingsService
-    ) throws
+    ) async throws
 }
 
 struct BackupManifest: Codable {
@@ -345,7 +346,9 @@ struct BackupManifest: Codable {
 }
 ```
 
-**File Organization**: The BackupService implementation is split across extension files: `BackupService+Export.swift` (CSV writing and export helpers), `BackupService+Parsing.swift` (typed loading and file validation), `AssetFlow/Services/CSVRecordReader.swift` (TabularData-backed record parsing shared with user imports), `BackupService+EntityParsing.swift` and `BackupService+SupplementalParsing.swift` (typed entity validation), `BackupService+ParsingSupport.swift` (strict scalar parsing and validation helpers), `BackupService+GraphValidation.swift` (cross-file relationship validation), `BackupCSVParser.swift` (backup error translation and header-record adaptation), `BackupService+Restore.swift` (typed insertion and deletion), and `BackupService+Validation.swift` (validation entry point and ZIP operations). TabularData parser failures are converted to app-owned reasons before backup diagnostics are localized through `Services.xcstrings`; framework `localizedDescription` text is not exposed.
+**Actor boundary**: BackupService is an async main-actor façade. It snapshots SwiftData values into `Sendable` transfer records on the main actor, then performs CSV serialization, archive extraction/validation, and `/usr/bin/ditto` work through nonisolated async helpers. SwiftData insertion, deletion, transactions, and settings mutation return to the main actor only after background validation succeeds. Archive tasks honor cancellation and replace export destinations only after a complete archive has been produced.
+
+**File Organization**: The BackupService implementation is split across extension files: `BackupService+Export.swift` (Sendable CSV writing and export helpers), `BackupService+Parsing.swift` (typed loading and file validation), `AssetFlow/Services/CSVRecordReader.swift` (TabularData-backed record parsing shared with user imports), `BackupService+EntityParsing.swift` and `BackupService+SupplementalParsing.swift` (typed entity validation), `BackupService+ParsingSupport.swift` (strict scalar parsing and validation helpers), `BackupService+GraphValidation.swift` (cross-file relationship validation), `BackupCSVParser.swift` (backup error translation and header-record adaptation), `BackupService+Restore.swift` (typed insertion and deletion), and `BackupService+Validation.swift` (validation entry point and cancellable ZIP operations). TabularData parser failures are converted to app-owned reasons before backup diagnostics are localized through `Services.xcstrings`; framework `localizedDescription` text is not exposed.
 
 **Export Format**: ZIP archive containing:
 

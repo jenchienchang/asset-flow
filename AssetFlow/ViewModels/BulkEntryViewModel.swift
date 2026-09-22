@@ -41,7 +41,9 @@ final class BulkEntryViewModel {
 
   private let modelContext: ModelContext
   private let fetcher: any ModelFetching
+  private let prepareCSV: @Sendable (Data, CSVColumnSchema) async throws -> CSVImportPreparation
   var loadState: DataLoadState = .idle
+  var isCSVImporting = false
 
   // MARK: - Structural Caches (observation-ignored)
 
@@ -94,9 +96,18 @@ final class BulkEntryViewModel {
       || !cashFlowRows.isEmpty
   }
 
-  init(modelContext: ModelContext, date: Date, fetcher: (any ModelFetching)? = nil) {
+  init(
+    modelContext: ModelContext,
+    date: Date,
+    fetcher: (any ModelFetching)? = nil,
+    prepareCSV: @escaping @Sendable (Data, CSVColumnSchema) async throws -> CSVImportPreparation = {
+      data, schema in
+      try await CSVImportPreparationService.prepare(data: data, schema: schema)
+    }
+  ) {
     self.modelContext = modelContext
     self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
+    self.prepareCSV = prepareCSV
     self.snapshotDate = Calendar.current.startOfDay(for: date)
     self.rows = []
     do {
@@ -345,47 +356,100 @@ final class BulkEntryViewModel {
 
   // MARK: - Cash Flow CSV Import
 
-  @discardableResult
-  func importCashFlowCSV(data: Data) -> CashFlowCSVImportResult {
-    let parseResult = CSVParsingService.parseCashFlowCSV(data: data)
-    let result = importCashFlowCSVFromParsedRows(parseResult)
-    lastImportFeedback = result.feedback
-    return result
-  }
-
-  func loadCashFlowCSVForMapping(data: Data) {
-    lastImportFeedback = nil
-    let headers = CSVParsingService.extractHeaders(from: data)
-    guard !headers.isEmpty else {
-      lastImportFeedback = importCashFlowCSV(data: data).feedback
+  func loadCashFlowCSVFileForMapping(from url: URL) async {
+    isCSVImporting = true
+    defer { isCSVImporting = false }
+    do {
+      let data = try await CSVFileReader.read(from: url)
+      try Task.checkCancellation()
+      await loadCashFlowCSVForMapping(data: data)
+    } catch is CancellationError {
       return
-    }
-    let detectResult = CSVParsingService.autoDetectMapping(headers: headers, schema: .cashFlow)
-    switch detectResult {
-    case .matched:
-      lastImportFeedback = importCashFlowCSV(data: data).feedback
-
-    case .needsUserMapping(let rawHeaders, let partialMap):
-      pendingCashFlowCSVData = data
-      pendingCashFlowRawHeaders = rawHeaders
-      pendingCashFlowSampleRows = CSVParsingService.extractSampleRows(from: data, count: nil)
-      pendingCashFlowPartialMapping = partialMap
-      showCashFlowColumnMappingSheet = true
+    } catch {
+      reportImportFailure(
+        String(
+          localized: "Could not open file. Please check the file is a valid CSV.",
+          table: "Import"))
     }
   }
 
   @discardableResult
-  func confirmCashFlowColumnMapping(_ mapping: CSVColumnMapping) -> CashFlowCSVImportResult? {
+  func importCashFlowCSV(data: Data) async -> CashFlowCSVImportResult {
+    do {
+      let preparation = try await prepareCSV(data, .cashFlow)
+      guard case .parsedCashFlow(_, let parseResult) = preparation else {
+        return failedCashFlowImport("Unable to prepare CSV data.")
+      }
+      try Task.checkCancellation()
+      let result = importCashFlowCSVFromParsedRows(parseResult)
+      lastImportFeedback = result.feedback
+      return result
+    } catch is CancellationError {
+      return cancelledCashFlowImport()
+    } catch {
+      return failedCashFlowImport(error.localizedDescription)
+    }
+  }
+
+  func loadCashFlowCSVForMapping(data: Data) async {
+    lastImportFeedback = nil
+    isCSVImporting = true
+    defer { isCSVImporting = false }
+    do {
+      let preparation = try await CSVImportPreparationService.prepare(
+        data: data, schema: .cashFlow)
+      try Task.checkCancellation()
+      switch preparation {
+      case .parsedCashFlow(_, let result):
+        let importResult = importCashFlowCSVFromParsedRows(result)
+        lastImportFeedback = importResult.feedback
+
+      case .needsMapping(
+        let data, _, let rawHeaders, let sampleRows, let partialMapping):
+        pendingCashFlowCSVData = data
+        pendingCashFlowRawHeaders = rawHeaders
+        pendingCashFlowSampleRows = sampleRows
+        pendingCashFlowPartialMapping = partialMapping
+        showCashFlowColumnMappingSheet = true
+
+      case .parsedAsset:
+        break
+      }
+    } catch is CancellationError {
+      return
+    } catch {
+      lastImportFeedback = .failure(error.localizedDescription)
+    }
+  }
+
+  @discardableResult
+  func confirmCashFlowColumnMapping(_ mapping: CSVColumnMapping) async
+    -> CashFlowCSVImportResult?
+  {
     showCashFlowColumnMappingSheet = false
     guard let data = pendingCashFlowCSVData else { return nil }
-    let parseResult = CSVParsingService.parseCashFlowCSV(data: data, mapping: mapping)
-    let result = importCashFlowCSVFromParsedRows(parseResult)
-    lastImportFeedback = result.feedback
-    pendingCashFlowCSVData = nil
-    pendingCashFlowRawHeaders = []
-    pendingCashFlowSampleRows = []
-    pendingCashFlowPartialMapping = [:]
-    return result
+    isCSVImporting = true
+    defer { isCSVImporting = false }
+    do {
+      let preparation = try await CSVImportPreparationService.prepare(
+        data: data, mapping: mapping)
+      try Task.checkCancellation()
+      guard case .parsedCashFlow(_, let parseResult) = preparation else {
+        return nil
+      }
+      let result = importCashFlowCSVFromParsedRows(parseResult)
+      lastImportFeedback = result.feedback
+      pendingCashFlowCSVData = nil
+      pendingCashFlowRawHeaders = []
+      pendingCashFlowSampleRows = []
+      pendingCashFlowPartialMapping = [:]
+      return result
+    } catch is CancellationError {
+      return nil
+    } catch {
+      lastImportFeedback = .failure(error.localizedDescription)
+      return nil
+    }
   }
 
   /// Stores a file-loading failure for the view to present to the user.
@@ -509,65 +573,150 @@ final class BulkEntryViewModel {
   }
 
   @discardableResult
-  func importCSV(data: Data, forPlatform platform: String) -> CSVImportResult {
-    let result = CSVParsingService.parseAssetCSV(data: data, importPlatform: nil)
-    let importResult = importCSVFromParsedRows(result, forPlatform: platform)
-    lastImportFeedback = importResult.feedback
-    return importResult
+  func importCSV(data: Data, forPlatform platform: String) async -> CSVImportResult {
+    do {
+      let preparation = try await prepareCSV(data, .assetWithoutPlatform)
+      guard case .parsedAsset(_, let parseResult) = preparation else {
+        return failedAssetImport("Unable to prepare CSV data.")
+      }
+      try Task.checkCancellation()
+      let importResult = importCSVFromParsedRows(parseResult, forPlatform: platform)
+      lastImportFeedback = importResult.feedback
+      return importResult
+    } catch is CancellationError {
+      return cancelledAssetImport()
+    } catch {
+      return failedAssetImport(error.localizedDescription)
+    }
   }
 
   // MARK: - Column Mapping
+
+  func loadCSVFileForMapping(from url: URL, forPlatform platform: String) async {
+    isCSVImporting = true
+    defer { isCSVImporting = false }
+    do {
+      let data = try await CSVFileReader.read(from: url)
+      try Task.checkCancellation()
+      await loadCSVForMapping(data: data, forPlatform: platform)
+    } catch is CancellationError {
+      return
+    } catch {
+      reportImportFailure(
+        String(
+          localized: "Could not open file. Please check the file is a valid CSV.",
+          table: "Import"))
+    }
+  }
 
   /// Loads CSV data with auto-detection. Shows mapping sheet if headers don't match.
   ///
   /// If headers match, calls `importCSV` directly. Otherwise, populates
   /// mapping state and sets `showColumnMappingSheet = true`.
-  func loadCSVForMapping(data: Data, forPlatform platform: String) {
+  func loadCSVForMapping(data: Data, forPlatform platform: String) async {
     lastImportFeedback = nil
-    let headers = CSVParsingService.extractHeaders(from: data)
+    isCSVImporting = true
+    defer { isCSVImporting = false }
+    do {
+      let preparation = try await CSVImportPreparationService.prepare(
+        data: data, schema: .assetWithoutPlatform)
+      try Task.checkCancellation()
+      switch preparation {
+      case .parsedAsset(_, let result):
+        let importResult = importCSVFromParsedRows(result, forPlatform: platform)
+        lastImportFeedback = importResult.feedback
 
-    // Empty/invalid files — import directly to get proper error reporting
-    guard !headers.isEmpty else {
-      lastImportFeedback = importCSV(data: data, forPlatform: platform).feedback
+      case .needsMapping(
+        let data, _, let rawHeaders, let sampleRows, let partialMapping):
+        pendingCSVData = data
+        pendingCSVPlatform = platform
+        pendingRawHeaders = rawHeaders
+        pendingSampleRows = sampleRows
+        pendingPartialMapping = partialMapping
+        showColumnMappingSheet = true
+
+      case .parsedCashFlow:
+        break
+      }
+    } catch is CancellationError {
       return
-    }
-
-    let detectResult = CSVParsingService.autoDetectMapping(
-      headers: headers, schema: .assetWithoutPlatform)
-
-    switch detectResult {
-    case .matched:
-      lastImportFeedback = importCSV(data: data, forPlatform: platform).feedback
-
-    case .needsUserMapping(let rawHeaders, let partialMap):
-      pendingCSVData = data
-      pendingCSVPlatform = platform
-      pendingRawHeaders = rawHeaders
-      pendingSampleRows = CSVParsingService.extractSampleRows(from: data, count: nil)
-      pendingPartialMapping = partialMap
-      showColumnMappingSheet = true
+    } catch {
+      lastImportFeedback = .failure(error.localizedDescription)
     }
   }
 
   /// Confirms a user-provided column mapping and imports the pending CSV data.
   @discardableResult
-  func confirmColumnMapping(_ mapping: CSVColumnMapping) -> CSVImportResult? {
+  func confirmColumnMapping(_ mapping: CSVColumnMapping) async -> CSVImportResult? {
     showColumnMappingSheet = false
     guard let data = pendingCSVData else { return nil }
     let platform = pendingCSVPlatform
+    isCSVImporting = true
+    defer { isCSVImporting = false }
+    do {
+      let preparation = try await CSVImportPreparationService.prepare(
+        data: data, mapping: mapping)
+      try Task.checkCancellation()
+      guard case .parsedAsset(_, let parseResult) = preparation else {
+        return nil
+      }
+      let result = importCSVFromParsedRows(parseResult, forPlatform: platform)
+      lastImportFeedback = result.feedback
 
-    let parseResult = CSVParsingService.parseAssetCSV(
-      data: data, mapping: mapping, importPlatform: nil)
-    let result = importCSVFromParsedRows(parseResult, forPlatform: platform)
+      pendingCSVData = nil
+      pendingCSVPlatform = ""
+      pendingRawHeaders = []
+      pendingSampleRows = []
+      pendingPartialMapping = [:]
+
+      return result
+    } catch is CancellationError {
+      return nil
+    } catch {
+      lastImportFeedback = .failure(error.localizedDescription)
+      return nil
+    }
+  }
+
+  /// Imports already-parsed CSV rows into the bulk entry rows.
+  private func failedAssetImport(_ message: String) -> CSVImportResult {
+    let result = CSVImportResult(
+      matchedCount: 0,
+      newCount: 0,
+      errors: [message],
+      parserWarnings: [],
+      platformMismatches: [],
+      currencyMismatches: [])
     lastImportFeedback = result.feedback
-
-    pendingCSVData = nil
-    pendingCSVPlatform = ""
-    pendingRawHeaders = []
-    pendingSampleRows = []
-    pendingPartialMapping = [:]
-
     return result
+  }
+
+  private func failedCashFlowImport(_ message: String) -> CashFlowCSVImportResult {
+    let result = CashFlowCSVImportResult(
+      matchedCount: 0,
+      newCount: 0,
+      errors: [message],
+      parserWarnings: [])
+    lastImportFeedback = result.feedback
+    return result
+  }
+
+  private func cancelledAssetImport() -> CSVImportResult {
+    CSVImportResult(
+      matchedCount: 0,
+      newCount: 0,
+      errors: [],
+      parserWarnings: [],
+      platformMismatches: [],
+      currencyMismatches: [])
+  }
+
+  private func cancelledCashFlowImport() -> CashFlowCSVImportResult {
+    CashFlowCSVImportResult(
+      matchedCount: 0,
+      newCount: 0,
+      errors: [],
+      parserWarnings: [])
   }
 
   /// Imports already-parsed CSV rows into the bulk entry rows.

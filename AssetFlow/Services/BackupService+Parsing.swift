@@ -21,10 +21,10 @@ import Foundation
 
 extension BackupService {
 
-  private static let maximumManifestSize = 1 * 1_024 * 1_024
-  private static let maximumCSVSize = 128 * 1_024 * 1_024
+  private nonisolated static let maximumManifestSize = 1 * 1_024 * 1_024
+  private nonisolated static let maximumCSVSize = 128 * 1_024 * 1_024
 
-  static func loadValidatedBackup(at dir: URL) throws -> ValidatedBackup {
+  nonisolated static func loadValidatedBackup(at dir: URL) throws -> ValidatedBackup {
     var issues: [BackupValidationIssue] = []
     let manifest = try loadManifest(from: dir, issues: &issues)
 
@@ -109,7 +109,7 @@ extension BackupService {
     )
   }
 
-  private static func loadManifest(
+  private nonisolated static func loadManifest(
     from dir: URL,
     issues: inout [BackupValidationIssue]
   ) throws -> BackupManifest {
@@ -147,7 +147,7 @@ extension BackupService {
     return manifest
   }
 
-  private static func expectedHeaders(
+  private nonisolated static func expectedHeaders(
     for fileName: String,
     version: BackupFormatVersion
   ) -> [String] {
@@ -177,7 +177,7 @@ extension BackupService {
     }
   }
 
-  private static func loadCSVDocument(
+  private nonisolated static func loadCSVDocument(
     at url: URL,
     fileName: String,
     expectedHeaders: [String]
@@ -196,7 +196,7 @@ extension BackupService {
     return BackupCSVDocument(records: Array(records.dropFirst()))
   }
 
-  private static func readRegularFile(
+  private nonisolated static func readRegularFile(
     at url: URL,
     fileName: String,
     maximumSize: Int

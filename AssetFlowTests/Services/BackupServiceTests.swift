@@ -110,7 +110,7 @@ struct BackupServiceTests {
   // MARK: - Export Tests
 
   @Test("Export creates valid ZIP file")
-  func exportCreatesValidZIP() throws {
+  func exportCreatesValidZIP() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -118,15 +118,75 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     #expect(FileManager.default.fileExists(atPath: zipURL.path))
   }
 
+  @Test("Backup validation can run from a detached task")
+  func backupValidationCanRunFromDetachedTask() async throws {
+    let tc = createTestContext()
+    populateTestData(
+      context: tc.context, settingsService: tc.settingsService)
+    let zipURL = tempZipURL()
+    defer { try? FileManager.default.removeItem(at: zipURL) }
+
+    try await BackupService.exportBackup(
+      to: zipURL, modelContext: tc.context,
+      settingsService: tc.settingsService)
+
+    let manifest = try await Task.detached {
+      try await BackupService.validateBackup(at: zipURL)
+    }.value
+
+    #expect(manifest.formatVersion == BackupFormatVersion.current.rawValue)
+  }
+
+  @Test("Cancellation after restore validation preserves existing data")
+  func cancellationAfterRestoreValidationPreservesExistingData() async throws {
+    let source = createTestContext()
+    populateTestData(
+      context: source.context, settingsService: source.settingsService)
+    let zipURL = tempZipURL()
+    defer { try? FileManager.default.removeItem(at: zipURL) }
+    try await BackupService.exportBackup(
+      to: zipURL, modelContext: source.context,
+      settingsService: source.settingsService)
+
+    let target = createTestContext()
+    let original = try populateOriginalGraph(context: target.context)
+    target.settingsService.mainCurrency = "USD"
+    target.settingsService.dateFormat = .numeric
+    target.settingsService.defaultPlatform = "Original Platform"
+    try target.context.save()
+
+    let restoreTask = Task { @MainActor in
+      try await BackupService.restoreFromBackup(
+        at: zipURL,
+        modelContext: target.context,
+        settingsService: target.settingsService
+      ) { checkpoint in
+        if case .afterValidation = checkpoint {
+          withUnsafeCurrentTask { task in
+            task?.cancel()
+          }
+        }
+      }
+    }
+
+    await #expect(throws: CancellationError.self) {
+      try await restoreTask.value
+    }
+
+    try expectOriginalState(
+      in: target, expected: original,
+      currency: "USD", dateFormat: .numeric)
+  }
+
   @Test("Export ZIP contains all required files")
-  func exportContainsAllFiles() throws {
+  func exportContainsAllFiles() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -134,7 +194,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -160,16 +220,16 @@ struct BackupServiceTests {
   }
 
   @Test("Export manifest has correct formatVersion, appVersion, ISO 8601 timestamp")
-  func exportManifestCorrect() throws {
+  func exportManifestCorrect() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
-    let manifest = try BackupService.validateBackup(at: zipURL)
+    let manifest = try await BackupService.validateBackup(at: zipURL)
     #expect(manifest.formatVersion == 3)
     #expect(manifest.appVersion == Constants.AppInfo.version)
     // Verify ISO 8601 timestamp is parseable
@@ -178,7 +238,7 @@ struct BackupServiceTests {
   }
 
   @Test("Export categories CSV has correct headers and data")
-  func exportCategoriesCSV() throws {
+  func exportCategoriesCSV() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -186,7 +246,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -199,7 +259,7 @@ struct BackupServiceTests {
   }
 
   @Test("Export assets CSV has correct headers and data")
-  func exportAssetsCSV() throws {
+  func exportAssetsCSV() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -207,7 +267,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -220,7 +280,7 @@ struct BackupServiceTests {
   }
 
   @Test("Export settings CSV includes all 3 settings")
-  func exportSettingsCSV() throws {
+  func exportSettingsCSV() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -228,7 +288,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -244,17 +304,17 @@ struct BackupServiceTests {
   }
 
   @Test("Empty database exports valid archive with header-only CSVs")
-  func emptyDatabaseExport() throws {
+  func emptyDatabaseExport() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     // Should be valid
-    let manifest = try BackupService.validateBackup(at: zipURL)
+    let manifest = try await BackupService.validateBackup(at: zipURL)
     #expect(manifest.formatVersion == 3)
 
     // Categories CSV should have only header
@@ -266,7 +326,7 @@ struct BackupServiceTests {
   }
 
   @Test("Export handles optional fields (nil to empty string)")
-  func exportHandlesOptionalFields() throws {
+  func exportHandlesOptionalFields() async throws {
     let tc = createTestContext()
 
     // Category without target
@@ -280,7 +340,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -302,7 +362,7 @@ struct BackupServiceTests {
   }
 
   @Test("Export serializes Decimal at full precision")
-  func exportDecimalPrecision() throws {
+  func exportDecimalPrecision() async throws {
     let tc = createTestContext()
 
     let snapshot = Snapshot(
@@ -322,7 +382,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -334,7 +394,7 @@ struct BackupServiceTests {
   // MARK: - Validation Tests
 
   @Test("Validate accepts valid archive")
-  func validateAcceptsValid() throws {
+  func validateAcceptsValid() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -342,16 +402,16 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
-    let manifest = try BackupService.validateBackup(at: zipURL)
+    let manifest = try await BackupService.validateBackup(at: zipURL)
     #expect(manifest.formatVersion == 3)
   }
 
   @Test("Validate accepts backup with one enclosing folder")
-  func validateAcceptsSingleEnclosingFolder() throws {
+  func validateAcceptsSingleEnclosingFolder() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -359,7 +419,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -378,22 +438,18 @@ struct BackupServiceTests {
       }
     }
 
-    let manifest = try? BackupService.validateBackup(at: zipURL)
+    let manifest = try? await BackupService.validateBackup(at: zipURL)
     #expect(manifest?.formatVersion == BackupFormatVersion.current.rawValue)
 
     let restored = createTestContext()
-    let restoreResult: Result<Void, Error> = Result {
-      try BackupService.restoreFromBackup(
+    let restoreSucceeded: Bool
+    do {
+      try await BackupService.restoreFromBackup(
         at: zipURL,
         modelContext: restored.context,
         settingsService: restored.settingsService)
-    }
-    let restoreSucceeded: Bool
-    switch restoreResult {
-    case .success:
       restoreSucceeded = true
-
-    case .failure:
+    } catch {
       restoreSucceeded = false
     }
     #expect(restoreSucceeded)
@@ -406,27 +462,27 @@ struct BackupServiceTests {
   }
 
   @Test("Validate rejects non-ZIP file")
-  func validateRejectsNonZIP() throws {
+  func validateRejectsNonZIP() async throws {
     let url = tempZipURL()
     defer { try? FileManager.default.removeItem(at: url) }
 
     try "not a zip file".write(
       to: url, atomically: true, encoding: .utf8)
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: url)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: url)
     }
   }
 
   @Test("Validate rejects archive missing required CSV")
-  func validateRejectsMissingCSV() throws {
+  func validateRejectsMissingCSV() async throws {
     let tc = createTestContext()
 
     // Create a backup, then remove one CSV and re-zip
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -435,19 +491,19 @@ struct BackupServiceTests {
         at: dir.appending(path: BackupCSV.Categories.fileName))
     }
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: zipURL)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: zipURL)
     }
   }
 
   @Test("Validate rejects wrong CSV headers")
-  func validateRejectsWrongHeaders() throws {
+  func validateRejectsWrongHeaders() async throws {
     let tc = createTestContext()
 
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -457,19 +513,19 @@ struct BackupServiceTests {
         to: catFile, atomically: true, encoding: .utf8)
     }
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: zipURL)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: zipURL)
     }
   }
 
   @Test("Validate rejects orphan categoryID")
-  func validateRejectsOrphanCategoryID() throws {
+  func validateRejectsOrphanCategoryID() async throws {
     let tc = createTestContext()
 
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -480,13 +536,13 @@ struct BackupServiceTests {
         .write(to: assetFile, atomically: true, encoding: .utf8)
     }
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: zipURL)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: zipURL)
     }
   }
 
   @Test("Validate accepts empty categoryID (uncategorized asset)")
-  func validateAcceptsEmptyCategoryID() throws {
+  func validateAcceptsEmptyCategoryID() async throws {
     let tc = createTestContext()
 
     // Create asset without category
@@ -496,17 +552,17 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     // Should not throw
-    let manifest = try BackupService.validateBackup(at: zipURL)
+    let manifest = try await BackupService.validateBackup(at: zipURL)
     #expect(manifest.formatVersion == 3)
   }
 
   @Test("Validate rejects orphan snapshotID in snapshot_asset_values")
-  func validateRejectsOrphanSnapshotID() throws {
+  func validateRejectsOrphanSnapshotID() async throws {
     let tc = createTestContext()
 
     let zipURL = tempZipURL()
@@ -516,7 +572,7 @@ struct BackupServiceTests {
     let asset = Asset(name: "Test", platform: "")
     tc.context.insert(asset)
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -528,13 +584,13 @@ struct BackupServiceTests {
         .write(to: savFile, atomically: true, encoding: .utf8)
     }
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: zipURL)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: zipURL)
     }
   }
 
   @Test("Validate rejects orphan assetID in snapshot_asset_values")
-  func validateRejectsOrphanAssetID() throws {
+  func validateRejectsOrphanAssetID() async throws {
     let tc = createTestContext()
 
     let zipURL = tempZipURL()
@@ -546,7 +602,7 @@ struct BackupServiceTests {
         from: DateComponents(year: 2025, month: 1, day: 1))!)
     tc.context.insert(snapshot)
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -558,18 +614,18 @@ struct BackupServiceTests {
         .write(to: savFile, atomically: true, encoding: .utf8)
     }
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: zipURL)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: zipURL)
     }
   }
 
   @Test("Validate rejects unsupported manifest version")
-  func validateRejectsUnsupportedManifestVersion() throws {
+  func validateRejectsUnsupportedManifestVersion() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -583,18 +639,18 @@ struct BackupServiceTests {
       try JSONEncoder().encode(manifest).write(to: manifestURL)
     }
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: zipURL)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: zipURL)
     }
   }
 
   @Test("Validate rejects a malformed short category row")
-  func validateRejectsMalformedShortCategoryRow() throws {
+  func validateRejectsMalformedShortCategoryRow() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -604,18 +660,18 @@ struct BackupServiceTests {
         .write(to: fileURL, atomically: true, encoding: .utf8)
     }
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: zipURL)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: zipURL)
     }
   }
 
   @Test("Validate rejects a delimiter-only category row")
-  func validateRejectsDelimiterOnlyCategoryRow() throws {
+  func validateRejectsDelimiterOnlyCategoryRow() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -625,18 +681,18 @@ struct BackupServiceTests {
         .write(to: fileURL, atomically: true, encoding: .utf8)
     }
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: zipURL)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: zipURL)
     }
   }
 
   @Test("Restore accepts CRLF records with a trailing empty field")
-  func restoreAcceptsCRLFRecordsWithTrailingEmptyField() throws {
+  func restoreAcceptsCRLFRecordsWithTrailingEmptyField() async throws {
     let source = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: source.context,
       settingsService: source.settingsService)
 
@@ -651,7 +707,7 @@ struct BackupServiceTests {
     }
 
     let target = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: target.context,
       settingsService: target.settingsService)
 
@@ -663,7 +719,7 @@ struct BackupServiceTests {
   }
 
   @Test("Backup diagnostics include Traditional Chinese localizations")
-  func backupDiagnosticsIncludeTraditionalChineseLocalizations() throws {
+  func backupDiagnosticsIncludeTraditionalChineseLocalizations() async throws {
     let repositoryURL = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
@@ -691,12 +747,12 @@ struct BackupServiceTests {
   }
 
   @Test("Validate rejects an invalid category display order")
-  func validateRejectsInvalidCategoryDisplayOrder() throws {
+  func validateRejectsInvalidCategoryDisplayOrder() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -707,18 +763,18 @@ struct BackupServiceTests {
         .write(to: fileURL, atomically: true, encoding: .utf8)
     }
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: zipURL)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: zipURL)
     }
   }
 
   @Test("Validate rejects duplicate normalized category identities")
-  func validateRejectsDuplicateNormalizedCategoryIdentities() throws {
+  func validateRejectsDuplicateNormalizedCategoryIdentities() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -732,15 +788,15 @@ struct BackupServiceTests {
       .write(to: fileURL, atomically: true, encoding: .utf8)
     }
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: zipURL)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: zipURL)
     }
   }
 
   // MARK: - Round-Trip Tests
 
   @Test("Round-trip preserves all categories")
-  func roundTripCategories() throws {
+  func roundTripCategories() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -748,13 +804,13 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     // Restore into fresh context
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -765,7 +821,7 @@ struct BackupServiceTests {
   }
 
   @Test("Round-trip preserves all assets with category relationships")
-  func roundTripAssets() throws {
+  func roundTripAssets() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -773,12 +829,12 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -794,7 +850,7 @@ struct BackupServiceTests {
   }
 
   @Test("Round-trip preserves all snapshots")
-  func roundTripSnapshots() throws {
+  func roundTripSnapshots() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -802,12 +858,12 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -816,7 +872,7 @@ struct BackupServiceTests {
   }
 
   @Test("Round-trip preserves all snapshot asset values with relationships")
-  func roundTripSnapshotAssetValues() throws {
+  func roundTripSnapshotAssetValues() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -824,12 +880,12 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -843,7 +899,7 @@ struct BackupServiceTests {
   }
 
   @Test("Round-trip preserves all cash flow operations")
-  func roundTripCashFlowOperations() throws {
+  func roundTripCashFlowOperations() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -851,12 +907,12 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -870,7 +926,7 @@ struct BackupServiceTests {
   }
 
   @Test("Round-trip preserves settings")
-  func roundTripSettings() throws {
+  func roundTripSettings() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -878,12 +934,12 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -893,7 +949,7 @@ struct BackupServiceTests {
   }
 
   @Test("Round-trip preserves Decimal precision")
-  func roundTripDecimalPrecision() throws {
+  func roundTripDecimalPrecision() async throws {
     let tc = createTestContext()
 
     let snapshot = Snapshot(
@@ -913,12 +969,12 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -929,7 +985,7 @@ struct BackupServiceTests {
   }
 
   @Test("Restore replaces ALL existing data")
-  func restoreReplacesExistingData() throws {
+  func restoreReplacesExistingData() async throws {
     let tc = createTestContext()
     populateTestData(
       context: tc.context, settingsService: tc.settingsService)
@@ -937,7 +993,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -949,7 +1005,7 @@ struct BackupServiceTests {
     tc2.context.insert(otherAsset)
 
     // Restore — should replace the "Other" data with the backup data
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -963,14 +1019,14 @@ struct BackupServiceTests {
   }
 
   @Test("Restore empty backup clears all data")
-  func restoreEmptyBackupClearsData() throws {
+  func restoreEmptyBackupClearsData() async throws {
     let tc = createTestContext()
 
     // Export empty database
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -980,7 +1036,7 @@ struct BackupServiceTests {
       context: tc2.context, settingsService: tc2.settingsService)
 
     // Restore empty backup
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -995,11 +1051,11 @@ struct BackupServiceTests {
   }
 
   @Test("Malformed restore preserves committed data and settings")
-  func malformedRestorePreservesCommittedDataAndSettings() throws {
+  func malformedRestorePreservesCommittedDataAndSettings() async throws {
     let source = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: source.context,
       settingsService: source.settingsService)
     try tamperAndRezip(zipURL: zipURL) { dir in
@@ -1016,8 +1072,8 @@ struct BackupServiceTests {
     target.settingsService.defaultPlatform = "Original Platform"
     try target.context.save()
 
-    #expect(throws: BackupError.self) {
-      try BackupService.restoreFromBackup(
+    await #expect(throws: BackupError.self) {
+      try await BackupService.restoreFromBackup(
         at: zipURL, modelContext: target.context,
         settingsService: target.settingsService)
     }
@@ -1028,17 +1084,17 @@ struct BackupServiceTests {
   }
 
   @Test("Failure after deletion rolls back data and preserves settings")
-  func failureAfterDeletionRollsBackDataAndPreservesSettings() throws {
-    try assertInjectedRestoreFailurePreservesState(at: .afterDeletion)
+  func failureAfterDeletionRollsBackDataAndPreservesSettings() async throws {
+    try await assertInjectedRestoreFailurePreservesState(at: .afterDeletion)
   }
 
   @Test("Failure after partial insertion rolls back data and preserves settings")
-  func failureAfterPartialInsertionRollsBackDataAndPreservesSettings() throws {
-    try assertInjectedRestoreFailurePreservesState(at: .afterCategoryInsertion)
+  func failureAfterPartialInsertionRollsBackDataAndPreservesSettings() async throws {
+    try await assertInjectedRestoreFailurePreservesState(at: .afterCategoryInsertion)
   }
 
   @Test("Export/round-trip handles commas, quotes, special chars in text fields")
-  func roundTripSpecialCharacters() throws {
+  func roundTripSpecialCharacters() async throws {
     let tc = createTestContext()
 
     let cat = Category(name: "Stocks, \"Growth\"")
@@ -1062,12 +1118,12 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -1084,7 +1140,7 @@ struct BackupServiceTests {
   }
 
   @Test("Round-trip preserves escaped quotes and multiline text")
-  func roundTripPreservesEscapedQuotesAndMultilineText() throws {
+  func roundTripPreservesEscapedQuotesAndMultilineText() async throws {
     let source = createTestContext()
     let categoryName = "Income, \"Growth\"\nLong Term"
     let assetName = "Fund \"A\"\nSeries 1"
@@ -1110,12 +1166,12 @@ struct BackupServiceTests {
 
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: source.context,
       settingsService: source.settingsService)
 
     let target = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: target.context,
       settingsService: target.settingsService)
 
@@ -1131,11 +1187,11 @@ struct BackupServiceTests {
   }
 
   @Test("Validate rejects malformed quoted CSV")
-  func validateRejectsMalformedQuotedCSV() throws {
+  func validateRejectsMalformedQuotedCSV() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
     try tamperAndRezip(zipURL: zipURL) { dir in
@@ -1146,13 +1202,13 @@ struct BackupServiceTests {
           atomically: true, encoding: .utf8)
     }
 
-    #expect(throws: BackupError.self) {
-      try BackupService.validateBackup(at: zipURL)
+    await #expect(throws: BackupError.self) {
+      try await BackupService.validateBackup(at: zipURL)
     }
   }
 
   @Test("Backup CSV diagnostics use localized application messages")
-  func backupCSVDiagnosticsUseLocalizedApplicationMessages() throws {
+  func backupCSVDiagnosticsUseLocalizedApplicationMessages() async throws {
     let malformedCSV = Data(
       ("id,name,targetAllocationPercentage,displayOrder\n"
         + "\(UUID().uuidString),\"unterminated,50,0\n").utf8)
@@ -1170,11 +1226,11 @@ struct BackupServiceTests {
   }
 
   @Test("Validate reports invalid scalar values across files")
-  func validateReportsInvalidScalarValuesAcrossFiles() throws {
+  func validateReportsInvalidScalarValuesAcrossFiles() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
     try tamperAndRezip(zipURL: zipURL) { dir in
@@ -1194,7 +1250,7 @@ struct BackupServiceTests {
     }
 
     do {
-      _ = try BackupService.validateBackup(at: zipURL)
+      _ = try await BackupService.validateBackup(at: zipURL)
       Issue.record("Expected invalid scalar values to be rejected")
     } catch BackupError.validationFailed(let issues) {
       #expect(issues.contains { $0.column == "id" })
@@ -1207,11 +1263,11 @@ struct BackupServiceTests {
   }
 
   @Test("Validate reports duplicate IDs and normalized identities")
-  func validateReportsDuplicateIDsAndNormalizedIdentities() throws {
+  func validateReportsDuplicateIDsAndNormalizedIdentities() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
     let duplicateID = UUID().uuidString
@@ -1227,7 +1283,7 @@ struct BackupServiceTests {
     }
 
     do {
-      _ = try BackupService.validateBackup(at: zipURL)
+      _ = try await BackupService.validateBackup(at: zipURL)
       Issue.record("Expected duplicate identities to be rejected")
     } catch BackupError.validationFailed(let issues) {
       #expect(
@@ -1246,11 +1302,11 @@ struct BackupServiceTests {
   }
 
   @Test("Validate reports duplicate relationship identities")
-  func validateReportsDuplicateRelationshipIdentities() throws {
+  func validateReportsDuplicateRelationshipIdentities() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -1301,7 +1357,7 @@ struct BackupServiceTests {
     }
 
     do {
-      _ = try BackupService.validateBackup(at: zipURL)
+      _ = try await BackupService.validateBackup(at: zipURL)
       Issue.record("Expected duplicate relationships to be rejected")
     } catch BackupError.validationFailed(let issues) {
       #expect(
@@ -1333,7 +1389,7 @@ struct BackupServiceTests {
   // MARK: - Nil Relationship Export Tests
 
   @Test("Export skips snapshot asset values with nil relationships")
-  func exportSkipsSnapshotAssetValuesWithNilRelationships() throws {
+  func exportSkipsSnapshotAssetValuesWithNilRelationships() async throws {
     let tc = createTestContext()
 
     // Create a SAV with nil snapshot (orphaned)
@@ -1343,7 +1399,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -1356,7 +1412,7 @@ struct BackupServiceTests {
   }
 
   @Test("Export skips cash flow operations with nil snapshot")
-  func exportSkipsCashFlowOperationsWithNilSnapshot() throws {
+  func exportSkipsCashFlowOperationsWithNilSnapshot() async throws {
     let tc = createTestContext()
 
     // Create a CF with nil snapshot (orphaned)
@@ -1367,7 +1423,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -1382,7 +1438,7 @@ struct BackupServiceTests {
   // MARK: - Unresolvable ID Tests
 
   @Test("Restore rejects unresolvable snapshotID in snapshot_asset_values")
-  func restoreRejectsUnresolvableSnapshotIDInSAV() throws {
+  func restoreRejectsUnresolvableSnapshotIDInSAV() async throws {
     let tc = createTestContext()
 
     let asset = Asset(name: "Test", platform: "")
@@ -1391,7 +1447,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -1405,15 +1461,15 @@ struct BackupServiceTests {
     }
 
     let tc2 = createTestContext()
-    #expect(throws: BackupError.self) {
-      try BackupService.restoreFromBackup(
+    await #expect(throws: BackupError.self) {
+      try await BackupService.restoreFromBackup(
         at: zipURL, modelContext: tc2.context,
         settingsService: tc2.settingsService)
     }
   }
 
   @Test("Restore rejects unresolvable assetID in snapshot_asset_values")
-  func restoreRejectsUnresolvableAssetIDInSAV() throws {
+  func restoreRejectsUnresolvableAssetIDInSAV() async throws {
     let tc = createTestContext()
 
     let snapshot = Snapshot(
@@ -1424,7 +1480,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -1438,21 +1494,21 @@ struct BackupServiceTests {
     }
 
     let tc2 = createTestContext()
-    #expect(throws: BackupError.self) {
-      try BackupService.restoreFromBackup(
+    await #expect(throws: BackupError.self) {
+      try await BackupService.restoreFromBackup(
         at: zipURL, modelContext: tc2.context,
         settingsService: tc2.settingsService)
     }
   }
 
   @Test("Restore rejects unresolvable snapshotID in cash_flow_operations")
-  func restoreRejectsUnresolvableSnapshotIDInCashFlow() throws {
+  func restoreRejectsUnresolvableSnapshotIDInCashFlow() async throws {
     let tc = createTestContext()
 
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -1466,8 +1522,8 @@ struct BackupServiceTests {
     }
 
     let tc2 = createTestContext()
-    #expect(throws: BackupError.self) {
-      try BackupService.restoreFromBackup(
+    await #expect(throws: BackupError.self) {
+      try await BackupService.restoreFromBackup(
         at: zipURL, modelContext: tc2.context,
         settingsService: tc2.settingsService)
     }
@@ -1476,7 +1532,7 @@ struct BackupServiceTests {
   // MARK: - Display Order Tests
 
   @Test("Backup export includes displayOrder column")
-  func backupExportIncludesDisplayOrder() throws {
+  func backupExportIncludesDisplayOrder() async throws {
     let tc = createTestContext()
 
     let equities = Category(
@@ -1491,7 +1547,7 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -1510,7 +1566,7 @@ struct BackupServiceTests {
   }
 
   @Test("Restore handles old backup without displayOrder column")
-  func restoreHandlesOldBackupWithoutDisplayOrder() throws {
+  func restoreHandlesOldBackupWithoutDisplayOrder() async throws {
     let tc = createTestContext()
 
     // Create a v1 backup (3-column categories.csv)
@@ -1520,7 +1576,7 @@ struct BackupServiceTests {
     // Export a normal backup first
     let cat = Category(name: "TestCat", targetAllocationPercentage: 50)
     tc.context.insert(cat)
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -1555,7 +1611,7 @@ struct BackupServiceTests {
 
     // Restore into a fresh context
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -1566,7 +1622,7 @@ struct BackupServiceTests {
   }
 
   @Test("Round-trip preserves displayOrder")
-  func roundTripDisplayOrder() throws {
+  func roundTripDisplayOrder() async throws {
     let tc = createTestContext()
 
     let equities = Category(
@@ -1585,12 +1641,12 @@ struct BackupServiceTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -1635,13 +1691,13 @@ struct BackupServiceTests {
 
   private func assertInjectedRestoreFailurePreservesState(
     at failingCheckpoint: BackupRestoreCheckpoint
-  ) throws {
+  ) async throws {
     let source = createTestContext()
     populateTestData(
       context: source.context, settingsService: source.settingsService)
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: source.context,
       settingsService: source.settingsService)
 
@@ -1652,8 +1708,8 @@ struct BackupServiceTests {
     target.settingsService.defaultPlatform = "Original Platform"
     try target.context.save()
 
-    #expect(throws: BackupError.self) {
-      try BackupService.restoreFromBackup(
+    await #expect(throws: BackupError.self) {
+      try await BackupService.restoreFromBackup(
         at: zipURL, modelContext: target.context,
         settingsService: target.settingsService
       ) { checkpoint in

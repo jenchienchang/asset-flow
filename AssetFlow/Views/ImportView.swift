@@ -26,6 +26,7 @@ struct ImportView: View {
   @State var viewModel: ImportViewModel
   @State private var showFileImporter = false
   @State private var showDiscardAlert = false
+  @State var importTask: Task<Void, Never>?
   @State private var newPlatformName = ""
   @State private var showNewPlatformField = false
   @State private var newCategoryName = ""
@@ -50,6 +51,16 @@ struct ImportView: View {
       VStack(alignment: .leading, spacing: 20) {
         importTypeSelector
         fileSelector
+        if viewModel.isLoading {
+          HStack {
+            ProgressView()
+            Text("Loading CSV…")
+            Spacer()
+            Button("Cancel") {
+              importTask?.cancel()
+            }
+          }
+        }
         if viewModel.selectedFileName != nil || viewModel.selectedFileData != nil
           || !previewRowsEmpty || !viewModel.validationErrors.isEmpty
         {
@@ -77,7 +88,9 @@ struct ImportView: View {
         sampleRows: viewModel.pendingSampleRows,
         initialMapping: viewModel.pendingPartialMapping,
         onConfirm: { mapping in
-          viewModel.confirmColumnMapping(mapping)
+          startImportTask { @MainActor in
+            await viewModel.confirmColumnMapping(mapping)
+          }
         },
         onCancel: {
           viewModel.showColumnMappingSheet = false
@@ -116,10 +129,20 @@ struct ImportView: View {
     .onAppear {
       viewModel.refreshPickerOptions()
     }
+    .onDisappear {
+      importTask?.cancel()
+    }
   }
 
   private var previewRowsEmpty: Bool {
     viewModel.assetPreviewRows.isEmpty && viewModel.cashFlowPreviewRows.isEmpty
+  }
+
+  func startImportTask(_ operation: @escaping @MainActor () async -> Void) {
+    importTask?.cancel()
+    importTask = Task { @MainActor in
+      await operation()
+    }
   }
 
   // MARK: - Import Type Selector

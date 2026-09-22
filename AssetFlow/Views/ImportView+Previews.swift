@@ -284,11 +284,9 @@ extension ImportView {
     switch result {
     case .success(let urls):
       guard let url = urls.first else { return }
-      let accessing = url.startAccessingSecurityScopedResource()
-      defer {
-        if accessing { url.stopAccessingSecurityScopedResource() }
+      startImportTask { @MainActor in
+        await viewModel.loadFile(url)
       }
-      viewModel.loadFile(url)
 
     case .failure(let error):
       guard !isUserCancellation(error) else { return }
@@ -303,14 +301,14 @@ extension ImportView {
     if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
       provider.loadFileRepresentation(forTypeIdentifier: UTType.fileURL.identifier) {
         url, _ in
-        guard let url, let data = try? Data(contentsOf: url) else {
-          Task { @MainActor in
-            viewModel.reportFileLoadFailure()
-          }
+        guard let url else {
+          Task { @MainActor in viewModel.reportFileLoadFailure() }
           return
         }
         Task { @MainActor in
-          viewModel.loadDroppedData(data, fileName: fileName)
+          startImportTask { @MainActor in
+            await viewModel.loadFile(url)
+          }
         }
       }
       return true
@@ -327,7 +325,9 @@ extension ImportView {
           return
         }
         Task { @MainActor in
-          viewModel.loadDroppedData(data, fileName: fileName)
+          startImportTask { @MainActor in
+            await viewModel.loadDroppedData(data, fileName: fileName)
+          }
         }
       }
       return true

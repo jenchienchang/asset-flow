@@ -38,6 +38,7 @@ struct BulkEntryView: View {
   @State private var showImportResult = false
   @State private var importResultTitle = ""
   @State private var importResultMessage = ""
+  @State private var csvImportTask: Task<Void, Never>?
   @State private var cachedCategoryNames: [String] = []
 
   init(viewModel: BulkEntryViewModel, onSave: @escaping (Snapshot) -> Void) {
@@ -64,6 +65,18 @@ struct BulkEntryView: View {
           viewModel: viewModel,
           onSave: { handleSave() })
         Divider()
+        if viewModel.isCSVImporting {
+          HStack {
+            ProgressView()
+            Text("Loading CSV…")
+            Spacer()
+            Button("Cancel") {
+              csvImportTask?.cancel()
+            }
+          }
+          .padding(.horizontal)
+          .padding(.vertical, 8)
+        }
         if case .failed(let message) = viewModel.loadState {
           DataLoadErrorView(message: message) { viewModel.retryLoad() }
         } else {
@@ -96,35 +109,22 @@ struct BulkEntryView: View {
           viewModel.lastImportFeedback = nil
 
         case .success(let url):
-          let accessing = url.startAccessingSecurityScopedResource()
-          defer {
-            if accessing { url.stopAccessingSecurityScopedResource() }
-          }
-
-          do {
-            let data = try Data(contentsOf: url)
+          startCSVImportTask { @MainActor in
             switch target {
             case .asset(let platform):
-              viewModel.loadCSVForMapping(data: data, forPlatform: platform)
+              await viewModel.loadCSVFileForMapping(from: url, forPlatform: platform)
               if !viewModel.showColumnMappingSheet {
                 showImportResultAlert(for: viewModel.lastImportFeedback)
                 viewModel.lastImportFeedback = nil
               }
 
             case .cashFlow:
-              viewModel.loadCashFlowCSVForMapping(data: data)
+              await viewModel.loadCashFlowCSVFileForMapping(from: url)
               if !viewModel.showCashFlowColumnMappingSheet {
                 showImportResultAlert(for: viewModel.lastImportFeedback)
                 viewModel.lastImportFeedback = nil
               }
             }
-          } catch {
-            viewModel.reportImportFailure(
-              String(
-                localized: "Could not open file. Please check the file is a valid CSV.",
-                table: "Import"))
-            showImportResultAlert(for: viewModel.lastImportFeedback)
-            viewModel.lastImportFeedback = nil
           }
         }
       }
@@ -136,9 +136,11 @@ struct BulkEntryView: View {
           initialMapping: viewModel.pendingPartialMapping,
           parentSize: geometry.size,
           onConfirm: { mapping in
-            _ = viewModel.confirmColumnMapping(mapping)
-            showImportResultAlert(for: viewModel.lastImportFeedback)
-            viewModel.lastImportFeedback = nil
+            startCSVImportTask { @MainActor in
+              _ = await viewModel.confirmColumnMapping(mapping)
+              showImportResultAlert(for: viewModel.lastImportFeedback)
+              viewModel.lastImportFeedback = nil
+            }
           },
           onCancel: {
             viewModel.showColumnMappingSheet = false
@@ -153,9 +155,11 @@ struct BulkEntryView: View {
           initialMapping: viewModel.pendingCashFlowPartialMapping,
           parentSize: geometry.size,
           onConfirm: { mapping in
-            _ = viewModel.confirmCashFlowColumnMapping(mapping)
-            showImportResultAlert(for: viewModel.lastImportFeedback)
-            viewModel.lastImportFeedback = nil
+            startCSVImportTask { @MainActor in
+              _ = await viewModel.confirmCashFlowColumnMapping(mapping)
+              showImportResultAlert(for: viewModel.lastImportFeedback)
+              viewModel.lastImportFeedback = nil
+            }
           },
           onCancel: {
             viewModel.showCashFlowColumnMappingSheet = false
@@ -191,6 +195,9 @@ struct BulkEntryView: View {
       } message: {
         Text(importResultMessage)
       }
+      .onDisappear {
+        csvImportTask?.cancel()
+      }
     }
   }
 
@@ -203,6 +210,15 @@ struct BulkEntryView: View {
       showZeroPendingConfirmation = true
     } else {
       performSave()
+    }
+  }
+
+  private func startCSVImportTask(
+    _ operation: @escaping @MainActor () async -> Void
+  ) {
+    csvImportTask?.cancel()
+    csvImportTask = Task { @MainActor in
+      await operation()
     }
   }
 

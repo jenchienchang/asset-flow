@@ -20,6 +20,7 @@ import SwiftData
 
 // MARK: - Restore Helpers
 
+@MainActor
 extension BackupService {
 
   static func deleteAllData(modelContext: ModelContext) throws {

@@ -146,6 +146,9 @@ class ImportViewModel {
   /// Stored separately so revalidation can preserve them alongside re-computed duplicate errors.
   var parsingErrors: [CSVError] = []
 
+  /// Whether file reading or CSV preparation is in progress.
+  var isLoading = false
+
   // MARK: - Column Mapping State
 
   /// Whether the column mapping sheet should be shown.
@@ -230,61 +233,72 @@ class ImportViewModel {
   /// populated and the mapping sheet is shown.
   ///
   /// - Parameter data: Raw CSV file data (UTF-8).
-  func loadCSVData(_ data: Data) {
+  func loadCSVData(_ data: Data) async {
     importError = nil
-    selectedFileData = data
+    let expectedImportType = importType
+    isLoading = true
+    defer { isLoading = false }
 
-    let schema: CSVColumnSchema = importType == .assets ? .asset : .cashFlow
-    let headers = CSVParsingService.extractHeaders(from: data)
-
-    // Empty/invalid files bypass mapping and fall through to the existing
-    // parser which reports appropriate errors (empty file, no data rows).
-    guard !headers.isEmpty else {
-      switch importType {
-      case .assets: loadAssetCSVData(data)
-      case .cashFlows: loadCashFlowCSVData(data)
-      }
-      hasUnsavedChanges = true
+    do {
+      let schema: CSVColumnSchema =
+        expectedImportType == .assets ? .asset : .cashFlow
+      let preparation = try await CSVImportPreparationService.prepare(
+        data: data, schema: schema)
+      try Task.checkCancellation()
+      guard importType == expectedImportType else { return }
+      apply(preparation)
+    } catch is CancellationError {
       return
-    }
-
-    let detectResult = CSVParsingService.autoDetectMapping(headers: headers, schema: schema)
-
-    switch detectResult {
-    case .matched:
-      // Headers match — parse immediately using existing flow
-      switch importType {
-      case .assets: loadAssetCSVData(data)
-      case .cashFlows: loadCashFlowCSVData(data)
-      }
-      hasUnsavedChanges = true
-
-    case .needsUserMapping(let rawHeaders, let partialMap):
-      // Headers don't match — show mapping sheet
-      pendingRawHeaders = rawHeaders
-      pendingSampleRows = CSVParsingService.extractSampleRows(from: data)
-      pendingPartialMapping = partialMap
-      showColumnMappingSheet = true
+    } catch {
+      reportFileLoadFailure()
     }
   }
 
   /// Loads a CSV file from a URL.
-  func loadFile(_ url: URL) {
+  func loadFile(_ url: URL) async {
     selectedFileURL = url
     selectedFileName = url.lastPathComponent
     selectedFileData = nil
-    guard let data = try? Data(contentsOf: url) else {
-      reportFileLoadFailure()
+    isLoading = true
+    defer { isLoading = false }
+    do {
+      let data = try await CSVFileReader.read(from: url)
+      try Task.checkCancellation()
+      await loadCSVData(data)
+    } catch is CancellationError {
       return
+    } catch {
+      reportFileLoadFailure()
     }
-    loadCSVData(data)
   }
 
   /// Loads CSV data supplied by a drag-and-drop provider.
-  func loadDroppedData(_ data: Data, fileName: String?) {
+  func loadDroppedData(_ data: Data, fileName: String?) async {
     selectedFileURL = nil
     selectedFileName = fileName ?? String(localized: "Dropped CSV", table: "Import")
-    loadCSVData(data)
+    await loadCSVData(data)
+  }
+
+  private func apply(_ preparation: CSVImportPreparation) {
+    switch preparation {
+    case .parsedAsset(let data, let result):
+      selectedFileData = data
+      applyAssetCSVResult(result)
+      hasUnsavedChanges = true
+
+    case .parsedCashFlow(let data, let result):
+      selectedFileData = data
+      applyCashFlowCSVResult(result)
+      hasUnsavedChanges = true
+
+    case .needsMapping(
+      let data, _, let rawHeaders, let sampleRows, let partialMapping):
+      selectedFileData = data
+      pendingRawHeaders = rawHeaders
+      pendingSampleRows = sampleRows
+      pendingPartialMapping = partialMapping
+      showColumnMappingSheet = true
+    }
   }
 
   /// Records a user-visible failure when a dropped or selected file cannot be read.
@@ -460,16 +474,22 @@ class ImportViewModel {
   // MARK: - Column Mapping
 
   /// Confirms a user-provided column mapping and parses the pending CSV data.
-  func confirmColumnMapping(_ mapping: CSVColumnMapping) {
+  func confirmColumnMapping(_ mapping: CSVColumnMapping) async {
     showColumnMappingSheet = false
     guard let data = selectedFileData else { return }
 
-    switch importType {
-    case .assets:
-      loadAssetCSVDataWithMapping(data, mapping: mapping)
+    isLoading = true
+    defer { isLoading = false }
 
-    case .cashFlows:
-      loadCashFlowCSVDataWithMapping(data, mapping: mapping)
+    do {
+      let preparation = try await CSVImportPreparationService.prepare(
+        data: data, mapping: mapping)
+      try Task.checkCancellation()
+      apply(preparation)
+    } catch is CancellationError {
+      return
+    } catch {
+      reportFileLoadFailure()
     }
 
     pendingRawHeaders = []
@@ -556,9 +576,7 @@ class ImportViewModel {
 
   // MARK: - Private: Asset CSV Loading
 
-  private func loadAssetCSVData(_ data: Data) {
-    // Parse with no platform override — get base rows
-    let result = CSVParsingService.parseAssetCSV(data: data, importPlatform: nil)
+  private func applyAssetCSVResult(_ result: CSVParseResult<AssetCSVRow>) {
     baseAssetRows = result.rows
 
     // Within-CSV duplicates are revalidated after effective platform handling.
@@ -748,47 +766,7 @@ class ImportViewModel {
 
   // MARK: - Private: Cash Flow CSV Loading
 
-  private func loadCashFlowCSVData(_ data: Data) {
-    let result = CSVParsingService.parseCashFlowCSV(data: data)
-
-    cashFlowPreviewRows = result.rows.map { row in
-      CashFlowPreviewRow(
-        id: UUID(),
-        csvRow: row,
-        isIncluded: true,
-        amountWarning: cashFlowAmountWarning(for: row)
-      )
-    }
-
-    assetPreviewRows = []
-
-    // Within-CSV duplicates are revalidated against the included preview rows.
-    parsingErrors = result.parsingErrors
-
-    baseCashFlowWarnings = result.warnings
-    revalidate()
-  }
-
-  // MARK: - Private: Mapping-Based CSV Loading
-
-  private func loadAssetCSVDataWithMapping(_ data: Data, mapping: CSVColumnMapping) {
-    let result = CSVParsingService.parseAssetCSV(
-      data: data, mapping: mapping, importPlatform: nil)
-    baseAssetRows = result.rows
-
-    // Within-CSV duplicates are revalidated after effective platform handling.
-    baseAssetParsingErrors = result.parsingErrors
-    baseAssetWarnings = result.warnings
-
-    excludedAssetIndices = []
-    cashFlowPreviewRows = []
-
-    rebuildAssetPreviewRows()
-  }
-
-  private func loadCashFlowCSVDataWithMapping(_ data: Data, mapping: CSVColumnMapping) {
-    let result = CSVParsingService.parseCashFlowCSV(data: data, mapping: mapping)
-
+  private func applyCashFlowCSVResult(_ result: CSVParseResult<CashFlowCSVRow>) {
     cashFlowPreviewRows = result.rows.map { row in
       CashFlowPreviewRow(
         id: UUID(),

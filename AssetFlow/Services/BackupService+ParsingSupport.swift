@@ -21,24 +21,17 @@ import Foundation
 
 extension BackupService {
 
-  static let backupDateFormatter = ISO8601DateFormatter()
-  static let fractionalBackupDateFormatter: ISO8601DateFormatter = {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    return formatter
-  }()
-
-  static func localizedBackupMessage(
+  nonisolated static func localizedBackupMessage(
     _ value: String.LocalizationValue
   ) -> String {
     String(localized: value, table: "Services")
   }
 
-  static func scalar(_ value: String) -> String {
+  nonisolated static func scalar(_ value: String) -> String {
     value.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  static func validateArity(
+  nonisolated static func validateArity(
     _ record: BackupCSVRecord,
     expected: Int,
     file: String,
@@ -57,7 +50,7 @@ extension BackupService {
     return true
   }
 
-  static func parseUUID(
+  nonisolated static func parseUUID(
     _ value: String,
     file: String,
     record: BackupCSVRecord,
@@ -76,7 +69,7 @@ extension BackupService {
     return id
   }
 
-  static func parseOptionalUUID(
+  nonisolated static func parseOptionalUUID(
     _ value: String,
     file: String,
     record: BackupCSVRecord,
@@ -93,7 +86,7 @@ extension BackupService {
       issues: &issues)
   }
 
-  static func validateUniqueID(
+  nonisolated static func validateUniqueID(
     _ id: UUID,
     ids: inout Set<UUID>,
     file: String,
@@ -111,7 +104,7 @@ extension BackupService {
     }
   }
 
-  static func parseDate(
+  nonisolated static func parseDate(
     _ value: String,
     file: String,
     record: BackupCSVRecord,
@@ -130,13 +123,13 @@ extension BackupService {
     return date
   }
 
-  static func strictISO8601Date(_ value: String) -> Date? {
+  nonisolated static func strictISO8601Date(_ value: String) -> Date? {
     let text = scalar(value)
     let bytes = Array(text.utf8)
     guard bytes.count >= 20 else { return nil }
 
     let digitOffsets = [0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18]
-    guard digitOffsets.allSatisfy({ bytes[$0].isASCIIDigit }),
+    guard digitOffsets.allSatisfy({ isASCIIDigit(bytes[$0]) }),
       bytes[4] == 0x2D,
       bytes[7] == 0x2D,
       bytes[10] == 0x54,
@@ -150,7 +143,7 @@ extension BackupService {
       hasFractionalSeconds = true
       index += 1
       let fractionStart = index
-      while index < bytes.count, bytes[index].isASCIIDigit {
+      while index < bytes.count, isASCIIDigit(bytes[index]) {
         index += 1
       }
       guard index > fractionStart else { return nil }
@@ -160,14 +153,14 @@ extension BackupService {
       index == bytes.count
     else { return nil }
 
-    let formatter =
-      hasFractionalSeconds
-      ? fractionalBackupDateFormatter
-      : backupDateFormatter
+    let formatter = ISO8601DateFormatter()
+    if hasFractionalSeconds {
+      formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    }
     return formatter.date(from: text)
   }
 
-  private static func validateTimeZone(
+  private nonisolated static func validateTimeZone(
     in bytes: [UInt8],
     index: inout Int
   ) -> Bool {
@@ -179,17 +172,17 @@ extension BackupService {
 
     guard bytes[index] == 0x2B || bytes[index] == 0x2D,
       index + 6 == bytes.count,
-      bytes[index + 1].isASCIIDigit,
-      bytes[index + 2].isASCIIDigit,
+      isASCIIDigit(bytes[index + 1]),
+      isASCIIDigit(bytes[index + 2]),
       bytes[index + 3] == 0x3A,
-      bytes[index + 4].isASCIIDigit,
-      bytes[index + 5].isASCIIDigit
+      isASCIIDigit(bytes[index + 4]),
+      isASCIIDigit(bytes[index + 5])
     else { return false }
     index += 6
     return true
   }
 
-  static func parseDecimal(
+  nonisolated static func parseDecimal(
     _ value: String,
     file: String,
     record: BackupCSVRecord,
@@ -208,7 +201,7 @@ extension BackupService {
     return decimal
   }
 
-  static func strictDecimal(_ value: String) -> Decimal? {
+  nonisolated static func strictDecimal(_ value: String) -> Decimal? {
     let text = scalar(value)
     let bytes = Array(text.utf8)
     guard !bytes.isEmpty else { return nil }
@@ -251,18 +244,22 @@ extension BackupService {
     return decimal
   }
 
-  private static func consumeDigits(
+  private nonisolated static func consumeDigits(
     in bytes: [UInt8],
     index: inout Int,
     count: inout Int
   ) {
-    while index < bytes.count, bytes[index].isASCIIDigit {
+    while index < bytes.count, isASCIIDigit(bytes[index]) {
       count += 1
       index += 1
     }
   }
 
-  static func issue(
+  private nonisolated static func isASCIIDigit(_ byte: UInt8) -> Bool {
+    byte >= 0x30 && byte <= 0x39
+  }
+
+  nonisolated static func issue(
     file: String,
     record: BackupCSVRecord? = nil,
     column: String? = nil,

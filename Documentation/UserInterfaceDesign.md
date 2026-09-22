@@ -331,6 +331,8 @@ Full-screen view for entering asset values across all platforms in a single sess
 
 **Per-platform CSV import**: Each platform section has an import button that opens a file picker filtered to `.csv`. Parsed values are matched to assets by name (including manually-added rows) and populate the New Value fields. Every outcome displays an import feedback alert: success, warnings for skipped rows, or errors for malformed/unreadable files. Any parser or row-validation error leaves the previous CSV values unchanged, including when the file also contains valid rows.
 
+While a file is being read or prepared, Bulk Entry shows an indeterminate progress indicator and a Cancel action. Cancellation leaves the existing rows and CSV feedback unchanged.
+
 **Validation warnings** (toolbar):
 
 - Zero-value assets: "N assets have a value of 0. Exclude them or enter a non-zero value."
@@ -381,6 +383,7 @@ See [BusinessLogic.md](BusinessLogic.md) for the detailed CSV import flow.
 
 - **Import type selector**: Segmented control (Assets | Cash Flows), defaults to Assets
 - **File selector**: Drag-and-drop zone or "Browse" button (filtered to `.csv`). Dropped file URLs and raw CSV data are both supported; read and parse failures remain visible in the validation area.
+- **Loading state**: While a file is being read or prepared, the screen shows an indeterminate progress indicator and keeps the existing preview state unchanged until preparation completes. Cancellation is honored by the owning task, and cancelled work does not replace the preview.
 - **Column mapping sheet** (shown automatically when CSV headers don't match expected columns): A full CSV table preview with per-column dropdowns allowing the user to assign each CSV column to a canonical field (e.g., `Asset Name`, `Market Value`) or skip it. Auto-detected matches are pre-selected. Skipped entirely when headers already match (case-insensitive). Shared between Import Screen and Bulk Entry per-platform CSV import. Uses `NavigationStack` with toolbar (Cancel/Confirm) for macOS Liquid Glass integration.
 - **Expected schema display**: Show the expected CSV column names for the selected import type and provide downloadable sample CSVs
 - **Configuration** (after file selected or column mapping confirmed):

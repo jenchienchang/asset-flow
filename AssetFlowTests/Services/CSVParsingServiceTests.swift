@@ -30,6 +30,69 @@ struct CSVParsingServiceTests {
     string.data(using: .utf8)!
   }
 
+  @Test("CSV file reader reads file data asynchronously")
+  func csvFileReaderReadsFileDataAsynchronously() async throws {
+    let expected = csvData("Asset Name,Market Value\nAAPL,15000\n")
+    let url = FileManager.default.temporaryDirectory
+      .appending(path: "csv-file-reader-\(UUID().uuidString).csv")
+    try expected.write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let actual = try await CSVFileReader.read(from: url)
+
+    #expect(actual == expected)
+  }
+
+  @Test("CSV preparation is callable from a detached task")
+  func csvPreparationIsCallableFromDetachedTask() async throws {
+    let data = csvData(
+      """
+      Asset Name,Market Value
+      AAPL,15000
+      """)
+
+    let preparation = try await Task.detached {
+      try await CSVImportPreparationService.prepare(data: data, schema: .asset)
+    }.value
+
+    guard case .parsedAsset(_, let result) = preparation else {
+      Issue.record("Expected an automatically parsed asset preparation")
+      return
+    }
+    #expect(result.rows.count == 1)
+    #expect(result.rows[0].assetName == "AAPL")
+  }
+
+  @Test("CSV preparation honors cancellation before work begins")
+  func csvPreparationHonorsCancellation() async {
+    let data = csvData("Asset Name,Market Value\nAAPL,15000\n")
+    let task = Task {
+      try await CSVImportPreparationService.prepare(data: data, schema: .asset)
+    }
+    task.cancel()
+
+    await #expect(throws: CancellationError.self) {
+      try await task.value
+    }
+  }
+
+  @Test("Async CSV parsing honors cancellation")
+  func asyncCSVParsingHonorsCancellation() async {
+    let rows = (0..<10_000)
+      .map { "Asset \($0),\($0),Broker" }
+      .joined(separator: "\n")
+    let data = csvData("Asset Name,Market Value,Platform\n\(rows)\n")
+    let task = Task {
+      try await CSVParsingService.parseAssetCSVAsync(
+        data: data, importPlatform: nil)
+    }
+    task.cancel()
+
+    await #expect(throws: CancellationError.self) {
+      try await task.value
+    }
+  }
+
   private func localizedImportMessage(
     _ value: String.LocalizationValue
   ) -> String {

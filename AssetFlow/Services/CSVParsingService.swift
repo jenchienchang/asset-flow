@@ -17,6 +17,103 @@
 
 import Foundation
 
+/// Reads imported files without tying the file operation to the main actor.
+enum CSVFileReader {
+
+  /// Reads a security-scoped file URL and returns its contents.
+  nonisolated static func read(from url: URL) async throws -> Data {
+    try Task.checkCancellation()
+
+    let accessing = url.startAccessingSecurityScopedResource()
+    defer {
+      if accessing {
+        url.stopAccessingSecurityScopedResource()
+      }
+    }
+
+    let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+    try Task.checkCancellation()
+    return data
+  }
+}
+
+/// Performs file-independent CSV preparation on the generic executor.
+enum CSVImportPreparationService {
+
+  nonisolated static func prepare(
+    data: Data,
+    schema: CSVColumnSchema
+  ) async throws -> CSVImportPreparation {
+    try Task.checkCancellation()
+    let headers = try await CSVParsingService.extractHeadersAsync(from: data)
+
+    guard !headers.isEmpty else {
+      let preparation = try await parsedPreparation(
+        data: data, schema: schema, mapping: nil)
+      try Task.checkCancellation()
+      return preparation
+    }
+
+    switch CSVParsingService.autoDetectMapping(headers: headers, schema: schema) {
+    case .matched:
+      let preparation = try await parsedPreparation(
+        data: data, schema: schema, mapping: nil)
+      try Task.checkCancellation()
+      return preparation
+
+    case .needsUserMapping(let rawHeaders, let partialMap):
+      let sampleRows = try await CSVParsingService.extractSampleRowsAsync(from: data)
+      try Task.checkCancellation()
+      return .needsMapping(
+        data: data,
+        schema: schema,
+        rawHeaders: rawHeaders,
+        sampleRows: sampleRows,
+        partialMapping: partialMap)
+    }
+  }
+
+  nonisolated static func prepare(
+    data: Data,
+    mapping: CSVColumnMapping
+  ) async throws -> CSVImportPreparation {
+    try Task.checkCancellation()
+    let preparation = try await parsedPreparation(
+      data: data, schema: mapping.schema, mapping: mapping)
+    try Task.checkCancellation()
+    return preparation
+  }
+
+  private nonisolated static func parsedPreparation(
+    data: Data,
+    schema: CSVColumnSchema,
+    mapping: CSVColumnMapping?
+  ) async throws -> CSVImportPreparation {
+    switch schema {
+    case .asset, .assetWithoutPlatform:
+      let result: CSVParseResult<AssetCSVRow>
+      if let mapping {
+        result = try await CSVParsingService.parseAssetCSVAsync(
+          data: data, mapping: mapping, importPlatform: nil)
+      } else {
+        result = try await CSVParsingService.parseAssetCSVAsync(
+          data: data, importPlatform: nil)
+      }
+      return .parsedAsset(data: data, result: result)
+
+    case .cashFlow:
+      let result: CSVParseResult<CashFlowCSVRow>
+      if let mapping {
+        result = try await CSVParsingService.parseCashFlowCSVAsync(
+          data: data, mapping: mapping)
+      } else {
+        result = try await CSVParsingService.parseCashFlowCSVAsync(data: data)
+      }
+      return .parsedCashFlow(data: data, result: result)
+    }
+  }
+}
+
 /// CSV parsing service for asset and cash flow imports.
 ///
 /// Handles parsing, validation, and duplicate detection per SPEC Sections 4.2-4.6.
@@ -26,7 +123,7 @@ import Foundation
 /// requires ModelContext access and will be performed by the Import ViewModel.
 /// Within-CSV duplicate errors are kept separate from parsing errors so import
 /// flows can validate them after applying their platform-resolution rules.
-enum CSVParsingService {
+nonisolated enum CSVParsingService {
 
   // MARK: - Asset CSV Parsing
 
@@ -36,7 +133,7 @@ enum CSVParsingService {
   ///   - data: Raw CSV file data (UTF-8, BOM-tolerant).
   ///   - importPlatform: Optional import-level platform override.
   /// - Returns: Parse result with rows, errors, and warnings.
-  static func parseAssetCSV(
+  nonisolated static func parseAssetCSV(
     data: Data,
     importPlatform: String?
   ) -> CSVParseResult<AssetCSVRow> {
@@ -74,13 +171,54 @@ enum CSVParsingService {
     }
   }
 
+  /// Parses asset CSV data with cooperative cancellation checks during
+  /// record materialization and row validation.
+  nonisolated static func parseAssetCSVAsync(
+    data: Data,
+    importPlatform: String?
+  ) async throws -> CSVParseResult<AssetCSVRow> {
+    let document: CSVDocument
+    do {
+      document = try await CSVRecordReader.readCancellable(data)
+    } catch let error as CSVRecordReaderError {
+      return CSVParseResult(
+        rows: [], errors: [csvError(from: error)], warnings: [])
+    } catch is CancellationError {
+      throw CancellationError()
+    } catch {
+      return CSVParseResult(
+        rows: [],
+        errors: [
+          CSVError(
+            row: 1, column: nil,
+            message: localizedImportMessage("Unable to read CSV data."))
+        ],
+        warnings: [])
+    }
+
+    guard !document.headers.isEmpty else {
+      return emptyFileResult()
+    }
+
+    switch validateAssetHeaders(document.headers) {
+    case .failure(let validationError):
+      return CSVParseResult(rows: [], errors: validationError.errors, warnings: [])
+
+    case .success(let headers):
+      return try await parseAssetDataRowsAsync(
+        records: document.records,
+        headers: headers,
+        importPlatform: importPlatform)
+    }
+  }
+
   // MARK: - Cash Flow CSV Parsing
 
   /// Parses cash flow CSV data.
   ///
   /// - Parameter data: Raw CSV file data (UTF-8, BOM-tolerant).
   /// - Returns: Parse result with rows, errors, and warnings.
-  static func parseCashFlowCSV(
+  nonisolated static func parseCashFlowCSV(
     data: Data
   ) -> CSVParseResult<CashFlowCSVRow> {
     let document: CSVDocument
@@ -115,13 +253,51 @@ enum CSVParsingService {
         records: document.records, headers: hdr)
     }
   }
+
+  /// Parses cash-flow CSV data with cooperative cancellation checks during
+  /// record materialization and row validation.
+  nonisolated static func parseCashFlowCSVAsync(
+    data: Data
+  ) async throws -> CSVParseResult<CashFlowCSVRow> {
+    let document: CSVDocument
+    do {
+      document = try await CSVRecordReader.readCancellable(data)
+    } catch let error as CSVRecordReaderError {
+      return CSVParseResult(
+        rows: [], errors: [csvError(from: error)], warnings: [])
+    } catch is CancellationError {
+      throw CancellationError()
+    } catch {
+      return CSVParseResult(
+        rows: [],
+        errors: [
+          CSVError(
+            row: 1, column: nil,
+            message: localizedImportMessage("Unable to read CSV data."))
+        ],
+        warnings: [])
+    }
+
+    guard !document.headers.isEmpty else {
+      return emptyFileResult()
+    }
+
+    switch validateCashFlowHeaders(document.headers) {
+    case .failure(let validationError):
+      return CSVParseResult(rows: [], errors: validationError.errors, warnings: [])
+
+    case .success(let headers):
+      return try await parseCashFlowDataRowsAsync(
+        records: document.records, headers: headers)
+    }
+  }
 }
 
 // MARK: - Header Validation
 
 extension CSVParsingService {
 
-  private static func validateAssetHeaders(
+  private nonisolated static func validateAssetHeaders(
     _ headers: [String]
   ) -> Result<AssetCSVHeaders, CSVHeaderValidationError> {
     let normalized = headers.map {
@@ -164,7 +340,7 @@ extension CSVParsingService {
           knownColumns: knownColumns)))
   }
 
-  private static func validateCashFlowHeaders(
+  private nonisolated static func validateCashFlowHeaders(
     _ headers: [String]
   ) -> Result<CashFlowCSVHeaders, CSVHeaderValidationError> {
     let normalized = headers.map {
@@ -204,7 +380,7 @@ extension CSVParsingService {
           knownColumns: knownColumns)))
   }
 
-  private static func unrecognizedColumnWarnings(
+  private nonisolated static func unrecognizedColumnWarnings(
     headers: [String],
     normalized: [String],
     knownColumns: Set<String>
@@ -227,7 +403,7 @@ extension CSVParsingService {
 
 extension CSVParsingService {
 
-  static func parseAssetDataRows(
+  nonisolated static func parseAssetDataRows(
     records: [CSVRecord],
     headers: AssetCSVHeaders,
     importPlatform: String?
@@ -263,7 +439,7 @@ extension CSVParsingService {
       duplicateErrors: duplicateErrors)
   }
 
-  static func parseCashFlowDataRows(
+  nonisolated static func parseCashFlowDataRows(
     records: [CSVRecord],
     headers: CashFlowCSVHeaders
   ) -> CSVParseResult<CashFlowCSVRow> {
@@ -297,13 +473,86 @@ extension CSVParsingService {
       rows: rows, errors: errors, warnings: warnings,
       duplicateErrors: duplicateErrors)
   }
+
+  nonisolated static func parseAssetDataRowsAsync(
+    records: [CSVRecord],
+    headers: AssetCSVHeaders,
+    importPlatform: String?
+  ) async throws -> CSVParseResult<AssetCSVRow> {
+    if records.isEmpty {
+      return noDataRowsResult(warnings: headers.warnings)
+    }
+
+    var rows: [AssetCSVRow] = []
+    var errors: [CSVError] = []
+    var warnings = headers.warnings
+
+    for record in records {
+      try Task.checkCancellation()
+      let fields = record.fields
+      if isEmptyRow(fields) { continue }
+
+      switch parseAssetRow(
+        fields: fields, rowNumber: record.row,
+        headers: headers, importPlatform: importPlatform)
+      {
+      case .error(let err):
+        errors.append(err)
+
+      case .row(let row, let rowWarnings):
+        rows.append(row)
+        warnings.append(contentsOf: rowWarnings)
+      }
+    }
+
+    let duplicateErrors = try await detectAssetDuplicatesAsync(rows: rows)
+    return CSVParseResult(
+      rows: rows, errors: errors, warnings: warnings,
+      duplicateErrors: duplicateErrors)
+  }
+
+  nonisolated static func parseCashFlowDataRowsAsync(
+    records: [CSVRecord],
+    headers: CashFlowCSVHeaders
+  ) async throws -> CSVParseResult<CashFlowCSVRow> {
+    if records.isEmpty {
+      return noDataRowsResult(warnings: headers.warnings)
+    }
+
+    var rows: [CashFlowCSVRow] = []
+    var errors: [CSVError] = []
+    var warnings = headers.warnings
+
+    for record in records {
+      try Task.checkCancellation()
+      let fields = record.fields
+      if isEmptyRow(fields) { continue }
+
+      switch parseCashFlowRow(
+        fields: fields, rowNumber: record.row,
+        headers: headers)
+      {
+      case .error(let err):
+        errors.append(err)
+
+      case .row(let row, let rowWarnings):
+        rows.append(row)
+        warnings.append(contentsOf: rowWarnings)
+      }
+    }
+
+    let duplicateErrors = try await detectCashFlowDuplicatesAsync(rows: rows)
+    return CSVParseResult(
+      rows: rows, errors: errors, warnings: warnings,
+      duplicateErrors: duplicateErrors)
+  }
 }
 
 // MARK: - Single Row Parsing
 
 extension CSVParsingService {
 
-  private static func parseAssetRow(
+  private nonisolated static func parseAssetRow(
     fields: [String],
     rowNumber: Int,
     headers: AssetCSVHeaders,
@@ -344,7 +593,7 @@ extension CSVParsingService {
         rowNumber: rowNumber))
   }
 
-  private static func parseCashFlowRow(
+  private nonisolated static func parseCashFlowRow(
     fields: [String],
     rowNumber: Int,
     headers: CashFlowCSVHeaders
@@ -387,7 +636,7 @@ extension CSVParsingService {
       warnings)
   }
 
-  private static func resolveAssetPlatform(
+  private nonisolated static func resolveAssetPlatform(
     fields: [String],
     headers: AssetCSVHeaders,
     importPlatform: String?
@@ -400,7 +649,7 @@ extension CSVParsingService {
     return ""
   }
 
-  private static func marketValueWarnings(
+  private nonisolated static func marketValueWarnings(
     value: Decimal, name: String, rowNumber: Int
   ) -> [CSVWarning] {
     let col = "Market Value"
@@ -419,20 +668,20 @@ extension CSVParsingService {
 
 extension CSVParsingService {
 
-  static func localizedImportMessage(
+  nonisolated static func localizedImportMessage(
     _ value: String.LocalizationValue
   ) -> String {
     String(localized: value, table: "Import")
   }
 
-  static func csvError(from error: CSVRecordReaderError) -> CSVError {
+  nonisolated static func csvError(from error: CSVRecordReaderError) -> CSVError {
     CSVError(
       row: error.row,
       column: error.column.map(String.init),
       message: localizedCSVReaderMessage(error))
   }
 
-  static func localizedCSVReaderMessage(
+  nonisolated static func localizedCSVReaderMessage(
     _ error: CSVRecordReaderError
   ) -> String {
     switch error.reason {
@@ -460,27 +709,27 @@ extension CSVParsingService {
     }
   }
 
-  private static func fieldValue(
+  private nonisolated static func fieldValue(
     fields: [String], index: Int
   ) -> String {
     guard index < fields.count else { return "" }
     return fields[index].trimmingCharacters(in: .whitespaces)
   }
 
-  private static func isEmptyRow(_ fields: [String]) -> Bool {
+  private nonisolated static func isEmptyRow(_ fields: [String]) -> Bool {
     fields.allSatisfy {
       $0.trimmingCharacters(in: .whitespaces).isEmpty
     }
   }
 
-  static func emptyFileResult<T>() -> CSVParseResult<T> {
+  nonisolated static func emptyFileResult<T>() -> CSVParseResult<T> {
     let err = CSVError(
       row: 0, column: nil,
       message: localizedImportMessage("File is empty or contains no data."))
     return CSVParseResult(rows: [], errors: [err], warnings: [])
   }
 
-  static func noDataRowsResult<T>(
+  nonisolated static func noDataRowsResult<T>(
     warnings: [CSVWarning]
   ) -> CSVParseResult<T> {
     let err = CSVError(
@@ -490,7 +739,7 @@ extension CSVParsingService {
       rows: [], errors: [err], warnings: warnings)
   }
 
-  static func parseDecimalValue(_ raw: String) -> Decimal? {
+  nonisolated static func parseDecimalValue(_ raw: String) -> Decimal? {
     var cleaned = raw.trimmingCharacters(in: .whitespaces)
     cleaned = String(cleaned.filter { !Constants.Parsing.currencySymbols.contains($0) })
     cleaned = cleaned.replacingOccurrences(of: ",", with: "")
@@ -499,7 +748,7 @@ extension CSVParsingService {
     return Decimal(string: cleaned)
   }
 
-  static func detectAssetDuplicates(
+  nonisolated static func detectAssetDuplicates(
     rows: [AssetCSVRow]
   ) -> [CSVError] {
     var seen: [String: Int] = [:]
@@ -522,7 +771,31 @@ extension CSVParsingService {
     return errors
   }
 
-  static func detectCashFlowDuplicates(
+  private nonisolated static func detectAssetDuplicatesAsync(
+    rows: [AssetCSVRow]
+  ) async throws -> [CSVError] {
+    var seen: [String: Int] = [:]
+    var errors: [CSVError] = []
+    for (index, row) in rows.enumerated() {
+      try Task.checkCancellation()
+      let identity = normalizedAssetIdentity(row: row)
+      let rowNumber = row.rowNumber ?? index + 2
+      if let firstRow = seen[identity] {
+        errors.append(
+          CSVError(
+            row: rowNumber, column: nil,
+            message: localizedImportMessage(
+              "Duplicate asset '\(row.assetName)' (platform: '\(row.platform)') — first appeared in row \(firstRow)."
+            )
+          ))
+      } else {
+        seen[identity] = rowNumber
+      }
+    }
+    return errors
+  }
+
+  nonisolated static func detectCashFlowDuplicates(
     rows: [CashFlowCSVRow]
   ) -> [CSVError] {
     var seen: [String: Int] = [:]
@@ -545,7 +818,32 @@ extension CSVParsingService {
     return errors
   }
 
-  static func normalizedAssetIdentity(
+  private nonisolated static func detectCashFlowDuplicatesAsync(
+    rows: [CashFlowCSVRow]
+  ) async throws -> [CSVError] {
+    var seen: [String: Int] = [:]
+    var errors: [CSVError] = []
+    for (index, row) in rows.enumerated() {
+      try Task.checkCancellation()
+      let normalized = row.description.lowercased()
+        .trimmingCharacters(in: .whitespaces)
+      let rowNumber = row.rowNumber ?? index + 2
+      if let firstRow = seen[normalized] {
+        errors.append(
+          CSVError(
+            row: rowNumber, column: nil,
+            message: localizedImportMessage(
+              "Duplicate description '\(row.description)' — first appeared in row \(firstRow)."
+            )
+          ))
+      } else {
+        seen[normalized] = rowNumber
+      }
+    }
+    return errors
+  }
+
+  nonisolated static func normalizedAssetIdentity(
     row: AssetCSVRow
   ) -> String {
     "\(row.assetName.normalizedForIdentity)|\(row.platform.normalizedForIdentity)"
@@ -556,7 +854,7 @@ extension CSVParsingService {
   /// Rows without a platform, or rows whose platform matches the target,
   /// are assigned the target platform. Rows for another platform are left
   /// out and reported as mismatches so they can be shown as warnings.
-  static func resolveAssetRowsForPlatform(
+  nonisolated static func resolveAssetRowsForPlatform(
     rows: [AssetCSVRow],
     platform: String
   ) -> (rows: [AssetCSVRow], mismatches: [String]) {

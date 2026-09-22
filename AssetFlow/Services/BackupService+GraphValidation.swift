@@ -21,7 +21,7 @@ import Foundation
 
 extension BackupService {
 
-  static func validateRelationships(
+  nonisolated static func validateRelationships(
     categories: [BackupCategoryRecord],
     assets: [BackupAssetRecord],
     snapshots: [BackupSnapshotRecord],

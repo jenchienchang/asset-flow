@@ -19,9 +19,35 @@ import Foundation
 
 /// Metadata stored in `manifest.json` inside a backup archive.
 struct BackupManifest: Codable, Sendable {
+  private enum CodingKeys: String, CodingKey {
+    case formatVersion
+    case exportTimestamp
+    case appVersion
+  }
+
   let formatVersion: Int
   let exportTimestamp: String
   let appVersion: String
+
+  nonisolated init(formatVersion: Int, exportTimestamp: String, appVersion: String) {
+    self.formatVersion = formatVersion
+    self.exportTimestamp = exportTimestamp
+    self.appVersion = appVersion
+  }
+
+  nonisolated init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    formatVersion = try container.decode(Int.self, forKey: .formatVersion)
+    exportTimestamp = try container.decode(String.self, forKey: .exportTimestamp)
+    appVersion = try container.decode(String.self, forKey: .appVersion)
+  }
+
+  nonisolated func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(formatVersion, forKey: .formatVersion)
+    try container.encode(exportTimestamp, forKey: .exportTimestamp)
+    try container.encode(appVersion, forKey: .appVersion)
+  }
 }
 
 enum BackupFormatVersion: Int, CaseIterable, Sendable {
@@ -29,7 +55,7 @@ enum BackupFormatVersion: Int, CaseIterable, Sendable {
   case v2 = 2
   case v3 = 3
 
-  static let current = BackupFormatVersion.v3
+  nonisolated static let current = BackupFormatVersion.v3
 }
 
 struct BackupValidationIssue: Sendable {
@@ -37,6 +63,13 @@ struct BackupValidationIssue: Sendable {
   let row: Int?
   let column: String?
   let detail: String
+
+  nonisolated init(file: String, row: Int? = nil, column: String? = nil, detail: String) {
+    self.file = file
+    self.row = row
+    self.column = column
+    self.detail = detail
+  }
 
   nonisolated var formattedDescription: String {
     var location = file
@@ -47,7 +80,7 @@ struct BackupValidationIssue: Sendable {
 }
 
 /// Errors that can occur during backup export, validation, or restore.
-enum BackupError: LocalizedError {
+enum BackupError: LocalizedError, Sendable {
   case invalidArchive
   case invalidArchiveLayout
   case missingFile(String)
@@ -58,7 +91,7 @@ enum BackupError: LocalizedError {
   case restoreFailed(String)
   case corruptedData(String)
 
-  var errorDescription: String? {
+  nonisolated var errorDescription: String? {
     switch self {
     case .invalidArchive:
       String(localized: "The file is not a valid backup archive.", table: "Services")
@@ -121,6 +154,18 @@ struct ValidatedBackup: Sendable {
   let settings: BackupSettingsRecord
 }
 
+/// Immutable snapshot of the SwiftData graph used by background export work.
+struct BackupExportPayload: Sendable {
+  let manifest: BackupManifest
+  let categories: [BackupCategoryRecord]
+  let assets: [BackupAssetRecord]
+  let snapshots: [BackupSnapshotRecord]
+  let snapshotAssetValues: [BackupSnapshotAssetValueRecord]
+  let cashFlowOperations: [BackupCashFlowRecord]
+  let exchangeRates: [BackupExchangeRateRecord]
+  let settings: BackupSettingsRecord
+}
+
 struct BackupCategoryRecord: Sendable {
   let id: UUID
   let name: String
@@ -171,6 +216,7 @@ struct BackupSettingsRecord: Sendable {
 }
 
 enum BackupRestoreCheckpoint: Sendable {
+  case afterValidation
   case afterDeletion
   case afterCategoryInsertion
 }
@@ -179,46 +225,48 @@ enum BackupRestoreCheckpoint: Sendable {
 
 enum BackupCSV {
   enum Categories {
-    static let fileName = "categories.csv"
-    static let headers = ["id", "name", "targetAllocationPercentage", "displayOrder"]
-    static let v1Headers = ["id", "name", "targetAllocationPercentage"]
+    nonisolated static let fileName = "categories.csv"
+    nonisolated static let headers = ["id", "name", "targetAllocationPercentage", "displayOrder"]
+    nonisolated static let v1Headers = ["id", "name", "targetAllocationPercentage"]
   }
 
   enum Assets {
-    static let fileName = "assets.csv"
-    static let headers = ["id", "name", "platform", "categoryID", "currency"]
-    static let v2Headers = ["id", "name", "platform", "categoryID"]
+    nonisolated static let fileName = "assets.csv"
+    nonisolated static let headers = ["id", "name", "platform", "categoryID", "currency"]
+    nonisolated static let v2Headers = ["id", "name", "platform", "categoryID"]
   }
 
   enum Snapshots {
-    static let fileName = "snapshots.csv"
-    static let headers = ["id", "date", "createdAt"]
+    nonisolated static let fileName = "snapshots.csv"
+    nonisolated static let headers = ["id", "date", "createdAt"]
   }
 
   enum SnapshotAssetValues {
-    static let fileName = "snapshot_asset_values.csv"
-    static let headers = ["snapshotID", "assetID", "marketValue"]
+    nonisolated static let fileName = "snapshot_asset_values.csv"
+    nonisolated static let headers = ["snapshotID", "assetID", "marketValue"]
   }
 
   enum CashFlowOperations {
-    static let fileName = "cash_flow_operations.csv"
-    static let headers = ["id", "snapshotID", "description", "amount", "currency"]
-    static let v2Headers = ["id", "snapshotID", "description", "amount"]
+    nonisolated static let fileName = "cash_flow_operations.csv"
+    nonisolated static let headers = ["id", "snapshotID", "description", "amount", "currency"]
+    nonisolated static let v2Headers = ["id", "snapshotID", "description", "amount"]
   }
 
   enum ExchangeRates {
-    static let fileName = "exchange_rates.csv"
-    static let headers = ["snapshotID", "baseCurrency", "fetchDate", "isFallback", "ratesJSON"]
+    nonisolated static let fileName = "exchange_rates.csv"
+    nonisolated static let headers = [
+      "snapshotID", "baseCurrency", "fetchDate", "isFallback", "ratesJSON",
+    ]
   }
 
   enum Settings {
-    static let fileName = "settings.csv"
-    static let headers = ["key", "value"]
+    nonisolated static let fileName = "settings.csv"
+    nonisolated static let headers = ["key", "value"]
   }
 
-  static let manifestFileName = "manifest.json"
+  nonisolated static let manifestFileName = "manifest.json"
 
-  static let allCSVFileNames = [
+  nonisolated static let allCSVFileNames = [
     Categories.fileName,
     Assets.fileName,
     Snapshots.fileName,
@@ -228,10 +276,10 @@ enum BackupCSV {
   ]
 
   /// CSV files required in all backup versions.
-  static let requiredCSVFileNames = allCSVFileNames
+  nonisolated static let requiredCSVFileNames = allCSVFileNames
 
   /// CSV files that are optional (may not exist in older backups).
-  static let optionalCSVFileNames = [
+  nonisolated static let optionalCSVFileNames = [
     ExchangeRates.fileName
   ]
 }

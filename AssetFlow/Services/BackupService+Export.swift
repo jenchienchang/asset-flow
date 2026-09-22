@@ -21,8 +21,8 @@ import Foundation
 
 extension BackupService {
 
-  static func writeCategoriesCSV(
-    _ categories: [Category], to dir: URL
+  nonisolated static func writeCategoriesCSV(
+    _ categories: [BackupCategoryRecord], to dir: URL
   ) throws {
     var lines = [BackupCSV.Categories.headers.joined(separator: ",")]
     for cat in categories {
@@ -40,8 +40,8 @@ extension BackupService {
         atomically: true, encoding: .utf8)
   }
 
-  static func writeAssetsCSV(
-    _ assets: [Asset], to dir: URL
+  nonisolated static func writeAssetsCSV(
+    _ assets: [BackupAssetRecord], to dir: URL
   ) throws {
     var lines = [BackupCSV.Assets.headers.joined(separator: ",")]
     for asset in assets {
@@ -50,7 +50,7 @@ extension BackupService {
           asset.id.uuidString,
           csvEscape(asset.name),
           csvEscape(asset.platform),
-          asset.category?.id.uuidString ?? "",
+          asset.categoryID?.uuidString ?? "",
           csvEscape(asset.currency),
         ]))
     }
@@ -60,8 +60,8 @@ extension BackupService {
         atomically: true, encoding: .utf8)
   }
 
-  static func writeSnapshotsCSV(
-    _ snapshots: [Snapshot], to dir: URL
+  nonisolated static func writeSnapshotsCSV(
+    _ snapshots: [BackupSnapshotRecord], to dir: URL
   ) throws {
     let dateFormatter = ISO8601DateFormatter()
     var lines = [BackupCSV.Snapshots.headers.joined(separator: ",")]
@@ -79,20 +79,17 @@ extension BackupService {
         atomically: true, encoding: .utf8)
   }
 
-  static func writeSnapshotAssetValuesCSV(
-    _ values: [SnapshotAssetValue], to dir: URL
+  nonisolated static func writeSnapshotAssetValuesCSV(
+    _ values: [BackupSnapshotAssetValueRecord], to dir: URL
   ) throws {
     var lines = [
       BackupCSV.SnapshotAssetValues.headers.joined(separator: ",")
     ]
     for sav in values {
-      guard let snapshot = sav.snapshot, let asset = sav.asset else {
-        continue
-      }
       lines.append(
         csvLine([
-          snapshot.id.uuidString,
-          asset.id.uuidString,
+          sav.snapshotID.uuidString,
+          sav.assetID.uuidString,
           "\(sav.marketValue)",
         ]))
     }
@@ -103,19 +100,18 @@ extension BackupService {
         atomically: true, encoding: .utf8)
   }
 
-  static func writeCashFlowOperationsCSV(
-    _ operations: [CashFlowOperation], to dir: URL
+  nonisolated static func writeCashFlowOperationsCSV(
+    _ operations: [BackupCashFlowRecord], to dir: URL
   ) throws {
     var lines = [
       BackupCSV.CashFlowOperations.headers.joined(separator: ",")
     ]
     for op in operations {
-      guard let snapshot = op.snapshot else { continue }
       lines.append(
         csvLine([
           op.id.uuidString,
-          snapshot.id.uuidString,
-          csvEscape(op.cashFlowDescription),
+          op.snapshotID.uuidString,
+          csvEscape(op.description),
           "\(op.amount)",
           csvEscape(op.currency),
         ]))
@@ -127,18 +123,17 @@ extension BackupService {
         atomically: true, encoding: .utf8)
   }
 
-  static func writeExchangeRatesCSV(
-    _ exchangeRates: [ExchangeRate], to dir: URL
+  nonisolated static func writeExchangeRatesCSV(
+    _ exchangeRates: [BackupExchangeRateRecord], to dir: URL
   ) throws {
     let dateFormatter = ISO8601DateFormatter()
     var lines = [BackupCSV.ExchangeRates.headers.joined(separator: ",")]
     for er in exchangeRates {
-      guard let snapshot = er.snapshot else { continue }
       // Encode ratesJSON as base64 to avoid CSV escaping issues with JSON
       let ratesBase64 = er.ratesJSON.base64EncodedString()
       lines.append(
         csvLine([
-          snapshot.id.uuidString,
+          er.snapshotID.uuidString,
           csvEscape(er.baseCurrency),
           dateFormatter.string(from: er.fetchDate),
           er.isFallback ? "true" : "false",
@@ -151,19 +146,19 @@ extension BackupService {
         atomically: true, encoding: .utf8)
   }
 
-  static func writeSettingsCSV(
-    settingsService: SettingsService, to dir: URL
+  nonisolated static func writeSettingsCSV(
+    _ settings: BackupSettingsRecord, to dir: URL
   ) throws {
     var lines = [BackupCSV.Settings.headers.joined(separator: ",")]
     lines.append(
-      csvLine(["displayCurrency", csvEscape(settingsService.mainCurrency)]))
+      csvLine(["displayCurrency", csvEscape(settings.mainCurrency)]))
     lines.append(
       csvLine([
-        "dateFormat", csvEscape(settingsService.dateFormat.rawValue),
+        "dateFormat", csvEscape(settings.dateFormat.rawValue),
       ]))
     lines.append(
       csvLine([
-        "defaultPlatform", csvEscape(settingsService.defaultPlatform),
+        "defaultPlatform", csvEscape(settings.defaultPlatform),
       ]))
     try lines.joined(separator: "\n")
       .write(
@@ -176,11 +171,11 @@ extension BackupService {
 
 extension BackupService {
 
-  private static func csvLine(_ fields: [String]) -> String {
+  private nonisolated static func csvLine(_ fields: [String]) -> String {
     fields.joined(separator: ",")
   }
 
-  private static func csvEscape(_ value: String) -> String {
+  private nonisolated static func csvEscape(_ value: String) -> String {
     if value.contains(",") || value.contains("\"") || value.contains("\n")
       || value.contains("\r")
     {

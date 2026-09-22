@@ -94,7 +94,7 @@ struct BackupServiceCurrencyTests {
   // MARK: - Export Tests
 
   @Test("Export includes currency column in assets CSV")
-  func exportIncludesCurrencyInAssets() throws {
+  func exportIncludesCurrencyInAssets() async throws {
     let tc = createTestContext()
 
     let asset = Asset(name: "AAPL", platform: "Schwab")
@@ -104,7 +104,7 @@ struct BackupServiceCurrencyTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -117,7 +117,7 @@ struct BackupServiceCurrencyTests {
   }
 
   @Test("Export includes currency column in cash flow operations CSV")
-  func exportIncludesCurrencyInCashFlows() throws {
+  func exportIncludesCurrencyInCashFlows() async throws {
     let tc = createTestContext()
 
     let snapshot = Snapshot(
@@ -134,7 +134,7 @@ struct BackupServiceCurrencyTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -147,7 +147,7 @@ struct BackupServiceCurrencyTests {
   }
 
   @Test("Export includes exchange rates CSV")
-  func exportIncludesExchangeRates() throws {
+  func exportIncludesExchangeRates() async throws {
     let tc = createTestContext()
 
     let snapshot = Snapshot(
@@ -170,7 +170,7 @@ struct BackupServiceCurrencyTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -184,23 +184,23 @@ struct BackupServiceCurrencyTests {
   }
 
   @Test("Export manifest has formatVersion 3")
-  func exportManifestVersion3() throws {
+  func exportManifestVersion3() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
-    let manifest = try BackupService.validateBackup(at: zipURL)
+    let manifest = try await BackupService.validateBackup(at: zipURL)
     #expect(manifest.formatVersion == 3)
   }
 
   // MARK: - Backward Compatibility Tests
 
   @Test("Restore v2 backup defaults currency to main currency")
-  func restoreV2BackupDefaultsCurrency() throws {
+  func restoreV2BackupDefaultsCurrency() async throws {
     let tc = createTestContext()
 
     let asset = Asset(name: "AAPL", platform: "Schwab")
@@ -224,7 +224,7 @@ struct BackupServiceCurrencyTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
@@ -258,7 +258,7 @@ struct BackupServiceCurrencyTests {
     // Restore into fresh context
     let tc2 = createTestContext()
     tc2.settingsService.mainCurrency = "USD"
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -273,7 +273,7 @@ struct BackupServiceCurrencyTests {
   }
 
   @Test("Restore v3 backup preserves currency")
-  func restoreV3BackupPreservesCurrency() throws {
+  func restoreV3BackupPreservesCurrency() async throws {
     let tc = createTestContext()
 
     let asset = Asset(name: "TSMC", platform: "Fubon")
@@ -299,13 +299,13 @@ struct BackupServiceCurrencyTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     // Restore into fresh context
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 
@@ -319,7 +319,7 @@ struct BackupServiceCurrencyTests {
   }
 
   @Test("Round-trip preserves exchange rates")
-  func roundTripExchangeRates() throws {
+  func roundTripExchangeRates() async throws {
     let tc = createTestContext()
 
     let snapshot = Snapshot(
@@ -342,12 +342,12 @@ struct BackupServiceCurrencyTests {
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
-    try BackupService.exportBackup(
+    try await BackupService.exportBackup(
       to: zipURL, modelContext: tc.context,
       settingsService: tc.settingsService)
 
     let tc2 = createTestContext()
-    try BackupService.restoreFromBackup(
+    try await BackupService.restoreFromBackup(
       at: zipURL, modelContext: tc2.context,
       settingsService: tc2.settingsService)
 

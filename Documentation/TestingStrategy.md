@@ -12,6 +12,8 @@ Currency conversion tests cover both numeric correctness and availability semant
 
 After careful consideration, the project has opted to **forgo UI testing**. A comprehensive suite of tests at the ViewModel and Service layers provides sufficient confidence in application behavior while avoiding the brittleness and maintenance overhead of UI tests.
 
+Async file, import, and backup tests use `Sendable` transfer values and deterministic task boundaries. They verify that CSV preparation and backup validation can be called from detached tasks, that cancellation is honored during CSV record and row processing, and that main-actor ViewModels apply only completed worker results. Bulk Entry direct-import tests also verify that cancellation returns a no-op result without changing existing rows or feedback, including deterministic gates that cancel after preparation is ready but before main-actor application. These tests do not inspect thread identities or assert elapsed time; executor threads are an implementation detail and timing thresholds are unstable across machines.
+
 ______________________________________________________________________
 
 ## Testing Philosophy
@@ -70,6 +72,10 @@ Every test function that requires a database creates its own dedicated, in-memor
 ### Import Lookup Coverage
 
 Import and Bulk Entry tests verify operation-scoped lookup behavior through functional correctness rather than timing thresholds. Coverage includes normalized identity reuse, first-match behavior, zero-value snapshot placeholders, duplicate validation, category reuse and display-order assignment, excluded rows, and representative larger synthetic imports that assert final entity/value counts and selected relationships. Unit tests do not assert elapsed time because SwiftData faulting, in-memory containers, build configuration, and CI machine load make timing thresholds noisy; collection-size scalability is validated by the indexed implementation structure and these correctness fixtures.
+
+### Background Work Validation
+
+No execution-time/performance test target and no UI test target is used for main-actor responsiveness. Swift 6 compilation verifies that non-Sendable SwiftData objects do not cross the worker boundary. Service and ViewModel tests verify async handoff, cancellation during CSV record/row processing, failure state, and restore data preservation with task cancellation and state assertions rather than sleeps. Large-file responsiveness is checked manually with Instruments by inspecting main-thread call stacks for file, parser, serialization, and archive work.
 
 ### Test Data Manager
 

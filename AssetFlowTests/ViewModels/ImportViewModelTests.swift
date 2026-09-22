@@ -79,7 +79,7 @@ struct ImportViewModelTests {
   // MARK: - Import Type Selection
 
   @Test("Default import type is assets")
-  func defaultImportTypeIsAssets() {
+  func defaultImportTypeIsAssets() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -87,12 +87,12 @@ struct ImportViewModelTests {
   }
 
   @Test("Switching import type clears loaded file and preview data")
-  func switchingImportTypeClearsData() {
+  func switchingImportTypeClearsData() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     // Load an asset CSV
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
     #expect(!viewModel.assetPreviewRows.isEmpty)
 
     // Switch to cash flows
@@ -108,11 +108,11 @@ struct ImportViewModelTests {
   // MARK: - File Loading: Asset CSV
 
   @Test("Loading valid asset CSV populates preview rows")
-  func loadValidAssetCSV() {
+  func loadValidAssetCSV() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     #expect(viewModel.assetPreviewRows.count == 3)
     #expect(viewModel.assetPreviewRows[0].csvRow.assetName == "AAPL")
@@ -123,7 +123,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Loading asset CSV with errors populates validation errors")
-  func loadAssetCSVWithErrors() {
+  func loadAssetCSVWithErrors() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -133,13 +133,13 @@ struct ImportViewModelTests {
       ,15000
       AAPL,abc
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     #expect(!viewModel.validationErrors.isEmpty)
   }
 
   @Test("Loading asset CSV with warnings populates per-row parsing warnings")
-  func loadAssetCSVWithWarnings() {
+  func loadAssetCSVWithWarnings() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -149,7 +149,7 @@ struct ImportViewModelTests {
       AAPL,0
       VTI,-100
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Zero/negative market value warnings are now per-row
     #expect(viewModel.assetPreviewRows[0].marketValueWarning != nil)
@@ -157,33 +157,33 @@ struct ImportViewModelTests {
   }
 
   @Test("Loading empty file shows error")
-  func loadEmptyFile() {
+  func loadEmptyFile() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
-    viewModel.loadCSVData(csvData(""))
+    await viewModel.loadCSVData(csvData(""))
 
     #expect(!viewModel.validationErrors.isEmpty)
     #expect(viewModel.assetPreviewRows.isEmpty)
   }
 
   @Test("Loading headers-only file shows no data rows error")
-  func loadHeadersOnlyFile() {
+  func loadHeadersOnlyFile() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
-    viewModel.loadCSVData(csvData("Asset Name,Market Value\n"))
+    await viewModel.loadCSVData(csvData("Asset Name,Market Value\n"))
 
     #expect(!viewModel.validationErrors.isEmpty)
   }
 
   @Test("Loading dropped CSV data retains its name and surfaces parse errors")
-  func loadDroppedCSVDataSurfacesParseErrors() {
+  func loadDroppedCSVDataSurfacesParseErrors() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     let csv = csvData("Asset Name,Market Value\nA\"APL,15000\n")
-    viewModel.loadDroppedData(csv, fileName: "malformed.csv")
+    await viewModel.loadDroppedData(csv, fileName: "malformed.csv")
 
     #expect(viewModel.selectedFileName == "malformed.csv")
     #expect(viewModel.selectedFileData != nil)
@@ -191,11 +191,11 @@ struct ImportViewModelTests {
   }
 
   @Test("File load failure clears preview and exposes an error")
-  func fileLoadFailureSurfacesError() {
+  func fileLoadFailureSurfacesError() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
     #expect(!viewModel.assetPreviewRows.isEmpty)
 
     viewModel.reportFileLoadFailure()
@@ -208,12 +208,12 @@ struct ImportViewModelTests {
   // MARK: - File Loading: Cash Flow CSV
 
   @Test("Loading valid cash flow CSV populates preview rows")
-  func loadValidCashFlowCSV() {
+  func loadValidCashFlowCSV() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.importType = .cashFlows
 
-    viewModel.loadCSVData(validCashFlowCSVData())
+    await viewModel.loadCSVData(validCashFlowCSVData())
 
     #expect(viewModel.cashFlowPreviewRows.count == 2)
     #expect(viewModel.cashFlowPreviewRows[0].csvRow.description == "Salary deposit")
@@ -223,7 +223,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Loading cash flow CSV with errors populates validation errors")
-  func loadCashFlowCSVWithErrors() {
+  func loadCashFlowCSVWithErrors() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.importType = .cashFlows
@@ -234,7 +234,7 @@ struct ImportViewModelTests {
       ,50000
       Salary,abc
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     #expect(!viewModel.validationErrors.isEmpty)
   }
@@ -242,7 +242,7 @@ struct ImportViewModelTests {
   // MARK: - Snapshot Date Validation
 
   @Test("Default snapshot date is today")
-  func defaultSnapshotDateIsToday() {
+  func defaultSnapshotDateIsToday() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -252,7 +252,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Future date produces validation error on import")
-  func futureDateProducesError() throws {
+  func futureDateProducesError() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -260,7 +260,7 @@ struct ImportViewModelTests {
     let futureDate = Calendar.current.date(byAdding: .day, value: 7, to: Date())!
     viewModel.snapshotDate = futureDate
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     // Import should fail with future date error
     let result = viewModel.executeImport()
@@ -269,12 +269,12 @@ struct ImportViewModelTests {
   }
 
   @Test("Past date is valid for import")
-  func pastDateIsValid() {
+  func pastDateIsValid() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     #expect(viewModel.isImportDisabled == false)
   }
@@ -282,12 +282,12 @@ struct ImportViewModelTests {
   // MARK: - Platform Handling
 
   @Test("Import-level platform overrides CSV platform values in preview")
-  func importPlatformOverridesCSV() {
+  func importPlatformOverridesCSV() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.selectedPlatform = "Schwab"
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     // All rows should have the import-level platform
     for row in viewModel.assetPreviewRows {
@@ -296,23 +296,23 @@ struct ImportViewModelTests {
   }
 
   @Test("No import-level platform uses CSV per-row platforms")
-  func noImportPlatformUsesCSVValues() {
+  func noImportPlatformUsesCSVValues() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     #expect(viewModel.assetPreviewRows[0].csvRow.platform == "Interactive Brokers")
     #expect(viewModel.assetPreviewRows[2].csvRow.platform == "Coinbase")
   }
 
   @Test("New platform name is used as platform string")
-  func newPlatformNameUsed() {
+  func newPlatformNameUsed() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.selectedPlatform = "My New Broker"
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     for row in viewModel.assetPreviewRows {
       #expect(row.csvRow.platform == "My New Broker")
@@ -320,7 +320,7 @@ struct ImportViewModelTests {
   }
 
   @Test("loadFile caches file data in selectedFileData")
-  func loadFileCachesData() throws {
+  func loadFileCachesData() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -328,7 +328,7 @@ struct ImportViewModelTests {
       "Asset Name,Market Value,Platform\nAAPL,15000,Fidelity\n")
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    viewModel.loadFile(tempURL)
+    await viewModel.loadFile(tempURL)
 
     #expect(viewModel.selectedFileData != nil)
     #expect(!viewModel.assetPreviewRows.isEmpty)
@@ -336,7 +336,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Changing platform rebuilds preview rows with new platform")
-  func changePlatformWithCachedData() throws {
+  func changePlatformWithCachedData() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -345,7 +345,7 @@ struct ImportViewModelTests {
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
     // Load file — simulates initial file import
-    viewModel.loadFile(tempURL)
+    await viewModel.loadFile(tempURL)
     #expect(viewModel.assetPreviewRows[0].csvRow.platform == "Fidelity")
 
     // Change platform — didSet triggers rebuild automatically
@@ -357,14 +357,14 @@ struct ImportViewModelTests {
   }
 
   @Test("clearLoadedData clears selectedFileData")
-  func clearLoadedDataClearsCachedData() throws {
+  func clearLoadedDataClearsCachedData() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     let tempURL = try createTempCSVFile("Asset Name,Market Value\nAAPL,15000\n")
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    viewModel.loadFile(tempURL)
+    await viewModel.loadFile(tempURL)
     #expect(viewModel.selectedFileData != nil)
 
     viewModel.clearLoadedData()
@@ -372,14 +372,14 @@ struct ImportViewModelTests {
   }
 
   @Test("reset clears selectedFileData")
-  func resetClearsCachedData() throws {
+  func resetClearsCachedData() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     let tempURL = try createTempCSVFile("Asset Name,Market Value\nAAPL,15000\n")
     defer { try? FileManager.default.removeItem(at: tempURL) }
 
-    viewModel.loadFile(tempURL)
+    await viewModel.loadFile(tempURL)
     #expect(viewModel.selectedFileData != nil)
 
     viewModel.reset()
@@ -387,7 +387,7 @@ struct ImportViewModelTests {
   }
 
   @Test("fillEmptyOnly applies platform only to empty-platform rows")
-  func fillEmptyOnlyAppliesPlatformToEmptyRows() {
+  func fillEmptyOnlyAppliesPlatformToEmptyRows() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -400,7 +400,7 @@ struct ImportViewModelTests {
       Bitcoin,5000,Coinbase
       ETH,3000,
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     viewModel.selectedPlatform = "Schwab"
     viewModel.platformApplyMode = .fillEmptyOnly
@@ -415,7 +415,7 @@ struct ImportViewModelTests {
   }
 
   @Test("overrideAll applies platform to all rows")
-  func overrideAllAppliesPlatformToAllRows() {
+  func overrideAllAppliesPlatformToAllRows() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -426,7 +426,7 @@ struct ImportViewModelTests {
       VTI,28000,
       Bitcoin,5000,Coinbase
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     viewModel.selectedPlatform = "Schwab"
     viewModel.platformApplyMode = .overrideAll
@@ -437,7 +437,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Changing apply mode triggers rebuild")
-  func changingApplyModeTriggersRebuild() {
+  func changingApplyModeTriggersRebuild() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -447,7 +447,7 @@ struct ImportViewModelTests {
       AAPL,15000,Fidelity
       VTI,28000,
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
     viewModel.selectedPlatform = "Schwab"
 
     // Default is overrideAll — all rows should have Schwab
@@ -462,7 +462,7 @@ struct ImportViewModelTests {
   }
 
   @Test("fillEmptyOnly preserves exclusion state")
-  func fillEmptyOnlyPreservesExclusionState() {
+  func fillEmptyOnlyPreservesExclusionState() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -473,7 +473,7 @@ struct ImportViewModelTests {
       VTI,28000,
       Bitcoin,5000,Coinbase
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Exclude a row
     viewModel.removeAssetPreviewRow(at: 1)
@@ -488,11 +488,11 @@ struct ImportViewModelTests {
   }
 
   @Test("Excluded rows preserved after platform change")
-  func excludedRowsPreservedAfterPlatformChange() {
+  func excludedRowsPreservedAfterPlatformChange() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
     #expect(viewModel.assetPreviewRows.count == 3)
 
     // Exclude row at index 1 (VTI)
@@ -510,12 +510,12 @@ struct ImportViewModelTests {
   }
 
   @Test("Excluded rows preserved after clearing platform")
-  func excludedRowsPreservedAfterClearingPlatform() {
+  func excludedRowsPreservedAfterClearingPlatform() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.selectedPlatform = "Schwab"
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     // Exclude row at index 0
     viewModel.removeAssetPreviewRow(at: 0)
@@ -532,14 +532,14 @@ struct ImportViewModelTests {
   }
 
   @Test("Excluded rows preserved after category change")
-  func excludedRowsPreservedAfterCategoryChange() {
+  func excludedRowsPreservedAfterCategoryChange() async {
     let tc = createTestContext()
 
     let equities = Category(name: "Equities")
     tc.context.insert(equities)
 
     let viewModel = ImportViewModel(modelContext: tc.context)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     // Exclude row at index 2 (Bitcoin)
     viewModel.removeAssetPreviewRow(at: 2)
@@ -558,7 +558,7 @@ struct ImportViewModelTests {
   // MARK: - Category Handling
 
   @Test("Import-level category is recorded for import execution")
-  func importCategoryRecorded() throws {
+  func importCategoryRecorded() async throws {
     let tc = createTestContext()
     let category = Category(name: "Equities", targetAllocationPercentage: 60)
     tc.context.insert(category)
@@ -566,7 +566,7 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.selectedCategory = category
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -580,7 +580,7 @@ struct ImportViewModelTests {
   }
 
   @Test("New category with existing name reuses existing category")
-  func newCategoryReusesExisting() throws {
+  func newCategoryReusesExisting() async throws {
     let tc = createTestContext()
     let existing = Category(name: "Equities", targetAllocationPercentage: 60)
     tc.context.insert(existing)
@@ -592,7 +592,7 @@ struct ImportViewModelTests {
   }
 
   @Test("New category with genuinely new name creates category with nil target")
-  func newCategoryCreatesNew() throws {
+  func newCategoryCreatesNew() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     let resolved = try viewModel.resolveCategory(name: "Crypto")
@@ -607,7 +607,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Category reassignment warning when asset has different existing category")
-  func categoryReassignmentWarning() {
+  func categoryReassignmentWarning() async {
     let tc = createTestContext()
 
     // Create an existing asset with category "Bonds"
@@ -623,7 +623,7 @@ struct ImportViewModelTests {
 
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.selectedCategory = equities
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     // The AAPL row should have a category warning
     let aaplRow = viewModel.assetPreviewRows.first {
@@ -635,11 +635,11 @@ struct ImportViewModelTests {
   // MARK: - Row Removal
 
   @Test("Removing a row from preview excludes it from import")
-  func removeRowExcludesFromImport() {
+  func removeRowExcludesFromImport() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
     #expect(viewModel.assetPreviewRows.count == 3)
 
     viewModel.removeAssetPreviewRow(at: 0)
@@ -649,11 +649,11 @@ struct ImportViewModelTests {
   }
 
   @Test("Removing all rows disables import")
-  func removeAllRowsDisablesImport() {
+  func removeAllRowsDisablesImport() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     for i in 0..<viewModel.assetPreviewRows.count {
       viewModel.removeAssetPreviewRow(at: i)
@@ -663,7 +663,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Removing row that was part of duplicate pair clears duplicate error")
-  func removeRowClearsDuplicateError() {
+  func removeRowClearsDuplicateError() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -674,7 +674,7 @@ struct ImportViewModelTests {
       AAPL,15000
       AAPL,20000
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Second row should have per-row duplicate error
     #expect(viewModel.assetPreviewRows[1].duplicateError != nil)
@@ -689,7 +689,7 @@ struct ImportViewModelTests {
   // MARK: - Duplicate Detection (CSV vs Existing Snapshot)
 
   @Test("Duplicate asset between CSV and existing snapshot produces per-row error")
-  func duplicateAssetWithExistingSnapshot() {
+  func duplicateAssetWithExistingSnapshot() async {
     let tc = createTestContext()
 
     // Create existing snapshot with AAPL
@@ -705,7 +705,7 @@ struct ImportViewModelTests {
 
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = date
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     // Should detect per-row snapshot duplicate error on AAPL row
     let aaplRow = viewModel.assetPreviewRows.first {
@@ -715,7 +715,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Zero-value snapshot placeholders are overwritten in place")
-  func zeroValuePlaceholderIsOverwrittenInPlace() throws {
+  func zeroValuePlaceholderIsOverwrittenInPlace() async throws {
     let tc = createTestContext()
     let date = makeDate(year: 2025, month: 6, day: 15)
     let snapshot = Snapshot(date: date)
@@ -730,7 +730,7 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = date
     viewModel.copyForwardEnabled = false
-    viewModel.loadCSVData(
+    await viewModel.loadCSVData(
       csvData(
         """
         Asset Name,Market Value,Platform
@@ -747,7 +747,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Duplicate cash flow between CSV and existing snapshot produces per-row error")
-  func duplicateCashFlowWithExistingSnapshot() {
+  func duplicateCashFlowWithExistingSnapshot() async {
     let tc = createTestContext()
 
     // Create existing snapshot with a cash flow
@@ -761,7 +761,7 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.importType = .cashFlows
     viewModel.snapshotDate = date
-    viewModel.loadCSVData(validCashFlowCSVData())
+    await viewModel.loadCSVData(validCashFlowCSVData())
 
     let salaryRow = viewModel.cashFlowPreviewRows.first {
       $0.csvRow.description == "Salary deposit"
@@ -770,7 +770,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Loading cash flow CSV with zero amount populates per-row amount warning")
-  func loadCashFlowWithZeroAmountWarning() {
+  func loadCashFlowWithZeroAmountWarning() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.importType = .cashFlows
@@ -781,7 +781,7 @@ struct ImportViewModelTests {
       Salary deposit,0
       Rent payment,-2000
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Zero amount gets a per-row warning
     let salaryRow = viewModel.cashFlowPreviewRows.first {
@@ -797,7 +797,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Cash flow zero-amount warning does not appear in file-level validationWarnings")
-  func cashFlowZeroAmountWarningIsPerRowOnly() {
+  func cashFlowZeroAmountWarningIsPerRowOnly() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.importType = .cashFlows
@@ -807,7 +807,7 @@ struct ImportViewModelTests {
       Description,Amount
       Salary deposit,0
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Row-level warnings are filtered out of validationWarnings
     #expect(viewModel.validationWarnings.isEmpty)
@@ -816,11 +816,11 @@ struct ImportViewModelTests {
   }
 
   @Test("No duplicates when snapshot is new")
-  func noDuplicatesForNewSnapshot() {
+  func noDuplicatesForNewSnapshot() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     // No per-row duplicate errors
     #expect(viewModel.assetPreviewRows.allSatisfy { $0.duplicateError == nil })
@@ -828,7 +828,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Excluded rows do not participate in duplicate detection with snapshot")
-  func excludedRowsSkipDuplicateDetection() {
+  func excludedRowsSkipDuplicateDetection() async {
     let tc = createTestContext()
 
     // Create existing snapshot with AAPL
@@ -851,7 +851,7 @@ struct ImportViewModelTests {
       AAPL,15000,Interactive Brokers
       VTI,28000,Interactive Brokers
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Initially AAPL should have a snapshot duplicate error
     #expect(viewModel.assetPreviewRows[0].snapshotDuplicateError != nil)
@@ -868,13 +868,13 @@ struct ImportViewModelTests {
   // MARK: - Import Execution: Asset CSV
 
   @Test("Importing creates new snapshot if none exists for date")
-  func importCreatesNewSnapshot() throws {
+  func importCreatesNewSnapshot() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     let date = makeDate(year: 2025, month: 6, day: 15)
     viewModel.snapshotDate = date
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
 
@@ -887,7 +887,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Importing adds to existing snapshot if one exists for date")
-  func importAddsToExistingSnapshot() throws {
+  func importAddsToExistingSnapshot() async throws {
     let tc = createTestContext()
 
     // Create existing snapshot with one asset
@@ -910,7 +910,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform
       AAPL,15000,Firstrade
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let snapshot = viewModel.executeImport()
 
@@ -929,12 +929,12 @@ struct ImportViewModelTests {
   }
 
   @Test("Importing creates new Asset records for unknown assets")
-  func importCreatesNewAssets() throws {
+  func importCreatesNewAssets() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -945,7 +945,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Importing reuses existing Asset records for matching name and platform")
-  func importReusesExistingAssets() throws {
+  func importReusesExistingAssets() async throws {
     let tc = createTestContext()
 
     // Pre-create AAPL on Interactive Brokers
@@ -954,7 +954,7 @@ struct ImportViewModelTests {
 
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -970,12 +970,12 @@ struct ImportViewModelTests {
   }
 
   @Test("Importing creates SnapshotAssetValues for each row")
-  func importCreatesSnapshotAssetValues() throws {
+  func importCreatesSnapshotAssetValues() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -990,7 +990,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Large asset import preserves identity reuse and final counts")
-  func largeAssetImportPreservesIdentityReuseAndCounts() throws {
+  func largeAssetImportPreservesIdentityReuseAndCounts() async throws {
     let tc = createTestContext()
     let existingCount = 60
     let importedCount = 120
@@ -1010,7 +1010,7 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = makeDate(year: 2025, month: 7, day: 15)
     viewModel.copyForwardEnabled = false
-    viewModel.loadCSVData(csvData(csvLines.joined(separator: "\n")))
+    await viewModel.loadCSVData(csvData(csvLines.joined(separator: "\n")))
     #expect(viewModel.assetPreviewRows.count == importedCount)
     #expect(viewModel.validationErrors.isEmpty)
     #expect(viewModel.isImportDisabled == false)
@@ -1031,7 +1031,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Importing assigns category to all assets when category selected")
-  func importAssignsCategory() throws {
+  func importAssignsCategory() async throws {
     let tc = createTestContext()
 
     let equities = Category(name: "Equities")
@@ -1040,7 +1040,7 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.selectedCategory = equities
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -1053,7 +1053,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Importing overrides existing category when import category is selected")
-  func importOverridesCategory() throws {
+  func importOverridesCategory() async throws {
     let tc = createTestContext()
 
     let bonds = Category(name: "Bonds")
@@ -1069,7 +1069,7 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.selectedCategory = equities
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -1082,12 +1082,12 @@ struct ImportViewModelTests {
   }
 
   @Test("Import returns created snapshot for navigation")
-  func importReturnsSnapshot() {
+  func importReturnsSnapshot() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
 
@@ -1101,13 +1101,13 @@ struct ImportViewModelTests {
   // MARK: - Import Execution: Cash Flow CSV
 
   @Test("Importing cash flows creates CashFlowOperations on snapshot")
-  func importCreatesCashFlowOperations() throws {
+  func importCreatesCashFlowOperations() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.importType = .cashFlows
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validCashFlowCSVData())
+    await viewModel.loadCSVData(validCashFlowCSVData())
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -1124,7 +1124,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Importing cash flows to existing snapshot adds to it")
-  func importCashFlowsToExistingSnapshot() throws {
+  func importCashFlowsToExistingSnapshot() async throws {
     let tc = createTestContext()
 
     // Create existing snapshot
@@ -1135,7 +1135,7 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.importType = .cashFlows
     viewModel.snapshotDate = date
-    viewModel.loadCSVData(validCashFlowCSVData())
+    await viewModel.loadCSVData(validCashFlowCSVData())
 
     let snapshot = viewModel.executeImport()
 
@@ -1150,7 +1150,7 @@ struct ImportViewModelTests {
   // MARK: - State Management
 
   @Test("isImportDisabled is true when no rows loaded")
-  func importDisabledWhenNoRows() {
+  func importDisabledWhenNoRows() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1158,7 +1158,7 @@ struct ImportViewModelTests {
   }
 
   @Test("isImportDisabled is true when validation errors exist")
-  func importDisabledWhenErrors() {
+  func importDisabledWhenErrors() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1168,50 +1168,50 @@ struct ImportViewModelTests {
       Asset Name,Market Value
       ,15000
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     #expect(viewModel.isImportDisabled)
   }
 
   @Test("isImportDisabled is false when valid rows and no errors")
-  func importEnabledWhenValid() {
+  func importEnabledWhenValid() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     #expect(viewModel.isImportDisabled == false)
   }
 
   @Test("hasUnsavedChanges is true when file loaded but not imported")
-  func hasUnsavedChangesWhenFileLoaded() {
+  func hasUnsavedChangesWhenFileLoaded() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     #expect(viewModel.hasUnsavedChanges)
   }
 
   @Test("hasUnsavedChanges is false after import")
-  func hasUnsavedChangesFalseAfterImport() {
+  func hasUnsavedChangesFalseAfterImport() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
     _ = viewModel.executeImport()
 
     #expect(viewModel.hasUnsavedChanges == false)
   }
 
   @Test("Reset clears all state")
-  func resetClearsState() {
+  func resetClearsState() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
     #expect(!viewModel.assetPreviewRows.isEmpty)
 
     viewModel.reset()
@@ -1230,7 +1230,7 @@ struct ImportViewModelTests {
   // MARK: - Existing Platforms List
 
   @Test("Existing platforms list includes platforms from all assets")
-  func existingPlatformsList() throws {
+  func existingPlatformsList() async throws {
     let tc = createTestContext()
 
     let asset1 = Asset(name: "AAPL", platform: "Firstrade")
@@ -1251,7 +1251,7 @@ struct ImportViewModelTests {
   // MARK: - Existing Categories List
 
   @Test("Existing categories list includes all categories")
-  func existingCategoriesList() throws {
+  func existingCategoriesList() async throws {
     let tc = createTestContext()
 
     let cat1 = Category(name: "Equities")
@@ -1268,12 +1268,12 @@ struct ImportViewModelTests {
   // MARK: - Only Included Rows Are Imported
 
   @Test("Only included asset rows are imported")
-  func onlyIncludedAssetRowsImported() throws {
+  func onlyIncludedAssetRowsImported() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     // Remove the first row (AAPL)
     viewModel.removeAssetPreviewRow(at: 0)
@@ -1291,13 +1291,13 @@ struct ImportViewModelTests {
   }
 
   @Test("Only included cash flow rows are imported")
-  func onlyIncludedCashFlowRowsImported() throws {
+  func onlyIncludedCashFlowRowsImported() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.importType = .cashFlows
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validCashFlowCSVData())
+    await viewModel.loadCSVData(validCashFlowCSVData())
 
     // Remove the first row
     viewModel.removeCashFlowPreviewRow(at: 0)
@@ -1314,13 +1314,13 @@ struct ImportViewModelTests {
   // MARK: - Import With No Category (Uncategorized)
 
   @Test("Import without category leaves assets uncategorized")
-  func importWithoutCategoryLeavesUncategorized() throws {
+  func importWithoutCategoryLeavesUncategorized() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
     viewModel.selectedCategory = nil
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -1335,7 +1335,7 @@ struct ImportViewModelTests {
   // MARK: - Snapshot Date Change Re-triggers Duplicate Detection
 
   @Test("Changing snapshot date re-triggers duplicate detection against existing snapshot")
-  func changingSnapshotDateRetriggersDuplicateDetection() {
+  func changingSnapshotDateRetriggersDuplicateDetection() async {
     let tc = createTestContext()
 
     // Create existing snapshot on June 15 with AAPL
@@ -1353,7 +1353,7 @@ struct ImportViewModelTests {
 
     // Set date to June 16 (no existing snapshot) and load CSV with AAPL
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 16)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     // No per-row snapshot duplicate error on June 16
     #expect(viewModel.assetPreviewRows.allSatisfy { $0.snapshotDuplicateError == nil })
@@ -1371,7 +1371,7 @@ struct ImportViewModelTests {
   // MARK: - Revalidation Preserves Parsing Errors
 
   @Test("Removing a row preserves non-duplicate parsing errors from initial load")
-  func removeRowPreservesParsingErrors() {
+  func removeRowPreservesParsingErrors() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1386,7 +1386,7 @@ struct ImportViewModelTests {
       AAPL,25000
       VTI,10000
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Should have: parsing error in validationErrors + per-row duplicate error on second AAPL
     #expect(!viewModel.validationErrors.isEmpty)
@@ -1415,14 +1415,14 @@ struct ImportViewModelTests {
   // MARK: - Import Sets importedSnapshot for Navigation
 
   @Test("Successful import sets importedSnapshot for navigation")
-  func successfulImportSetsImportedSnapshot() {
+  func successfulImportSetsImportedSnapshot() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     #expect(viewModel.importedSnapshot == nil)
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
 
@@ -1432,14 +1432,14 @@ struct ImportViewModelTests {
   }
 
   @Test("Unsuccessful import does not set importedSnapshot")
-  func unsuccessfulImportDoesNotSetImportedSnapshot() {
+  func unsuccessfulImportDoesNotSetImportedSnapshot() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     // Set future date to cause failure
     let futureDate = Calendar.current.date(byAdding: .day, value: 7, to: Date())!
     viewModel.snapshotDate = futureDate
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let result = viewModel.executeImport()
 
@@ -1448,12 +1448,12 @@ struct ImportViewModelTests {
   }
 
   @Test("Reset clears importedSnapshot")
-  func resetClearsImportedSnapshot() {
+  func resetClearsImportedSnapshot() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
     _ = viewModel.executeImport()
     #expect(viewModel.importedSnapshot != nil)
 
@@ -1464,7 +1464,7 @@ struct ImportViewModelTests {
   // MARK: - Default Platform from Settings
 
   @Test("Import pre-fills platform when default platform is set")
-  func importPrefillsPlatformFromSettings() {
+  func importPrefillsPlatformFromSettings() async {
     let tc = createTestContext()
     let settingsService = SettingsService.createForTesting()
     settingsService.defaultPlatform = "Schwab"
@@ -1475,7 +1475,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Import leaves platform nil when default platform is empty")
-  func importLeavesPlatformNilWhenDefaultEmpty() {
+  func importLeavesPlatformNilWhenDefaultEmpty() async {
     let tc = createTestContext()
     let settingsService = SettingsService.createForTesting()
 
@@ -1506,7 +1506,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Copy-forward platforms computed from prior snapshot")
-  func copyForwardPlatformsComputedFromPriorSnapshot() {
+  func copyForwardPlatformsComputedFromPriorSnapshot() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1528,7 +1528,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform
       AAPL,15000,Interactive Brokers
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Should offer Binance and Schwab for copy-forward
     let platformNames = viewModel.copyForwardPlatforms.map { $0.platformName }.sorted()
@@ -1540,18 +1540,18 @@ struct ImportViewModelTests {
   }
 
   @Test("Copy-forward platforms empty when no prior snapshot")
-  func copyForwardPlatformsEmptyWhenNoPriorSnapshot() {
+  func copyForwardPlatformsEmptyWhenNoPriorSnapshot() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     viewModel.snapshotDate = makeDate(year: 2025, month: 2, day: 1)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     #expect(viewModel.copyForwardPlatforms.isEmpty)
   }
 
   @Test("Copy-forward platforms excludes platforms present in CSV")
-  func copyForwardPlatformsExcludesCSVPlatforms() {
+  func copyForwardPlatformsExcludesCSVPlatforms() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1572,7 +1572,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform
       VTI,28000,Interactive Brokers
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Only Binance should be offered (Interactive Brokers is in CSV)
     let platformNames = viewModel.copyForwardPlatforms.map { $0.platformName }
@@ -1580,7 +1580,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Copy-forward platforms excludes import-level platform")
-  func copyForwardPlatformsExcludesImportLevelPlatform() {
+  func copyForwardPlatformsExcludesImportLevelPlatform() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1604,7 +1604,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value
       AAPL,15000
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Only Binance should be offered (Schwab is the import-level platform)
     let platformNames = viewModel.copyForwardPlatforms.map { $0.platformName }
@@ -1612,7 +1612,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Import with copy-forward creates SnapshotAssetValue records")
-  func executeImportWithCopyForwardCreatesRecords() {
+  func executeImportWithCopyForwardCreatesRecords() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1633,7 +1633,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform
       AAPL,15000,Interactive Brokers
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Ensure copy-forward is enabled (default)
     #expect(viewModel.copyForwardEnabled == true)
@@ -1651,7 +1651,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Import with copy-forward disabled skips copy")
-  func executeImportWithCopyForwardDisabledSkipsCopy() {
+  func executeImportWithCopyForwardDisabledSkipsCopy() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1668,7 +1668,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform
       AAPL,15000,Interactive Brokers
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Disable copy-forward
     viewModel.copyForwardEnabled = false
@@ -1683,7 +1683,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Import with partial copy-forward selection copies only selected platforms")
-  func executeImportWithPartialCopyForwardSelection() {
+  func executeImportWithPartialCopyForwardSelection() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1703,7 +1703,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform
       AAPL,15000,Interactive Brokers
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Deselect Schwab, keep Binance
     if let schwabIndex = viewModel.copyForwardPlatforms.firstIndex(where: {
@@ -1724,7 +1724,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Copy-forward does not create duplicate SnapshotAssetValues")
-  func copyForwardDoesNotCreateDuplicates() {
+  func copyForwardDoesNotCreateDuplicates() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1742,7 +1742,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform
       AAPL,15000,Interactive Brokers
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Interactive Brokers is in CSV, so it shouldn't be in copy-forward at all
     #expect(viewModel.copyForwardPlatforms.isEmpty)
@@ -1757,7 +1757,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Copy-forward recomputes when snapshot date changes")
-  func copyForwardRecomputesOnDateChange() {
+  func copyForwardRecomputesOnDateChange() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1775,7 +1775,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform
       AAPL,15000,Interactive Brokers
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Should have Binance available
     #expect(viewModel.copyForwardPlatforms.count == 1)
@@ -1788,7 +1788,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Copy-forward platforms empty when snapshot already exists for selected date")
-  func copyForwardPlatformsEmptyWhenSnapshotExistsForDate() {
+  func copyForwardPlatformsEmptyWhenSnapshotExistsForDate() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1813,7 +1813,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform
       AAPL,15000,Interactive Brokers
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Copy-forward should NOT be offered since snapshot already exists for this date
     #expect(viewModel.copyForwardPlatforms.isEmpty)
@@ -1822,7 +1822,7 @@ struct ImportViewModelTests {
   // MARK: - Currency Preservation
 
   @Test("Import preserves existing asset currency when CSV has no currency column")
-  func importPreservesExistingAssetCurrency() {
+  func importPreservesExistingAssetCurrency() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1843,7 +1843,7 @@ struct ImportViewModelTests {
       AAPL,16000,Interactive Brokers
       Bitcoin,60000,Coinbase
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -1854,7 +1854,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Import uses CSV currency when currency column is present")
-  func importUsesCSVCurrencyWhenProvided() {
+  func importUsesCSVCurrencyWhenProvided() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1870,7 +1870,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform,Currency
       AAPL,16000,Interactive Brokers,USD
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -1880,7 +1880,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Import preserves cash flow currency when CSV has no currency column")
-  func importPreservesCashFlowCurrencyWithoutColumn() {
+  func importPreservesCashFlowCurrencyWithoutColumn() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -1901,7 +1901,7 @@ struct ImportViewModelTests {
       Description,Amount
       Bonus,2000
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let importedSnapshot = viewModel.executeImport()
     #expect(importedSnapshot != nil)
@@ -1916,7 +1916,7 @@ struct ImportViewModelTests {
   // MARK: - Currency Warning
 
   @Test("Currency warning when CSV currency differs from existing asset currency")
-  func currencyWarningWhenDifferent() {
+  func currencyWarningWhenDifferent() async {
     let tc = createTestContext()
 
     // Create existing asset with currency "TWD"
@@ -1930,7 +1930,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform,Currency
       AAPL,16000,Interactive Brokers,USD
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -1941,7 +1941,7 @@ struct ImportViewModelTests {
   }
 
   @Test("No currency warning when CSV currency matches existing asset currency")
-  func noCurrencyWarningWhenMatching() {
+  func noCurrencyWarningWhenMatching() async {
     let tc = createTestContext()
 
     let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
@@ -1954,7 +1954,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform,Currency
       AAPL,16000,Interactive Brokers,USD
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -1963,7 +1963,7 @@ struct ImportViewModelTests {
   }
 
   @Test("No currency warning when CSV has no currency column")
-  func noCurrencyWarningWithoutCurrencyColumn() {
+  func noCurrencyWarningWithoutCurrencyColumn() async {
     let tc = createTestContext()
 
     let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
@@ -1971,7 +1971,7 @@ struct ImportViewModelTests {
     tc.context.insert(asset)
 
     let viewModel = ImportViewModel(modelContext: tc.context)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -1980,7 +1980,7 @@ struct ImportViewModelTests {
   }
 
   @Test("No currency warning when existing asset has no currency")
-  func noCurrencyWarningWhenExistingHasNoCurrency() {
+  func noCurrencyWarningWhenExistingHasNoCurrency() async {
     let tc = createTestContext()
 
     let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
@@ -1992,7 +1992,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform,Currency
       AAPL,16000,Interactive Brokers,USD
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -2003,7 +2003,7 @@ struct ImportViewModelTests {
   // MARK: - Effective Currency
 
   @Test("Effective currency uses CSV currency when provided")
-  func effectiveCurrencyFromCSV() {
+  func effectiveCurrencyFromCSV() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2012,7 +2012,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform,Currency
       AAPL,16000,Interactive Brokers,USD
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -2021,7 +2021,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Effective currency falls back to existing asset currency")
-  func effectiveCurrencyFallsBackToExisting() {
+  func effectiveCurrencyFallsBackToExisting() async {
     let tc = createTestContext()
 
     let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
@@ -2029,7 +2029,7 @@ struct ImportViewModelTests {
     tc.context.insert(asset)
 
     let viewModel = ImportViewModel(modelContext: tc.context)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -2038,11 +2038,11 @@ struct ImportViewModelTests {
   }
 
   @Test("Effective currency is empty when no CSV currency and no existing asset")
-  func effectiveCurrencyEmptyWhenNone() {
+  func effectiveCurrencyEmptyWhenNone() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -2053,7 +2053,7 @@ struct ImportViewModelTests {
   // MARK: - Currency Validation
 
   @Test("Unsupported currency code produces per-row error")
-  func unsupportedCurrencyProducesError() {
+  func unsupportedCurrencyProducesError() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2062,7 +2062,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform,Currency
       AAPL,16000,Interactive Brokers,XYZ
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -2072,7 +2072,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Supported currency code produces no validation error")
-  func supportedCurrencyProducesNoError() {
+  func supportedCurrencyProducesNoError() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2081,7 +2081,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform,Currency
       AAPL,16000,Interactive Brokers,USD
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -2090,7 +2090,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Case-insensitive currency codes are accepted")
-  func caseInsensitiveCurrencyAccepted() {
+  func caseInsensitiveCurrencyAccepted() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2099,7 +2099,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform,Currency
       AAPL,16000,Interactive Brokers,usd
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -2108,7 +2108,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Unsupported currency error suppresses currency change warning")
-  func unsupportedCurrencyErrorSuppressesWarning() {
+  func unsupportedCurrencyErrorSuppressesWarning() async {
     let tc = createTestContext()
 
     // Create existing asset with currency "TWD"
@@ -2124,7 +2124,7 @@ struct ImportViewModelTests {
       Asset Name,Market Value,Platform,Currency
       AAPL,16000,Interactive Brokers,XYZ
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -2138,7 +2138,7 @@ struct ImportViewModelTests {
   // MARK: - Category Apply Mode
 
   @Test("Category apply mode overrideAll assigns category to all assets")
-  func categoryApplyMode_overrideAll_assignsToAllAssets() throws {
+  func categoryApplyMode_overrideAll_assignsToAllAssets() async throws {
     let tc = createTestContext()
 
     // Create existing asset with category
@@ -2155,7 +2155,7 @@ struct ImportViewModelTests {
     viewModel.selectedCategory = equities
     viewModel.categoryApplyMode = .overrideAll
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -2168,7 +2168,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Category apply mode fillEmptyOnly only assigns to uncategorized assets")
-  func categoryApplyMode_fillEmptyOnly_onlyAssignsToUncategorized() throws {
+  func categoryApplyMode_fillEmptyOnly_onlyAssignsToUncategorized() async throws {
     let tc = createTestContext()
 
     // Create existing asset with category
@@ -2185,7 +2185,7 @@ struct ImportViewModelTests {
     viewModel.selectedCategory = equities
     viewModel.categoryApplyMode = .fillEmptyOnly
     viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let snapshot = viewModel.executeImport()
     #expect(snapshot != nil)
@@ -2207,7 +2207,7 @@ struct ImportViewModelTests {
   }
 
   @Test("hasMixedCategories is true when some existing assets have categories and some don't")
-  func hasMixedCategories_trueWhenMixed() {
+  func hasMixedCategories_trueWhenMixed() async {
     let tc = createTestContext()
 
     // Create one asset with category, one without
@@ -2220,13 +2220,13 @@ struct ImportViewModelTests {
     tc.context.insert(vti)
 
     let viewModel = ImportViewModel(modelContext: tc.context)
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     #expect(viewModel.hasMixedCategories)
   }
 
   @Test("effectiveCategory reflects apply mode correctly")
-  func effectiveCategory_reflectsApplyMode() {
+  func effectiveCategory_reflectsApplyMode() async {
     let tc = createTestContext()
 
     // Create existing AAPL with Bonds category
@@ -2244,7 +2244,7 @@ struct ImportViewModelTests {
 
     // overrideAll: all rows show selected category
     viewModel.categoryApplyMode = .overrideAll
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let aaplOverride = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -2268,7 +2268,7 @@ struct ImportViewModelTests {
   // MARK: - Per-Row Errors
 
   @Test("Per-row duplicate errors are set on revalidation")
-  func perRowDuplicateErrors_setOnRevalidation() {
+  func perRowDuplicateErrors_setOnRevalidation() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2278,7 +2278,7 @@ struct ImportViewModelTests {
       AAPL,15000
       AAPL,20000
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // First row should have no error
     #expect(viewModel.assetPreviewRows[0].duplicateError == nil)
@@ -2287,7 +2287,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Per-row snapshot duplicate errors are set on revalidation")
-  func perRowSnapshotDuplicateErrors_setOnRevalidation() {
+  func perRowSnapshotDuplicateErrors_setOnRevalidation() async {
     let tc = createTestContext()
 
     // Create existing snapshot with AAPL
@@ -2303,7 +2303,7 @@ struct ImportViewModelTests {
 
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = date
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     let aaplRow = viewModel.assetPreviewRows.first {
       $0.csvRow.assetName == "AAPL"
@@ -2318,7 +2318,7 @@ struct ImportViewModelTests {
   }
 
   @Test("isImportDisabled is true when included rows have per-row errors")
-  func isImportDisabled_trueWithPerRowErrors() {
+  func isImportDisabled_trueWithPerRowErrors() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2328,14 +2328,14 @@ struct ImportViewModelTests {
       AAPL,15000
       AAPL,20000
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Should be disabled due to per-row duplicate error
     #expect(viewModel.isImportDisabled)
   }
 
   @Test("Row exclusion clears per-row errors for that row")
-  func rowExclusion_clearsPerRowErrors() {
+  func rowExclusion_clearsPerRowErrors() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2346,7 +2346,7 @@ struct ImportViewModelTests {
       AAPL,20000
       VTI,10000
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Initially second AAPL has duplicate error
     #expect(viewModel.assetPreviewRows[1].duplicateError != nil)
@@ -2362,7 +2362,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Category reassignment warning not shown in fillEmptyOnly mode")
-  func categoryWarningNotShownInFillEmptyOnly() {
+  func categoryWarningNotShownInFillEmptyOnly() async {
     let tc = createTestContext()
 
     // Create an existing asset with category "Bonds"
@@ -2379,7 +2379,7 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.selectedCategory = equities
     viewModel.categoryApplyMode = .fillEmptyOnly
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     // The AAPL row should NOT have a category warning (won't be overridden)
     let aaplRow = viewModel.assetPreviewRows.first {
@@ -2389,7 +2389,7 @@ struct ImportViewModelTests {
   }
 
   @Test("Removing row with unsupported currency makes import possible")
-  func removingRowWithUnsupportedCurrencyClearsError() {
+  func removingRowWithUnsupportedCurrencyClearsError() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2399,7 +2399,7 @@ struct ImportViewModelTests {
       AAPL,16000,Interactive Brokers,XYZ
       VTI,28000,Interactive Brokers,USD
       """)
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     // Should have a per-row currency error for XYZ
     #expect(viewModel.assetPreviewRows[0].currencyError != nil)
@@ -2415,7 +2415,7 @@ struct ImportViewModelTests {
   // MARK: - findOrCreateSnapshot
 
   @Test("findOrCreateSnapshot returns existing snapshot when date matches")
-  func findOrCreateSnapshotReturnsExisting() throws {
+  func findOrCreateSnapshotReturnsExisting() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2428,7 +2428,7 @@ struct ImportViewModelTests {
   }
 
   @Test("findOrCreateSnapshot creates new snapshot when no match exists")
-  func findOrCreateSnapshotCreatesNew() throws {
+  func findOrCreateSnapshotCreatesNew() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2443,7 +2443,7 @@ struct ImportViewModelTests {
   }
 
   @Test("findOrCreateSnapshot does not create duplicate when snapshot exists")
-  func findOrCreateSnapshotNoDuplicate() throws {
+  func findOrCreateSnapshotNoDuplicate() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
 
@@ -2461,38 +2461,38 @@ struct ImportViewModelTests {
   // MARK: - Column Mapping Integration
 
   @Test("loadCSVData with canonical headers does not show mapping sheet")
-  func testLoadCSVDataCanonicalHeadersNoSheet() {
+  func testLoadCSVDataCanonicalHeadersNoSheet() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = makeDate(year: 2025, month: 1, day: 1)
 
-    viewModel.loadCSVData(validAssetCSVData())
+    await viewModel.loadCSVData(validAssetCSVData())
 
     #expect(!viewModel.showColumnMappingSheet)
     #expect(viewModel.assetPreviewRows.count == 3)
   }
 
   @Test("loadCSVData with canonical headers in different casing does not show mapping sheet")
-  func testLoadCSVDataCaseInsensitiveCanonicalNoSheet() {
+  func testLoadCSVDataCaseInsensitiveCanonicalNoSheet() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = makeDate(year: 2025, month: 1, day: 1)
 
     let csv = csvData("asset name,MARKET VALUE\nAAPL,15000")
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     #expect(!viewModel.showColumnMappingSheet)
     #expect(viewModel.assetPreviewRows.count == 1)
   }
 
   @Test("loadCSVData with non-matching headers shows mapping sheet")
-  func testLoadCSVDataNonMatchingShowsSheet() {
+  func testLoadCSVDataNonMatchingShowsSheet() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = makeDate(year: 2025, month: 1, day: 1)
 
     let csv = csvData("Symbol,Price,Account\nAAPL,15000,Schwab")
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     #expect(viewModel.showColumnMappingSheet)
     #expect(viewModel.assetPreviewRows.isEmpty)
@@ -2501,13 +2501,13 @@ struct ImportViewModelTests {
   }
 
   @Test("loadCSVData with partially matching headers pre-populates partial mapping")
-  func testLoadCSVDataPartialMatchPrePopulates() {
+  func testLoadCSVDataPartialMatchPrePopulates() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = makeDate(year: 2025, month: 1, day: 1)
 
     let csv = csvData("Symbol,Price,Platform\nAAPL,15000,Schwab")
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     #expect(viewModel.showColumnMappingSheet)
     #expect(viewModel.pendingPartialMapping[.platform] == 2)
@@ -2515,20 +2515,20 @@ struct ImportViewModelTests {
   }
 
   @Test("confirmColumnMapping populates preview rows and dismisses sheet")
-  func testConfirmColumnMappingPopulatesPreview() throws {
+  func testConfirmColumnMappingPopulatesPreview() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = makeDate(year: 2025, month: 1, day: 1)
 
     let csv = csvData("Symbol,Price,Account\nAAPL,15000,Schwab\nVTI,28000,Fidelity")
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
     #expect(viewModel.showColumnMappingSheet)
 
     let mapping = CSVColumnMapping(
       schema: .asset,
       columnMap: [.assetName: 0, .marketValue: 1, .platform: 2],
       rawHeaders: ["Symbol", "Price", "Account"])
-    viewModel.confirmColumnMapping(mapping)
+    await viewModel.confirmColumnMapping(mapping)
 
     #expect(!viewModel.showColumnMappingSheet)
     let rows = viewModel.assetPreviewRows
@@ -2539,34 +2539,34 @@ struct ImportViewModelTests {
   }
 
   @Test("loadCSVData with non-matching cash flow headers shows mapping sheet")
-  func testLoadCSVDataCashFlowNonMatchingShowsSheet() {
+  func testLoadCSVDataCashFlowNonMatchingShowsSheet() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.importType = .cashFlows
     viewModel.snapshotDate = makeDate(year: 2025, month: 1, day: 1)
 
     let csv = csvData("Label,Value\nDeposit,5000\nWithdrawal,-2000")
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     #expect(viewModel.showColumnMappingSheet)
     #expect(viewModel.cashFlowPreviewRows.isEmpty)
   }
 
   @Test("confirmColumnMapping for cash flow populates preview rows")
-  func testConfirmColumnMappingCashFlow() throws {
+  func testConfirmColumnMappingCashFlow() async throws {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.importType = .cashFlows
     viewModel.snapshotDate = makeDate(year: 2025, month: 1, day: 1)
 
     let csv = csvData("Label,Value\nDeposit,5000")
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
 
     let mapping = CSVColumnMapping(
       schema: .cashFlow,
       columnMap: [.description: 0, .amount: 1],
       rawHeaders: ["Label", "Value"])
-    viewModel.confirmColumnMapping(mapping)
+    await viewModel.confirmColumnMapping(mapping)
 
     #expect(!viewModel.showColumnMappingSheet)
     let cfRows = viewModel.cashFlowPreviewRows
@@ -2576,13 +2576,13 @@ struct ImportViewModelTests {
   }
 
   @Test("clearLoadedData clears mapping state")
-  func testClearLoadedDataClearsMappingState() {
+  func testClearLoadedDataClearsMappingState() async {
     let tc = createTestContext()
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = makeDate(year: 2025, month: 1, day: 1)
 
     let csv = csvData("Symbol,Price\nAAPL,15000")
-    viewModel.loadCSVData(csv)
+    await viewModel.loadCSVData(csv)
     #expect(viewModel.showColumnMappingSheet)
 
     viewModel.clearLoadedData()

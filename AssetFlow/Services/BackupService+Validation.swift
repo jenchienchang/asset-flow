@@ -28,7 +28,7 @@ extension BackupService {
   /// so accept exactly one immediate child directory containing a manifest.
   /// Deeper recursive searches are intentionally not supported because they
   /// could accept an ambiguous or unrelated manifest.
-  static func resolveBackupRoot(at extractionDir: URL) throws -> URL {
+  nonisolated static func resolveBackupRoot(at extractionDir: URL) throws -> URL {
     let manifestPath =
       extractionDir
       .appending(path: BackupCSV.manifestFileName)
@@ -67,7 +67,7 @@ extension BackupService {
   /// - Parameter dir: Path to the extracted backup directory.
   /// - Returns: The parsed `BackupManifest` on success.
   /// - Throws: `BackupError` if the contents are invalid.
-  static func validateExtractedBackup(
+  nonisolated static func validateExtractedBackup(
     at dir: URL
   ) throws -> BackupManifest {
     try loadValidatedBackup(at: dir).manifest
@@ -78,47 +78,101 @@ extension BackupService {
 
 extension BackupService {
 
-  static func createZip(from dir: URL, to zipURL: URL) throws {
-    // Remove existing file if present
-    try? FileManager.default.removeItem(at: zipURL)
+  nonisolated static func createZip(from dir: URL, to zipURL: URL) async throws {
+    try await runDitto(
+      arguments: ["-c", "-k", "--sequesterRsrc", dir.path, zipURL.path])
 
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-    process.arguments = ["-c", "-k", "--sequesterRsrc", dir.path, zipURL.path]
-
-    let pipe = Pipe()
-    process.standardError = pipe
-
-    try process.run()
-    process.waitUntilExit()
-
-    guard process.terminationStatus == 0 else {
-      let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
-      let errorMsg =
-        String(data: errorData, encoding: .utf8)
-        ?? localizedBackupMessage("Unknown ditto error")
+    guard FileManager.default.fileExists(atPath: zipURL.path) else {
       throw BackupError.corruptedData(
-        localizedBackupMessage("Failed to create ZIP: \(errorMsg)"))
+        localizedBackupMessage("Failed to create ZIP: archive was not created."))
     }
   }
 
-  static func extractZip(from zipURL: URL, to dir: URL) throws {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-    process.arguments = ["-x", "-k", zipURL.path, dir.path]
-
-    let pipe = Pipe()
-    process.standardError = pipe
-
+  nonisolated static func extractZip(from zipURL: URL, to dir: URL) async throws {
     do {
-      try process.run()
+      try await runDitto(arguments: ["-x", "-k", zipURL.path, dir.path])
+    } catch is CancellationError {
+      throw CancellationError()
     } catch {
       throw BackupError.invalidArchive
     }
-    process.waitUntilExit()
+  }
 
-    guard process.terminationStatus == 0 else {
-      throw BackupError.invalidArchive
+  private nonisolated static func runDitto(arguments: [String]) async throws {
+    try Task.checkCancellation()
+
+    let box = DittoProcessBox()
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, Error>) in
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = arguments
+
+        let pipe = Pipe()
+        process.standardError = pipe
+        process.terminationHandler = { process in
+          let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
+          if box.cancellationRequested {
+            continuation.resume(throwing: CancellationError())
+          } else if process.terminationStatus == 0 {
+            continuation.resume()
+          } else {
+            let errorMessage =
+              String(data: errorData, encoding: .utf8)
+              ?? localizedBackupMessage("Unknown ditto error")
+            continuation.resume(
+              throwing: BackupError.corruptedData(
+                localizedBackupMessage("ditto failed: \(errorMessage)")))
+          }
+        }
+
+        box.install(process)
+        do {
+          try process.run()
+          if box.cancellationRequested {
+            process.terminate()
+          }
+        } catch {
+          continuation.resume(throwing: error)
+        }
+      }
+    } onCancel: {
+      box.cancel()
     }
+
+    try Task.checkCancellation()
+  }
+}
+
+private nonisolated final class DittoProcessBox: @unchecked Sendable {
+  private let lock = NSLock()
+  private var process: Process?
+  private(set) var isCancellationRequested = false
+
+  nonisolated var cancellationRequested: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return isCancellationRequested
+  }
+
+  nonisolated func install(_ process: Process) {
+    lock.lock()
+    self.process = process
+    let shouldTerminate = isCancellationRequested
+    lock.unlock()
+
+    if shouldTerminate {
+      process.terminate()
+    }
+  }
+
+  nonisolated func cancel() {
+    lock.lock()
+    isCancellationRequested = true
+    let process = self.process
+    lock.unlock()
+
+    process?.terminate()
   }
 }

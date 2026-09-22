@@ -65,6 +65,6 @@ enum Constants {
 
   enum Parsing {
     /// Currency symbols to strip from user-entered numeric strings.
-    static let currencySymbols: Set<Character> = ["$", "€", "£", "¥", "₩", "₹"]
+    nonisolated static let currencySymbols: Set<Character> = ["$", "€", "£", "¥", "₩", "₹"]
   }
 }

@@ -378,7 +378,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("saveSnapshot creates new assets from CSV-only rows")
-  func saveSnapshotCreatesNewAssetsFromCSV() throws {
+  func saveSnapshotCreatesNewAssetsFromCSV() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -386,7 +386,7 @@ struct BulkEntryViewModelTests {
     let viewModel = BulkEntryViewModel(
       modelContext: context, date: makeDate(2026, 3, 15))
     let csv = "Asset Name,Market Value,Currency\nNew Fund,5000,EUR"
-    _ = viewModel.importCSV(data: csv.data(using: .utf8)!, forPlatform: "Fidelity")
+    _ = await viewModel.importCSV(data: csv.data(using: .utf8)!, forPlatform: "Fidelity")
 
     let snapshot = try viewModel.saveSnapshot()
     let values = snapshot.assetValues ?? []
@@ -398,7 +398,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("importCSV fills matching rows with CSV values")
-  func importCSVFillsMatchingRows() throws {
+  func importCSVFillsMatchingRows() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -413,7 +413,7 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csvData = "Asset Name,Market Value\nStock A,1500\n".data(using: .utf8)!
-    let result = viewModel.importCSV(data: csvData, forPlatform: "Vanguard")
+    let result = await viewModel.importCSV(data: csvData, forPlatform: "Vanguard")
 
     #expect(result.errors.isEmpty)
     #expect(result.matchedCount == 1)
@@ -425,8 +425,76 @@ struct BulkEntryViewModelTests {
     #expect(bondRow?.source == .manual)
   }
 
+  @Test("Cancelled direct asset import preserves rows and feedback")
+  func cancelledDirectAssetImportPreservesState() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    createSnapshotWithAssets(
+      context: context, date: makeDate(2026, 3, 1),
+      assets: [
+        TestAssetData(
+          name: "Stock A", platform: "Vanguard", currency: "USD", value: Decimal(1000))
+      ])
+
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+    viewModel.updateRowValue(viewModel.rows[0].id, to: "1200")
+    let existingFeedback = CSVImportFeedback(
+      severity: .warning, message: "Existing feedback")
+    viewModel.lastImportFeedback = existingFeedback
+
+    let task = Task { @MainActor in
+      await viewModel.importCSV(
+        data: "Asset Name,Market Value\nStock A,1500\n".data(using: .utf8)!,
+        forPlatform: "Vanguard")
+    }
+    task.cancel()
+    let result = await task.value
+
+    #expect(result.errors.isEmpty)
+    #expect(viewModel.rows.count == 1)
+    #expect(viewModel.rows[0].newValueText == "1200")
+    #expect(viewModel.lastImportFeedback == existingFeedback)
+  }
+
+  @Test("Cancellation after asset preparation preserves rows and feedback")
+  func cancellationAfterAssetPreparationPreservesState() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    createSnapshotWithAssets(
+      context: context, date: makeDate(2026, 3, 1),
+      assets: [
+        TestAssetData(
+          name: "Stock A", platform: "Vanguard", currency: "USD", value: Decimal(1000))
+      ])
+    let gate = CSVPreparationGate()
+    let viewModel = BulkEntryViewModel(
+      modelContext: context,
+      date: makeDate(2026, 3, 15),
+      prepareCSV: makeGatedCSVPreparation(gate: gate))
+    viewModel.updateRowValue(viewModel.rows[0].id, to: "1200")
+    let existingFeedback = CSVImportFeedback(
+      severity: .warning, message: "Existing feedback")
+    viewModel.lastImportFeedback = existingFeedback
+
+    let task = Task { @MainActor in
+      await viewModel.importCSV(
+        data: "Asset Name,Market Value\nStock A,1500\n".data(using: .utf8)!,
+        forPlatform: "Vanguard")
+    }
+    await gate.waitUntilPrepared()
+    task.cancel()
+    await gate.release()
+    let result = await task.value
+
+    #expect(result.errors.isEmpty)
+    #expect(viewModel.rows.count == 1)
+    #expect(viewModel.rows[0].newValueText == "1200")
+    #expect(viewModel.lastImportFeedback == existingFeedback)
+  }
+
   @Test("importCSV appends new rows for unmatched CSV assets")
-  func importCSVAppendsNewRows() throws {
+  func importCSVAppendsNewRows() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -440,7 +508,7 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csvData = "Asset Name,Market Value,Currency\nNew Fund,3000,EUR\n".data(using: .utf8)!
-    let result = viewModel.importCSV(data: csvData, forPlatform: "Vanguard")
+    let result = await viewModel.importCSV(data: csvData, forPlatform: "Vanguard")
 
     #expect(result.errors.isEmpty)
     #expect(result.newCount == 1)
@@ -456,7 +524,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("re-importing CSV for same platform replaces previous CSV values")
-  func reImportCSVReplacesValues() throws {
+  func reImportCSVReplacesValues() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -470,11 +538,11 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csv1 = "Asset Name,Market Value\nStock A,1500\n".data(using: .utf8)!
-    viewModel.importCSV(data: csv1, forPlatform: "Vanguard")
+    await viewModel.importCSV(data: csv1, forPlatform: "Vanguard")
     #expect(viewModel.rows.first?.newValueText == "1500")
 
     let csv2 = "Asset Name,Market Value\nStock A,1800\n".data(using: .utf8)!
-    viewModel.importCSV(data: csv2, forPlatform: "Vanguard")
+    await viewModel.importCSV(data: csv2, forPlatform: "Vanguard")
     #expect(viewModel.rows.first?.newValueText == "1800")
   }
 
@@ -756,7 +824,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("importCSV matches against manualNew rows by normalized name")
-  func importCSVMatchesManualNewRows() {
+  func importCSVMatchesManualNewRows() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -766,7 +834,7 @@ struct BulkEntryViewModelTests {
     viewModel.updateRowAssetName(viewModel.rows[0].id, to: "Stock A")
 
     let csvData = "Asset Name,Market Value\nStock A,1500\n".data(using: .utf8)!
-    let result = viewModel.importCSV(data: csvData, forPlatform: "Vanguard")
+    let result = await viewModel.importCSV(data: csvData, forPlatform: "Vanguard")
 
     #expect(result.matchedCount == 1)
     #expect(result.newCount == 0)
@@ -776,7 +844,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("importCSV rejects normalized duplicate rows without partial import")
-  func importCSVRejectsNormalizedDuplicateRowsWithoutPartialImport() {
+  func importCSVRejectsNormalizedDuplicateRowsWithoutPartialImport() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -788,7 +856,7 @@ struct BulkEntryViewModelTests {
     let csvData =
       "Asset Name,Market Value\nNew Fund,1000\nnew fund,2000\n"
       .data(using: .utf8)!  // swiftlint:disable:this force_unwrapping
-    let result = viewModel.importCSV(data: csvData, forPlatform: "Vanguard")
+    let result = await viewModel.importCSV(data: csvData, forPlatform: "Vanguard")
 
     #expect(result.hasErrors)
     #expect(result.matchedCount == 0)
@@ -797,19 +865,19 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("Bulk Entry detects duplicates after target platform resolution")
-  func importCSVDetectsDuplicatesAfterTargetPlatformResolution() throws {
+  func importCSVDetectsDuplicatesAfterTargetPlatformResolution() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
     let viewModel = BulkEntryViewModel(
       modelContext: context, date: makeDate(2026, 3, 15))
     let previousCSV = "Asset Name,Market Value\nExisting Fund,1000\n".data(using: .utf8)!
-    viewModel.importCSV(data: previousCSV, forPlatform: "Vanguard")
+    await viewModel.importCSV(data: previousCSV, forPlatform: "Vanguard")
 
     let duplicateCSV =
       "Asset Name,Market Value,Platform\nNew Fund,1000,Vanguard\nNew Fund,2000,\n"
       .data(using: .utf8)!
-    let result = viewModel.importCSV(data: duplicateCSV, forPlatform: "Vanguard")
+    let result = await viewModel.importCSV(data: duplicateCSV, forPlatform: "Vanguard")
 
     #expect(result.hasErrors)
     #expect(result.totalImported == 0)
@@ -822,7 +890,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("Bulk Entry ignores duplicates on skipped platforms")
-  func importCSVIgnoresDuplicatesOnSkippedPlatforms() {
+  func importCSVIgnoresDuplicatesOnSkippedPlatforms() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -831,7 +899,7 @@ struct BulkEntryViewModelTests {
     let duplicateCSV =
       "Asset Name,Market Value,Platform\nNew Fund,1000,Schwab\nNew Fund,2000,Schwab\n"
       .data(using: .utf8)!
-    let result = viewModel.importCSV(data: duplicateCSV, forPlatform: "Vanguard")
+    let result = await viewModel.importCSV(data: duplicateCSV, forPlatform: "Vanguard")
 
     #expect(result.hasErrors == false)
     #expect(result.totalImported == 0)
@@ -1053,7 +1121,7 @@ struct BulkEntryViewModelTests {
   // MARK: - Column Mapping Integration
 
   @Test("loadCSVForMapping with canonical headers does not show mapping sheet")
-  func testLoadCSVForMappingCanonicalNoSheet() throws {
+  func testLoadCSVForMappingCanonicalNoSheet() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1068,15 +1136,40 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csvData = "Asset Name,Market Value\nStock A,1500\n".data(using: .utf8)!
-    viewModel.loadCSVForMapping(data: csvData, forPlatform: "Vanguard")
+    await viewModel.loadCSVForMapping(data: csvData, forPlatform: "Vanguard")
 
     #expect(!viewModel.showColumnMappingSheet)
     let stockRow = viewModel.rows.first(where: { $0.assetName == "Stock A" })
     #expect(stockRow?.newValueText == "1500")
   }
 
+  @Test("loadCSVFileForMapping reads the file before importing")
+  func testLoadCSVFileForMappingReadsFile() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    createSnapshotWithAssets(
+      context: context, date: makeDate(2026, 3, 1),
+      assets: [
+        TestAssetData(
+          name: "Stock A", platform: "Vanguard", currency: "USD", value: Decimal(1000))
+      ])
+
+    let url = FileManager.default.temporaryDirectory
+      .appending(path: "bulk-import-(UUID().uuidString).csv")
+    defer { try? FileManager.default.removeItem(at: url) }
+    try "Asset Name,Market Value\nStock A,1500\n".write(
+      to: url, atomically: true, encoding: .utf8)
+
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+    await viewModel.loadCSVFileForMapping(from: url, forPlatform: "Vanguard")
+
+    #expect(viewModel.rows.first?.newValueText == "1500")
+    #expect(viewModel.isCSVImporting == false)
+  }
+
   @Test("loadCSVForMapping with non-matching headers shows mapping sheet")
-  func testLoadCSVForMappingNonMatchingShowsSheet() {
+  func testLoadCSVForMappingNonMatchingShowsSheet() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1091,7 +1184,7 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csvData = "Symbol,Price\nStock A,1500\n".data(using: .utf8)!
-    viewModel.loadCSVForMapping(data: csvData, forPlatform: "Vanguard")
+    await viewModel.loadCSVForMapping(data: csvData, forPlatform: "Vanguard")
 
     #expect(viewModel.showColumnMappingSheet)
     #expect(viewModel.pendingRawHeaders == ["Symbol", "Price"])
@@ -1099,7 +1192,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("confirmColumnMapping produces correct import result and dismisses sheet")
-  func testConfirmColumnMappingBulkEntry() throws {
+  func testConfirmColumnMappingBulkEntry() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1114,14 +1207,14 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csvData = "Symbol,Price\nStock A,1500\nNew Fund,3000\n".data(using: .utf8)!
-    viewModel.loadCSVForMapping(data: csvData, forPlatform: "Vanguard")
+    await viewModel.loadCSVForMapping(data: csvData, forPlatform: "Vanguard")
     #expect(viewModel.showColumnMappingSheet)
 
     let mapping = CSVColumnMapping(
       schema: .asset,
       columnMap: [.assetName: 0, .marketValue: 1],
       rawHeaders: ["Symbol", "Price"])
-    let result = viewModel.confirmColumnMapping(mapping)
+    let result = await viewModel.confirmColumnMapping(mapping)
 
     #expect(!viewModel.showColumnMappingSheet)
     let importResult = try #require(result)
@@ -1130,7 +1223,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("loadCSVForMapping reports malformed asset CSV syntax")
-  func testLoadCSVForMappingReportsMalformedAssetSyntax() {
+  func testLoadCSVForMappingReportsMalformedAssetSyntax() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1138,14 +1231,14 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csvData = "Asset Name,Market Value\nA\"APL,1500\n".data(using: .utf8)!
-    viewModel.loadCSVForMapping(data: csvData, forPlatform: "Vanguard")
+    await viewModel.loadCSVForMapping(data: csvData, forPlatform: "Vanguard")
 
     #expect(viewModel.lastImportFeedback?.severity == .error)
     #expect(viewModel.lastImportFeedback?.message.isEmpty == false)
   }
 
   @Test("Malformed asset CSV preserves the previous CSV values")
-  func malformedAssetCSVPreservesPreviousValues() throws {
+  func malformedAssetCSVPreservesPreviousValues() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1159,10 +1252,10 @@ struct BulkEntryViewModelTests {
     let viewModel = BulkEntryViewModel(
       modelContext: context, date: makeDate(2026, 3, 15))
     let validCSV = "Asset Name,Market Value\nStock A,1500\n".data(using: .utf8)!
-    viewModel.importCSV(data: validCSV, forPlatform: "Vanguard")
+    await viewModel.importCSV(data: validCSV, forPlatform: "Vanguard")
 
     let malformedCSV = "Asset Name,Market Value\nA\"APL,2000\n".data(using: .utf8)!
-    viewModel.loadCSVForMapping(data: malformedCSV, forPlatform: "Vanguard")
+    await viewModel.loadCSVForMapping(data: malformedCSV, forPlatform: "Vanguard")
 
     let row = try #require(viewModel.rows.first)
     #expect(row.newValueText == "1500")
@@ -1171,7 +1264,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("Mixed-validity asset CSV preserves the previous import")
-  func mixedValidityAssetCSVPreservesPreviousImport() throws {
+  func mixedValidityAssetCSVPreservesPreviousImport() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1186,11 +1279,11 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
     let previousCSV = "Asset Name,Market Value\nStock A,1500\nBond B,2500\n".data(
       using: .utf8)!
-    viewModel.importCSV(data: previousCSV, forPlatform: "Vanguard")
+    await viewModel.importCSV(data: previousCSV, forPlatform: "Vanguard")
 
     let mixedCSV =
       "Asset Name,Market Value\nStock A,2000\nNew Fund,not-a-number\n".data(using: .utf8)!
-    let result = viewModel.importCSV(data: mixedCSV, forPlatform: "Vanguard")
+    let result = await viewModel.importCSV(data: mixedCSV, forPlatform: "Vanguard")
 
     #expect(result.hasErrors)
     #expect(viewModel.lastImportFeedback?.severity == .error)
@@ -1206,7 +1299,7 @@ struct BulkEntryViewModelTests {
   // MARK: - Cash Flow State Tests
 
   @Test("addManualCashFlowRow creates row with correct defaults")
-  func addManualCashFlowRowDefaults() {
+  func addManualCashFlowRowDefaults() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1225,7 +1318,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("removeCashFlowRow only removes manualNew rows")
-  func removeCashFlowRowOnlyManualNew() {
+  func removeCashFlowRowOnlyManualNew() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1238,7 +1331,7 @@ struct BulkEntryViewModelTests {
 
     // Import a CSV-sourced row
     let csv = "Description,Amount,Currency\nCSV Flow,1000,USD"
-    _ = viewModel.importCashFlowCSV(data: csv.data(using: .utf8)!)
+    _ = await viewModel.importCashFlowCSV(data: csv.data(using: .utf8)!)
 
     #expect(viewModel.cashFlowRows.count == 2)
 
@@ -1254,7 +1347,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("toggleCashFlowInclude toggles inclusion and preserves amount")
-  func toggleCashFlowInclude() {
+  func toggleCashFlowInclude() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1277,7 +1370,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("cashFlowCount reflects only included rows")
-  func cashFlowCountReflectsInclusion() {
+  func cashFlowCountReflectsInclusion() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1293,7 +1386,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("saveSnapshot throws on duplicate cash flow descriptions (case-insensitive)")
-  func saveSnapshotThrowsOnDuplicateCashFlowDescriptions() throws {
+  func saveSnapshotThrowsOnDuplicateCashFlowDescriptions() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1318,7 +1411,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("saveSnapshot allows duplicate descriptions when one is excluded")
-  func saveSnapshotAllowsDuplicateWhenExcluded() throws {
+  func saveSnapshotAllowsDuplicateWhenExcluded() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1345,7 +1438,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("canSave is false when cash flow row has validation error")
-  func canSaveFalseWithCashFlowValidationError() {
+  func canSaveFalseWithCashFlowValidationError() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1366,7 +1459,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("canSave is false when cash flow has empty description")
-  func canSaveFalseWithEmptyCashFlowDescription() {
+  func canSaveFalseWithEmptyCashFlowDescription() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1386,7 +1479,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("canSave is false when cash flow has empty amount")
-  func canSaveFalseWithEmptyCashFlowAmount() {
+  func canSaveFalseWithEmptyCashFlowAmount() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1406,7 +1499,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("canSave is true with valid cash flow rows")
-  func canSaveTrueWithValidCashFlowRows() {
+  func canSaveTrueWithValidCashFlowRows() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1426,7 +1519,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("canSave is true with no cash flow rows")
-  func canSaveTrueWithNoCashFlowRows() {
+  func canSaveTrueWithNoCashFlowRows() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1442,7 +1535,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("hasUnsavedChanges is true when cash flow rows exist")
-  func hasUnsavedChangesWithCashFlowRows() {
+  func hasUnsavedChangesWithCashFlowRows() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1457,7 +1550,7 @@ struct BulkEntryViewModelTests {
   // MARK: - Cash Flow CSV Import Tests
 
   @Test("importCashFlowCSV adds rows with csv source")
-  func importCashFlowCSVAddsRows() {
+  func importCashFlowCSVAddsRows() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1465,7 +1558,7 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csvData = "Description,Amount\nSalary,50000\nBonus,10000\n".data(using: .utf8)!
-    let result = viewModel.importCashFlowCSV(data: csvData)
+    let result = await viewModel.importCashFlowCSV(data: csvData)
 
     #expect(result.errors.isEmpty)
     #expect(result.newCount == 2)
@@ -1480,8 +1573,71 @@ struct BulkEntryViewModelTests {
     #expect(salaryRow?.isIncluded == true)
   }
 
+  @Test("Cancelled direct cash-flow import preserves rows and feedback")
+  func cancelledDirectCashFlowImportPreservesState() async {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 15))
+    viewModel.addManualCashFlowRow()
+    viewModel.updateCashFlowDescription(
+      viewModel.cashFlowRows[0].id, to: "Existing flow")
+    viewModel.updateCashFlowAmount(
+      viewModel.cashFlowRows[0].id, to: "1000")
+    let existingFeedback = CSVImportFeedback(
+      severity: .warning, message: "Existing feedback")
+    viewModel.lastImportFeedback = existingFeedback
+
+    let task = Task { @MainActor in
+      await viewModel.importCashFlowCSV(
+        data: "Description,Amount\nNew flow,2000\n".data(using: .utf8)!)
+    }
+    task.cancel()
+    let result = await task.value
+
+    #expect(result.errors.isEmpty)
+    #expect(viewModel.cashFlowRows.count == 1)
+    #expect(viewModel.cashFlowRows[0].cashFlowDescription == "Existing flow")
+    #expect(viewModel.cashFlowRows[0].amountText == "1000")
+    #expect(viewModel.lastImportFeedback == existingFeedback)
+  }
+
+  @Test("Cancellation after cash-flow preparation preserves rows and feedback")
+  func cancellationAfterCashFlowPreparationPreservesState() async {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let gate = CSVPreparationGate()
+    let viewModel = BulkEntryViewModel(
+      modelContext: context,
+      date: makeDate(2026, 3, 15),
+      prepareCSV: makeGatedCSVPreparation(gate: gate))
+    viewModel.addManualCashFlowRow()
+    viewModel.updateCashFlowDescription(
+      viewModel.cashFlowRows[0].id, to: "Existing flow")
+    viewModel.updateCashFlowAmount(
+      viewModel.cashFlowRows[0].id, to: "1000")
+    let existingFeedback = CSVImportFeedback(
+      severity: .warning, message: "Existing feedback")
+    viewModel.lastImportFeedback = existingFeedback
+
+    let task = Task { @MainActor in
+      await viewModel.importCashFlowCSV(
+        data: "Description,Amount\nNew flow,2000\n".data(using: .utf8)!)
+    }
+    await gate.waitUntilPrepared()
+    task.cancel()
+    await gate.release()
+    let result = await task.value
+
+    #expect(result.errors.isEmpty)
+    #expect(viewModel.cashFlowRows.count == 1)
+    #expect(viewModel.cashFlowRows[0].cashFlowDescription == "Existing flow")
+    #expect(viewModel.cashFlowRows[0].amountText == "1000")
+    #expect(viewModel.lastImportFeedback == existingFeedback)
+  }
+
   @Test("importCashFlowCSV matches existing manual rows by description")
-  func importCashFlowCSVMatchesManualRows() {
+  func importCashFlowCSVMatchesManualRows() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1491,7 +1647,7 @@ struct BulkEntryViewModelTests {
     viewModel.updateCashFlowDescription(viewModel.cashFlowRows[0].id, to: "Salary")
 
     let csvData = "Description,Amount\nSalary,50000\n".data(using: .utf8)!
-    let result = viewModel.importCashFlowCSV(data: csvData)
+    let result = await viewModel.importCashFlowCSV(data: csvData)
 
     #expect(result.matchedCount == 1)
     #expect(result.newCount == 0)
@@ -1501,7 +1657,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("re-importing cash flow CSV replaces previous values")
-  func reImportCashFlowCSVReplacesValues() {
+  func reImportCashFlowCSVReplacesValues() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1509,16 +1665,16 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csv1 = "Description,Amount\nSalary,50000\n".data(using: .utf8)!
-    viewModel.importCashFlowCSV(data: csv1)
+    await viewModel.importCashFlowCSV(data: csv1)
     #expect(viewModel.cashFlowRows[0].amountText == "50000")
 
     let csv2 = "Description,Amount\nSalary,60000\n".data(using: .utf8)!
-    viewModel.importCashFlowCSV(data: csv2)
+    await viewModel.importCashFlowCSV(data: csv2)
     #expect(viewModel.cashFlowRows[0].amountText == "60000")
   }
 
   @Test("importCashFlowCSV handles currency column and mainCurrency fallback")
-  func importCashFlowCSVCurrencyHandling() {
+  func importCashFlowCSVCurrencyHandling() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1527,7 +1683,7 @@ struct BulkEntryViewModelTests {
 
     let csvData = "Description,Amount,Currency\nSalary,50000,TWD\nBonus,10000,\n".data(
       using: .utf8)!
-    let result = viewModel.importCashFlowCSV(data: csvData)
+    let result = await viewModel.importCashFlowCSV(data: csvData)
 
     #expect(result.newCount == 2)
     let salaryRow = viewModel.cashFlowRows.first(where: {
@@ -1541,7 +1697,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("loadCashFlowCSVForMapping with canonical headers auto-imports")
-  func loadCashFlowCSVForMappingCanonical() {
+  func loadCashFlowCSVForMappingCanonical() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1549,7 +1705,7 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csvData = "Description,Amount\nSalary,50000\n".data(using: .utf8)!
-    viewModel.loadCashFlowCSVForMapping(data: csvData)
+    await viewModel.loadCashFlowCSVForMapping(data: csvData)
 
     #expect(!viewModel.showCashFlowColumnMappingSheet)
     #expect(viewModel.cashFlowRows.count == 1)
@@ -1557,7 +1713,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("loadCashFlowCSVForMapping with non-matching headers shows sheet")
-  func loadCashFlowCSVForMappingShowsSheet() {
+  func loadCashFlowCSVForMappingShowsSheet() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1565,7 +1721,7 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csvData = "Label,Value\nSalary,50000\n".data(using: .utf8)!
-    viewModel.loadCashFlowCSVForMapping(data: csvData)
+    await viewModel.loadCashFlowCSVForMapping(data: csvData)
 
     #expect(viewModel.showCashFlowColumnMappingSheet)
     #expect(viewModel.pendingCashFlowRawHeaders == ["Label", "Value"])
@@ -1573,7 +1729,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("loadCashFlowCSVForMapping reports malformed CSV syntax")
-  func loadCashFlowCSVForMappingReportsMalformedSyntax() {
+  func loadCashFlowCSVForMappingReportsMalformedSyntax() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1581,24 +1737,24 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csvData = "Description,Amount\nSalary,50000\"\n".data(using: .utf8)!
-    viewModel.loadCashFlowCSVForMapping(data: csvData)
+    await viewModel.loadCashFlowCSVForMapping(data: csvData)
 
     #expect(viewModel.lastImportFeedback?.severity == .error)
     #expect(viewModel.lastImportFeedback?.message.isEmpty == false)
   }
 
   @Test("Malformed cash-flow CSV preserves the previous CSV rows")
-  func malformedCashFlowCSVPreservesPreviousRows() throws {
+  func malformedCashFlowCSVPreservesPreviousRows() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
     let viewModel = BulkEntryViewModel(
       modelContext: context, date: makeDate(2026, 3, 15))
     let validCSV = "Description,Amount\nSalary,50000\n".data(using: .utf8)!
-    viewModel.importCashFlowCSV(data: validCSV)
+    await viewModel.importCashFlowCSV(data: validCSV)
 
     let malformedCSV = "Description,Amount\nSalary,50000\"\n".data(using: .utf8)!
-    viewModel.loadCashFlowCSVForMapping(data: malformedCSV)
+    await viewModel.loadCashFlowCSVForMapping(data: malformedCSV)
 
     let row = try #require(viewModel.cashFlowRows.first)
     #expect(row.amountText == "50000")
@@ -1607,7 +1763,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("Mixed-validity cash-flow CSV preserves the previous import")
-  func mixedValidityCashFlowCSVPreservesPreviousImport() throws {
+  func mixedValidityCashFlowCSVPreservesPreviousImport() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1615,11 +1771,11 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
     let previousCSV =
       "Description,Amount\nSalary,50000\nExisting Bonus,10000\n".data(using: .utf8)!
-    viewModel.importCashFlowCSV(data: previousCSV)
+    await viewModel.importCashFlowCSV(data: previousCSV)
 
     let mixedCSV =
       "Description,Amount\nSalary,60000\nNew Bonus,not-a-number\n".data(using: .utf8)!
-    let result = viewModel.importCashFlowCSV(data: mixedCSV)
+    let result = await viewModel.importCashFlowCSV(data: mixedCSV)
 
     #expect(result.hasErrors)
     #expect(viewModel.lastImportFeedback?.severity == .error)
@@ -1638,7 +1794,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("confirmCashFlowColumnMapping imports rows and dismisses sheet")
-  func confirmCashFlowColumnMappingImports() throws {
+  func confirmCashFlowColumnMappingImports() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1646,14 +1802,14 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
 
     let csvData = "Label,Value\nSalary,50000\nBonus,10000\n".data(using: .utf8)!
-    viewModel.loadCashFlowCSVForMapping(data: csvData)
+    await viewModel.loadCashFlowCSVForMapping(data: csvData)
     #expect(viewModel.showCashFlowColumnMappingSheet)
 
     let mapping = CSVColumnMapping(
       schema: .cashFlow,
       columnMap: [.description: 0, .amount: 1],
       rawHeaders: ["Label", "Value"])
-    let result = viewModel.confirmCashFlowColumnMapping(mapping)
+    let result = await viewModel.confirmCashFlowColumnMapping(mapping)
 
     #expect(!viewModel.showCashFlowColumnMappingSheet)
     let importResult = try #require(result)
@@ -1664,7 +1820,7 @@ struct BulkEntryViewModelTests {
   // MARK: - Save Snapshot Cash Flow Tests
 
   @Test("saveSnapshot creates CashFlowOperation objects with correct data")
-  func saveSnapshotCreatesCashFlowOperations() throws {
+  func saveSnapshotCreatesCashFlowOperations() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1690,7 +1846,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("saveSnapshot excludes unchecked cash flow rows")
-  func saveSnapshotExcludesUncheckedCashFlows() throws {
+  func saveSnapshotExcludesUncheckedCashFlows() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1719,7 +1875,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("saveSnapshot creates no cash flow operations when no cash flow rows")
-  func saveSnapshotNoCashFlowWhenEmpty() throws {
+  func saveSnapshotNoCashFlowWhenEmpty() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1737,7 +1893,7 @@ struct BulkEntryViewModelTests {
   }
 
   @Test("saveSnapshot saves cash flow with explicit zero amount")
-  func saveSnapshotCashFlowExplicitZeroAmount() throws {
+  func saveSnapshotCashFlowExplicitZeroAmount() async throws {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
@@ -1760,6 +1916,55 @@ struct BulkEntryViewModelTests {
   }
 }
 
+private actor CSVPreparationGate {
+  private var isPrepared = false
+  private var isReleased = false
+  private var preparedContinuation: CheckedContinuation<Void, Never>?
+  private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+  func waitUntilPrepared() async {
+    if isPrepared {
+      return
+    }
+    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+      preparedContinuation = continuation
+    }
+  }
+
+  func markPreparedAndWaitForRelease() async {
+    isPrepared = true
+    preparedContinuation?.resume()
+    preparedContinuation = nil
+    if isReleased {
+      return
+    }
+    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+      if isReleased {
+        continuation.resume()
+      } else {
+        releaseContinuation = continuation
+      }
+    }
+  }
+
+  func release() {
+    isReleased = true
+    releaseContinuation?.resume()
+    releaseContinuation = nil
+  }
+}
+
+private func makeGatedCSVPreparation(
+  gate: CSVPreparationGate
+) -> @Sendable (Data, CSVColumnSchema) async throws -> CSVImportPreparation {
+  { data, schema in
+    let preparation = try await CSVImportPreparationService.prepare(
+      data: data, schema: schema)
+    await gate.markPreparedAndWaitForRelease()
+    return preparation
+  }
+}
+
 // MARK: - Cash Flow Focus & Summary Tests
 
 @Suite("BulkEntry Cash Flow Focus Tests")
@@ -1769,7 +1974,7 @@ struct BulkEntryCashFlowFocusTests {
   // MARK: - nextCashFlowFocusRowID
 
   @Test("nextCashFlowFocusRowID advances to next included row")
-  func nextCashFlowFocusRowIDAdvances() {
+  func nextCashFlowFocusRowIDAdvances() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = BulkEntryViewModel(modelContext: context, date: Date())
@@ -1783,7 +1988,7 @@ struct BulkEntryCashFlowFocusTests {
   }
 
   @Test("nextCashFlowFocusRowID skips excluded rows")
-  func nextCashFlowFocusRowIDSkipsExcluded() {
+  func nextCashFlowFocusRowIDSkipsExcluded() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = BulkEntryViewModel(modelContext: context, date: Date())
@@ -1799,7 +2004,7 @@ struct BulkEntryCashFlowFocusTests {
   }
 
   @Test("nextCashFlowFocusRowID returns nil at last included row")
-  func nextCashFlowFocusRowIDNilAtEnd() {
+  func nextCashFlowFocusRowIDNilAtEnd() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = BulkEntryViewModel(modelContext: context, date: Date())
@@ -1811,7 +2016,7 @@ struct BulkEntryCashFlowFocusTests {
   }
 
   @Test("nextCashFlowFocusRowID returns nil for unknown row ID")
-  func nextCashFlowFocusRowIDNilForUnknown() {
+  func nextCashFlowFocusRowIDNilForUnknown() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = BulkEntryViewModel(modelContext: context, date: Date())
@@ -1825,7 +2030,7 @@ struct BulkEntryCashFlowFocusTests {
   // MARK: - advanceCashFlowFocus
 
   @Test("advanceCashFlowFocus sets pendingCashFlowFocusRowID")
-  func advanceCashFlowFocusSetsPending() {
+  func advanceCashFlowFocusSetsPending() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = BulkEntryViewModel(modelContext: context, date: Date())
@@ -1843,7 +2048,7 @@ struct BulkEntryCashFlowFocusTests {
   // MARK: - addManualCashFlowRow auto-focus
 
   @Test("addManualCashFlowRow sets pendingCashFlowFocusRowID to new row")
-  func addManualCashFlowRowSetsPending() {
+  func addManualCashFlowRowSetsPending() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = BulkEntryViewModel(modelContext: context, date: Date())
@@ -1856,7 +2061,7 @@ struct BulkEntryCashFlowFocusTests {
   // MARK: - includedCashFlowNetByCurrency
 
   @Test("includedCashFlowNetByCurrency sums per currency")
-  func netByCurrencySumsCorrectly() {
+  func netByCurrencySumsCorrectly() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = BulkEntryViewModel(modelContext: context, date: Date())
@@ -1872,7 +2077,7 @@ struct BulkEntryCashFlowFocusTests {
   }
 
   @Test("includedCashFlowNetByCurrency groups different currencies separately")
-  func netByCurrencyGroupsByCurrency() {
+  func netByCurrencyGroupsByCurrency() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = BulkEntryViewModel(modelContext: context, date: Date())
@@ -1894,7 +2099,7 @@ struct BulkEntryCashFlowFocusTests {
   }
 
   @Test("includedCashFlowNetByCurrency excludes non-included rows")
-  func netByCurrencyExcludesNonIncluded() {
+  func netByCurrencyExcludesNonIncluded() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = BulkEntryViewModel(modelContext: context, date: Date())
@@ -1912,7 +2117,7 @@ struct BulkEntryCashFlowFocusTests {
   }
 
   @Test("includedCashFlowNetByCurrency excludes rows with invalid amount text")
-  func netByCurrencyExcludesInvalid() {
+  func netByCurrencyExcludesInvalid() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = BulkEntryViewModel(modelContext: context, date: Date())
@@ -1928,7 +2133,7 @@ struct BulkEntryCashFlowFocusTests {
   }
 
   @Test("includedCashFlowNetByCurrency returns empty when no cash flow rows")
-  func netByCurrencyEmptyWhenNoRows() {
+  func netByCurrencyEmptyWhenNoRows() async {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let viewModel = BulkEntryViewModel(modelContext: context, date: Date())
@@ -1942,34 +2147,34 @@ struct BulkEntryCashFlowFocusTests {
 struct BulkEntryCashFlowRowTests {
 
   @Test("amount parses valid decimal string")
-  func amountParsesDecimal() {
+  func amountParsesDecimal() async {
     var row = makeCashFlowRow()
     row.amountText = "5000.50"
     #expect(row.amount == Decimal(string: "5000.50"))
   }
 
   @Test("amount returns nil for invalid string")
-  func amountReturnsNilForInvalid() {
+  func amountReturnsNilForInvalid() async {
     var row = makeCashFlowRow()
     row.amountText = "not-a-number"
     #expect(row.amount == nil)
   }
 
   @Test("hasValidationError is true when text is non-empty but not a valid decimal")
-  func hasValidationErrorWithInvalidText() {
+  func hasValidationErrorWithInvalidText() async {
     var row = makeCashFlowRow()
     row.amountText = "abc"
     #expect(row.hasValidationError == true)
   }
 
   @Test("hasValidationError is false when text is empty")
-  func hasValidationErrorFalseWhenEmpty() {
+  func hasValidationErrorFalseWhenEmpty() async {
     let row = makeCashFlowRow()
     #expect(row.hasValidationError == false)
   }
 
   @Test("hasEmptyDescription is true when description is empty or whitespace")
-  func hasEmptyDescriptionWhenEmpty() {
+  func hasEmptyDescriptionWhenEmpty() async {
     let empty = makeCashFlowRow(description: "")
     let whitespace = makeCashFlowRow(description: "  ")
     let valid = makeCashFlowRow(description: "Salary")
@@ -1979,7 +2184,7 @@ struct BulkEntryCashFlowRowTests {
   }
 
   @Test("negative and zero amounts parse correctly")
-  func negativeAndZeroAmounts() {
+  func negativeAndZeroAmounts() async {
     var negative = makeCashFlowRow()
     negative.amountText = "-10000"
     #expect(negative.amount == Decimal(-10000))
@@ -1990,7 +2195,7 @@ struct BulkEntryCashFlowRowTests {
   }
 
   @Test("hasEmptyAmount is true when included and amount is empty or whitespace")
-  func hasEmptyAmountWhenEmpty() {
+  func hasEmptyAmountWhenEmpty() async {
     let empty = makeCashFlowRow(amountText: "")
     let whitespace = makeCashFlowRow(amountText: "  ")
     var filled = makeCashFlowRow(amountText: "100")
@@ -2024,28 +2229,28 @@ struct BulkEntryCashFlowRowTests {
 struct CashFlowCSVImportResultTests {
 
   @Test("totalImported is sum of matched and new counts")
-  func totalImported() {
+  func totalImported() async {
     let result = CashFlowCSVImportResult(
       matchedCount: 3, newCount: 2, errors: [], parserWarnings: [])
     #expect(result.totalImported == 5)
   }
 
   @Test("hasErrors is true when errors exist")
-  func hasErrors() {
+  func hasErrors() async {
     let result = CashFlowCSVImportResult(
       matchedCount: 0, newCount: 0, errors: ["Bad file"], parserWarnings: [])
     #expect(result.hasErrors == true)
   }
 
   @Test("hasWarnings is true when warnings exist")
-  func hasWarnings() {
+  func hasWarnings() async {
     let result = CashFlowCSVImportResult(
       matchedCount: 0, newCount: 0, errors: [], parserWarnings: ["Zero amount"])
     #expect(result.hasWarnings == true)
   }
 
   @Test("formattedResult uses error title when errors exist")
-  func formattedResultError() {
+  func formattedResultError() async {
     let result = CashFlowCSVImportResult(
       matchedCount: 0, newCount: 0, errors: ["Bad file"], parserWarnings: [])
     let formatted = result.formattedResult()
@@ -2053,7 +2258,7 @@ struct CashFlowCSVImportResultTests {
   }
 
   @Test("formattedResult uses warning title when warnings exist")
-  func formattedResultWarning() {
+  func formattedResultWarning() async {
     let result = CashFlowCSVImportResult(
       matchedCount: 1, newCount: 0, errors: [], parserWarnings: ["Zero amount"])
     let formatted = result.formattedResult()
@@ -2061,7 +2266,7 @@ struct CashFlowCSVImportResultTests {
   }
 
   @Test("formattedResult uses success title when no errors or warnings")
-  func formattedResultSuccess() {
+  func formattedResultSuccess() async {
     let result = CashFlowCSVImportResult(
       matchedCount: 1, newCount: 2, errors: [], parserWarnings: [])
     let formatted = result.formattedResult()

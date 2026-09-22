@@ -27,7 +27,7 @@ struct BackupCSVDocument {
 
 extension BackupService {
 
-  static func parseCSVRecords(
+  nonisolated static func parseCSVRecords(
     _ data: Data,
     fileName: String
   ) throws -> [BackupCSVRecord] {
@@ -56,7 +56,7 @@ extension BackupService {
     }
   }
 
-  private static func localizedCSVReaderMessage(
+  private nonisolated static func localizedCSVReaderMessage(
     _ error: CSVRecordReaderError
   ) -> String {
     switch error.reason {

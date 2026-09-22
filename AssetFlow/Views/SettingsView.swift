@@ -37,6 +37,8 @@ struct SettingsView: View {
   @State private var resultMessage = ""
   @State private var isError = false
   @State private var pendingRestoreURL: URL?
+  @State private var backupTask: Task<Void, Never>?
+  @State private var isBackupOperationInProgress = false
 
   private let settingsService: SettingsService
 
@@ -206,18 +208,33 @@ struct SettingsView: View {
       Button("Export Backup...") {
         performExport()
       }
+      .disabled(isBackupOperationInProgress)
       .helpWhenUnlocked("Export all data as a ZIP archive")
       .accessibilityIdentifier("Export Backup Button")
 
       Button("Restore from Backup...") {
         openRestorePanel()
       }
+      .disabled(isBackupOperationInProgress)
       .helpWhenUnlocked("Restore data from a previous backup")
       .accessibilityIdentifier("Restore Backup Button")
+      if isBackupOperationInProgress {
+        HStack {
+          ProgressView()
+          Text("Processing backup…")
+          Spacer()
+          Button("Cancel") {
+            backupTask?.cancel()
+          }
+        }
+      }
     } header: {
       Text("Data Management")
     } footer: {
       Text("Export all data as a ZIP archive or restore from a previous backup.")
+    }
+    .onDisappear {
+      backupTask?.cancel()
     }
   }
 
@@ -272,18 +289,25 @@ struct SettingsView: View {
 
     guard panel.runModal() == .OK, let url = panel.url else { return }
 
-    do {
-      try BackupService.exportBackup(
-        to: url, modelContext: modelContext,
-        settingsService: settingsService)
-      resultMessage = String(
-        localized: "Backup exported successfully.", table: "Settings")
-      isError = false
-      showResultAlert = true
-    } catch {
-      resultMessage = error.localizedDescription
-      isError = true
-      showResultAlert = true
+    backupTask?.cancel()
+    isBackupOperationInProgress = true
+    backupTask = Task { @MainActor in
+      defer { isBackupOperationInProgress = false }
+      do {
+        try await BackupService.exportBackup(
+          to: url, modelContext: modelContext,
+          settingsService: settingsService)
+        resultMessage = String(
+          localized: "Backup exported successfully.", table: "Settings")
+        isError = false
+        showResultAlert = true
+      } catch is CancellationError {
+        return
+      } catch {
+        resultMessage = error.localizedDescription
+        isError = true
+        showResultAlert = true
+      }
     }
   }
 
@@ -304,40 +328,47 @@ struct SettingsView: View {
     guard let url = pendingRestoreURL else { return }
     pendingRestoreURL = nil
 
-    do {
-      try BackupService.restoreFromBackup(
-        at: url, modelContext: modelContext,
-        settingsService: settingsService)
-      // Sync ViewModel with restored settings
-      viewModel = SettingsViewModel(settingsService: settingsService)
-      resultMessage = String(
-        localized: "Backup restored successfully.", table: "Settings")
-      isError = false
-      showResultAlert = true
+    backupTask?.cancel()
+    isBackupOperationInProgress = true
+    backupTask = Task { @MainActor in
+      defer { isBackupOperationInProgress = false }
+      do {
+        try await BackupService.restoreFromBackup(
+          at: url, modelContext: modelContext,
+          settingsService: settingsService)
+        // Sync ViewModel with restored settings
+        viewModel = SettingsViewModel(settingsService: settingsService)
+        resultMessage = String(
+          localized: "Backup restored successfully.", table: "Settings")
+        isError = false
+        showResultAlert = true
 
-      // Fetch missing exchange rates for restored snapshots
-      Task {
-        let service = ExchangeRateService()
-        do {
-          let snapshots = try fetchModels(
-            FetchDescriptor<Snapshot>(),
-            from: ModelContextFetcher(modelContext: modelContext),
-            operation: "load restored snapshots for exchange rates")
-          _ = await service.fetchMissingRates(
-            snapshots: snapshots,
-            displayCurrency: settingsService.mainCurrency,
-            modelContext: modelContext
-          )
-        } catch {
-          resultMessage = error.localizedDescription
-          isError = true
-          showResultAlert = true
+        // Fetch missing exchange rates for restored snapshots
+        Task { @MainActor in
+          let service = ExchangeRateService()
+          do {
+            let snapshots = try fetchModels(
+              FetchDescriptor<Snapshot>(),
+              from: ModelContextFetcher(modelContext: modelContext),
+              operation: "load restored snapshots for exchange rates")
+            _ = await service.fetchMissingRates(
+              snapshots: snapshots,
+              displayCurrency: settingsService.mainCurrency,
+              modelContext: modelContext
+            )
+          } catch {
+            resultMessage = error.localizedDescription
+            isError = true
+            showResultAlert = true
+          }
         }
+      } catch is CancellationError {
+        return
+      } catch {
+        resultMessage = error.localizedDescription
+        isError = true
+        showResultAlert = true
       }
-    } catch {
-      resultMessage = error.localizedDescription
-      isError = true
-      showResultAlert = true
     }
   }
 }

@@ -67,9 +67,9 @@ enum CSVRecordReaderError: Error, Sendable {
 /// The first pass discovers the header names and validates CSV structure. The
 /// second pass forces every column to `String` so callers retain exact field
 /// text and can apply AssetFlow-specific Decimal and validation rules.
-enum CSVRecordReader {
+nonisolated enum CSVRecordReader {
 
-  static func read(_ data: Data) throws -> CSVDocument {
+  nonisolated static func read(_ data: Data) throws -> CSVDocument {
     let data = stripUTF8BOM(from: data)
     guard !data.isEmpty else {
       return CSVDocument(headers: [], records: [])
@@ -91,7 +91,38 @@ enum CSVRecordReader {
     return CSVDocument(headers: headers, records: records)
   }
 
-  private static func readDataFrame(
+  /// Reads CSV records with cooperative cancellation checks between the
+  /// synchronous TabularData passes and while materializing records.
+  nonisolated static func readCancellable(_ data: Data) async throws -> CSVDocument {
+    try Task.checkCancellation()
+    let data = stripUTF8BOM(from: data)
+    guard !data.isEmpty else {
+      return CSVDocument(headers: [], records: [])
+    }
+
+    let discovered = try readDataFrame(data)
+    try Task.checkCancellation()
+    let headers = discovered.columns.map(\.name)
+    let stringTypes = Dictionary(
+      uniqueKeysWithValues: headers.map { ($0, CSVType.string) })
+    let frame = try readDataFrame(data, types: stringTypes)
+    try Task.checkCancellation()
+
+    var records: [CSVRecord] = []
+    records.reserveCapacity(frame.shape.rows)
+    for rowIndex in 0..<frame.shape.rows {
+      try Task.checkCancellation()
+      records.append(
+        CSVRecord(
+          row: rowIndex + 2,
+          fields: frame.columns.map { column in
+            frame[row: rowIndex][column.name] as? String ?? ""
+          }))
+    }
+    return CSVDocument(headers: headers, records: records)
+  }
+
+  private nonisolated static func readDataFrame(
     _ data: Data,
     types: [String: CSVType] = [:]
   ) throws -> DataFrame {
@@ -117,7 +148,7 @@ enum CSVRecordReader {
     }
   }
 
-  private static func reason(
+  private nonisolated static func reason(
     for error: CSVReadingError
   ) -> CSVRecordReaderError.Reason {
     switch error {
@@ -147,7 +178,7 @@ enum CSVRecordReader {
     }
   }
 
-  private static func stripUTF8BOM(from data: Data) -> Data {
+  private nonisolated static func stripUTF8BOM(from data: Data) -> Data {
     let bom: [UInt8] = [0xEF, 0xBB, 0xBF]
     guard data.starts(with: bom) else { return data }
     return Data(data.dropFirst(bom.count))
