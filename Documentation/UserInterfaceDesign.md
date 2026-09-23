@@ -323,6 +323,8 @@ Full-screen view for entering asset values across all platforms in a single sess
 - **Pending** (normal): Included but no value entered yet (saves as 0)
 - **Excluded** (dimmed): Checkbox unchecked, row is omitted from the snapshot
 
+If the underlying snapshots, assets, categories, or prior snapshot values used to seed a Bulk Entry draft change, the view shows a stale-data banner, disables editing and saving, and offers **Discard Draft and Reload**. The app shell also marks a retained draft stale if one of its source models changes while another section is selected. Reloading creates a fresh draft from the latest snapshot; drafts are never silently overwritten.
+
 **Inline asset creation**: Each platform header has an "Add Asset" button that appends an editable row with empty name, default currency, and a category picker. New rows have a delete (trash) button. New rows require a non-empty name to save.
 
 **Add Platform**: Toolbar button opens a popover with a text field for the platform name. Validates against empty names and case-insensitive duplicates. Creates a new platform group with one empty asset row.
@@ -445,7 +447,7 @@ Accessible via menu bar (AssetFlow > Settings) or Cmd+,.
    - **Footer text**: Three variants based on state — when disabled: explains what enabling does; when enabled with Touch ID: explains the two trigger conditions, "Never" option, and auth methods; when enabled without Touch ID: same but notes system password only.
 1. **Data Management**:
    - **Export Backup**: Exports all data to ZIP archive. User selects save location. Default filename: `AssetFlow-Backup-YYYY-MM-DD.zip`.
-   - **Restore from Backup**: Imports backup archive. Confirmation: "Restoring from backup will replace ALL existing data. This cannot be undone. Continue?" Validates file integrity (CSV presence, headers, foreign key references). On failure, shows detailed error. On success, reloads all views.
+   - **Restore from Backup**: Imports backup archive. Confirmation: "Restoring from backup will replace ALL existing data. This cannot be undone. Continue?" Validates file integrity (CSV presence, headers, foreign key references). On failure, shows detailed error. On success, SwiftData `@Query` invalidation and model query fingerprints reload active screens; retained selections are rebound by stable model ID, while deleted selections are cleared. Query-backed caches also refresh after relevant edits to existing records, not only after restore.
 1. **About**: App identity and legal information at the bottom of Settings.
    - **App identity row**: App icon (48×48), app name (headline), version + build number (subheadline), commit hash (caption). The commit hash includes a `-dev` suffix when built from a dirty working tree.
    - **Developer**: Static field showing the developer name.

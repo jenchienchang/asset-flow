@@ -24,9 +24,9 @@ import SwiftUI
 /// Shows editable fields (name, platform, category), a value history table
 /// with a sparkline chart, and a delete action with validation.
 ///
-/// **Important:** The parent view must apply `.id(asset.id)` to this view
-/// to force view recreation when the selected asset changes, because `@State`
-/// ViewModel initialization only runs on first view creation.
+/// The parent applies `.id(ObjectIdentifier(asset))` so this stateful detail
+/// view is recreated when a restored SwiftData instance replaces the selection,
+/// even when the restored asset keeps the same stable app-level UUID.
 struct AssetDetailView: View {
   @State private var viewModel: AssetDetailViewModel
 

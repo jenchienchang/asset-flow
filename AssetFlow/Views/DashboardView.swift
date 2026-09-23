@@ -27,6 +27,7 @@ import SwiftUI
 /// and recent snapshots.
 struct DashboardView: View {
   @State private var viewModel: DashboardViewModel
+  @Query private var querySnapshots: [Snapshot]
 
   @State private var growthRatePeriod: DashboardPeriod = .oneMonth
   @State private var returnRatePeriod: DashboardPeriod = .oneMonth
@@ -69,6 +70,9 @@ struct DashboardView: View {
     }
     .navigationTitle("Dashboard")
     .onAppear {
+      viewModel.loadData()
+    }
+    .onChange(of: querySnapshots) {
       viewModel.loadData()
     }
   }

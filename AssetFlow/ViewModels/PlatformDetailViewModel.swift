@@ -86,6 +86,11 @@ final class PlatformDetailViewModel {
     }
   }
 
+  func reloadAfterStoreChange() {
+    editedName = platformName
+    loadData()
+  }
+
   private func performLoadData() {
     do {
       let allSnapshots = try SnapshotSummaryService.fetchSnapshots(using: fetcher)

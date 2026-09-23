@@ -24,6 +24,12 @@ import UniformTypeIdentifiers
 /// Occupies the full content area without a list-detail split (SPEC Section 3.1).
 struct ImportView: View {
   @State var viewModel: ImportViewModel
+  @Query private var queryAssets: [Asset]
+  @Query private var queryCategories: [Category]
+  @Query private var querySnapshots: [Snapshot]
+  @Query private var querySnapshotAssetValues: [SnapshotAssetValue]
+  @Query private var queryCashFlowOperations: [CashFlowOperation]
+  @Query private var queryExchangeRates: [ExchangeRate]
   @State private var showFileImporter = false
   @State private var showDiscardAlert = false
   @State var importTask: Task<Void, Never>?
@@ -41,6 +47,7 @@ struct ImportView: View {
   @State var activeCFDuplicateErrorRowID: UUID?
   @State var activeCFSnapshotDuplicateErrorRowID: UUID?
   @State var activeCFAmountWarningRowID: UUID?
+  @State private var storeRefreshTask: Task<Void, Never>?
 
   init(viewModel: ImportViewModel) {
     _viewModel = State(wrappedValue: viewModel)
@@ -127,11 +134,34 @@ struct ImportView: View {
       }
     }
     .onAppear {
-      viewModel.refreshPickerOptions()
+      viewModel.refreshAfterStoreChange()
+    }
+    .onChange(of: queryRevision) {
+      scheduleStoreRefresh()
     }
     .onDisappear {
+      storeRefreshTask?.cancel()
       importTask?.cancel()
     }
+  }
+
+  private func scheduleStoreRefresh() {
+    storeRefreshTask?.cancel()
+    storeRefreshTask = Task { @MainActor in
+      await Task.yield()
+      guard !Task.isCancelled else { return }
+      viewModel.refreshAfterStoreChange()
+    }
+  }
+
+  private var queryRevision: ModelQueryRevision {
+    ModelQueryRevision(
+      snapshots: querySnapshots,
+      assets: queryAssets,
+      categories: queryCategories,
+      snapshotAssetValues: querySnapshotAssetValues,
+      cashFlowOperations: queryCashFlowOperations,
+      exchangeRates: queryExchangeRates)
   }
 
   private var previewRowsEmpty: Bool {

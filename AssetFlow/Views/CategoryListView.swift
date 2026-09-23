@@ -26,6 +26,7 @@ struct CategoryListView: View {
   @State private var viewModel: CategoryListViewModel
   @Binding var selectedCategory: Category?
   @Query private var categories: [Category]
+  @Query private var snapshots: [Snapshot]
   @Environment(\.isAppLocked) private var isAppLocked
 
   @State private var showAddSheet = false
@@ -80,10 +81,12 @@ struct CategoryListView: View {
     .onAppear {
       viewModel.loadCategories()
     }
-    .onChange(of: categories) {
+    .onChange(of: queryRevision) {
       withAnimation(AnimationConstants.standard) {
         viewModel.loadCategories()
       }
+      selectedCategory = ModelSelectionResolver.resolve(
+        selectedCategory, among: categories, id: \.id)
     }
     .sheet(isPresented: $showAddSheet) {
       AddCategorySheet { name, targetAllocation in
@@ -96,6 +99,10 @@ struct CategoryListView: View {
     } message: {
       Text(deleteErrorMessage)
     }
+  }
+
+  private var queryRevision: ModelQueryRevision {
+    ModelQueryRevision(snapshots: snapshots, categories: categories)
   }
 
   // MARK: - Warning Banner

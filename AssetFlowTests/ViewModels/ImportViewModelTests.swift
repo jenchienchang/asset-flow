@@ -107,6 +107,47 @@ struct ImportViewModelTests {
 
   // MARK: - File Loading: Asset CSV
 
+  @Test("Store changes revalidate import previews and refresh picker models")
+  func storeChangesRefreshImportState() async throws {
+    let tc = createTestContext()
+    let categoryID = UUID()
+    let originalCategory = Category(name: "Equities")
+    originalCategory.id = categoryID
+    tc.context.insert(originalCategory)
+    try tc.context.save()
+
+    let viewModel = ImportViewModel(modelContext: tc.context)
+    viewModel.snapshotDate = makeDate(year: 2025, month: 6, day: 15)
+    viewModel.selectedCategory = originalCategory
+    await viewModel.loadCSVData(
+      csvData(
+        """
+        Asset Name,Market Value,Platform
+        AAPL,15000,Broker
+        """))
+
+    let snapshot = Snapshot(date: viewModel.snapshotDate)
+    let asset = Asset(name: "AAPL", platform: "Broker")
+    let assetValue = SnapshotAssetValue(marketValue: 15000)
+    assetValue.snapshot = snapshot
+    assetValue.asset = asset
+    tc.context.insert(snapshot)
+    tc.context.insert(asset)
+    tc.context.insert(assetValue)
+
+    tc.context.delete(originalCategory)
+    let restoredCategory = Category(name: "Equities")
+    restoredCategory.id = categoryID
+    tc.context.insert(restoredCategory)
+    try tc.context.save()
+
+    viewModel.refreshAfterStoreChange()
+
+    #expect(viewModel.selectedCategory === restoredCategory)
+    #expect(viewModel.availableCategories.first === restoredCategory)
+    #expect(viewModel.assetPreviewRows.first?.snapshotDuplicateError != nil)
+  }
+
   @Test("Loading valid asset CSV populates preview rows")
   func loadValidAssetCSV() async {
     let tc = createTestContext()

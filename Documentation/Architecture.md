@@ -128,16 +128,19 @@ class ImportViewModel {
 
 ##### Automatic Data Reload
 
-ViewModels that compute aggregate or currency-converted values use `withObservationTracking` to automatically re-trigger their load method when any `@Observable`/`@Model` property read during computation changes. This provides reactive updates for property mutations (e.g., display currency change, asset value edit, exchange rate update).
+ViewModels that compute aggregate or currency-converted values use `withObservationTracking` to automatically re-trigger their load method when any `@Observable`/`@Model` property read during computation changes. SwiftData `@Query` invalidation covers fetched collection membership changes, including child records and whole-store replacement. Query-backed caches compare `ModelQueryRevision`, a value fingerprint of all six persisted model types, so an edit to an existing model is not lost merely because the queried array still contains the same model instances.
 
 **Two complementary mechanisms:**
 
-1. `withObservationTracking` — detects property changes on existing objects (currency change, value edit, exchange rate update)
-1. `@Query` + `.onChange(of:)` in views — detects collection membership changes (new/deleted objects), which `modelContext.fetch()` inside `withObservationTracking` cannot track. The query is an invalidation signal only; views must render the ViewModel's successfully fetched collection rather than treating a query failure as an empty state.
+1. `withObservationTracking` — detects property changes on existing objects (currency change, value edit, exchange rate update) and reloads aggregate ViewModels that are bound to those objects.
+1. `@Query` + `.onChange(of:)` in views — invalidates fetch-backed ViewModels when queried collection membership changes; views continue to render the ViewModel's successfully fetched collection rather than treating a query failure as an empty state. Asset, Category, and Platform lists also query snapshots because their row values are derived from the latest snapshot. Category and Platform detail screens query snapshots because their history includes dates with no child values.
+1. `ModelQueryRevision` fingerprints IDs and display-relevant fields for Snapshot, Asset, Category, SnapshotAssetValue, CashFlowOperation, and ExchangeRate. It is used where a screen caches state derived from several query results, including the app shell, Import, Add Asset, and Bulk Entry.
+1. `ContentView` keeps queries for all persisted model types alive across sidebar navigation. On store changes it re-resolves retained selections by each model's stable app UUID, clears missing selections, and refreshes a retained Import ViewModel. Changes to Bulk Entry's source models separately mark a retained draft stale. Detail panes use `ObjectIdentifier(model)` as their SwiftUI identity so a replacement model with the same app UUID still creates a ViewModel bound to the new SwiftData instance.
+1. Import refreshes picker options and revalidates its current preview when any query fingerprint changes and whenever the screen reappears. Bulk Entry does not silently rebuild a user's draft: source changes, including edits to the prior snapshot values used to seed the draft, disable editing and saving until the user explicitly discards the draft and reloads it.
 
-**Applied to:** `DashboardViewModel`, `SnapshotDetailViewModel`, `SnapshotListViewModel`, `CategoryListViewModel`, `CategoryDetailViewModel`, `PlatformListViewModel`, `PlatformDetailViewModel`, `AssetListViewModel`, `AssetDetailViewModel`, `RebalancingViewModel`.
+**Property-observation reloads are used by:** `DashboardViewModel`, `SnapshotDetailViewModel`, `SnapshotListViewModel`, `CategoryListViewModel`, `CategoryDetailViewModel`, `PlatformListViewModel`, `PlatformDetailViewModel`, `AssetListViewModel`, `AssetDetailViewModel`, `RebalancingViewModel`.
 
-**Not applied to:** `ImportViewModel`, `BulkEntryViewModel`, `SettingsViewModel` (do not display converted aggregate values). `BulkEntryViewModel` uses `private(set)` rows with centralized mutation methods and a stored `toolbarStats` property maintained via O(1) delta updates instead.
+`ImportViewModel` and `BulkEntryViewModel` use explicit Query-driven refresh behavior because they cache picker/validation state and an editable draft, respectively. `BulkEntryViewModel` keeps `private(set)` rows with centralized mutation methods and a stored `toolbarStats` property maintained via O(1) delta updates. `SettingsViewModel` does not display persisted aggregate values and does not require a data query.
 
 ##### Operation-Scoped Persistence Lookups
 

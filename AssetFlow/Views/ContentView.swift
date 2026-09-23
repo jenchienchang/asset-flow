@@ -93,6 +93,12 @@ enum SidebarSection: String, CaseIterable, Identifiable {
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
   @Environment(\.isAppLocked) private var isAppLocked
+  @Query private var querySnapshots: [Snapshot]
+  @Query private var queryAssets: [Asset]
+  @Query private var queryCategories: [Category]
+  @Query private var querySnapshotAssetValues: [SnapshotAssetValue]
+  @Query private var queryCashFlowOperations: [CashFlowOperation]
+  @Query private var queryExchangeRates: [ExchangeRate]
 
   @State private var selectedSection: SidebarSection? = .dashboard
   @State private var selectedSnapshot: Snapshot?
@@ -108,6 +114,7 @@ struct ContentView: View {
   @State private var pendingIsGoBack = false
   @State private var showDiscardConfirmation = false
   @State private var persistenceError: String?
+  @State private var queryReconciliationTask: Task<Void, Never>?
 
   // Navigation history
   @State private var sectionHistory: [SidebarSection] = [.dashboard]
@@ -129,6 +136,15 @@ struct ContentView: View {
       showNewSnapshotSheet = true
     }
     .focusedValue(\.importCSVAction) { navigateToImport() }
+    .onChange(of: modelQueryRevision) {
+      scheduleQueryReconciliation()
+    }
+    .onChange(of: bulkEntryQueryRevision) {
+      bulkEntryViewModel?.markSourceDataStale()
+    }
+    .onDisappear {
+      queryReconciliationTask?.cancel()
+    }
     .toolbar {
       ToolbarItem(placement: .navigation) {
         Button(action: goBack) {
@@ -259,6 +275,50 @@ struct ContentView: View {
     .tint(Color.accentColor.opacity(0.9))
   }
 
+  private var modelQueryRevision: ModelQueryRevision {
+    ModelQueryRevision(
+      snapshots: querySnapshots,
+      assets: queryAssets,
+      categories: queryCategories,
+      snapshotAssetValues: querySnapshotAssetValues,
+      cashFlowOperations: queryCashFlowOperations,
+      exchangeRates: queryExchangeRates)
+  }
+
+  private var bulkEntryQueryRevision: ModelQueryRevision {
+    ModelQueryRevision(
+      snapshots: querySnapshots,
+      assets: queryAssets,
+      categories: queryCategories,
+      snapshotAssetValues: querySnapshotAssetValues)
+  }
+
+  private func scheduleQueryReconciliation() {
+    queryReconciliationTask?.cancel()
+    queryReconciliationTask = Task { @MainActor in
+      await Task.yield()
+      guard !Task.isCancelled else { return }
+      reconcileSelectionsAfterStoreReplacement()
+    }
+  }
+
+  private func reconcileSelectionsAfterStoreReplacement() {
+    selectedSnapshot = ModelSelectionResolver.resolve(
+      selectedSnapshot, among: querySnapshots, id: \.id)
+    selectedAsset = ModelSelectionResolver.resolve(selectedAsset, among: queryAssets, id: \.id)
+    selectedCategory = ModelSelectionResolver.resolve(
+      selectedCategory, among: queryCategories, id: \.id)
+
+    let platformNames = Set(queryAssets.map(\.platform).filter { !$0.isEmpty })
+    if let selectedPlatform, !platformNames.contains(selectedPlatform) {
+      self.selectedPlatform = nil
+    }
+
+    if selectedSection != .importCSV {
+      importViewModel?.refreshAfterStoreChange()
+    }
+  }
+
   private func sidebarLabel(for section: SidebarSection) -> some View {
     Label {
       Text(section.label)
@@ -343,7 +403,7 @@ struct ContentView: View {
                 selectedSnapshot = nil
               }
             )
-            .id(snapshot.id)
+            .id(ObjectIdentifier(snapshot))
             .frame(maxWidth: .infinity)
           } else {
             placeholderView("Select a snapshot", systemImage: "calendar")
@@ -369,7 +429,7 @@ struct ContentView: View {
               selectedAsset = nil
             }
           )
-          .id(asset.id)
+          .id(ObjectIdentifier(asset))
           .frame(maxWidth: .infinity)
         } else {
           placeholderView("Select an asset", systemImage: "tray")
@@ -395,7 +455,7 @@ struct ContentView: View {
                 selectedCategory = nil
               }
             )
-            .id(category.id)
+            .id(ObjectIdentifier(category))
             .frame(maxWidth: .infinity)
           } else {
             placeholderView("Select a category", systemImage: "folder")
@@ -437,11 +497,19 @@ struct ContentView: View {
 
     case .bulkEntry:
       if let viewModel = bulkEntryViewModel {
-        BulkEntryView(viewModel: viewModel) { savedSnapshot in
-          pushHistory(.snapshots)
-          selectedSnapshot = savedSnapshot
-          bulkEntryViewModel = nil
-        }
+        BulkEntryView(
+          viewModel: viewModel,
+          onReload: {
+            bulkEntryViewModel = BulkEntryViewModel(
+              modelContext: modelContext, date: viewModel.snapshotDate)
+          },
+          onSave: { savedSnapshot in
+            pushHistory(.snapshots)
+            selectedSnapshot = savedSnapshot
+            bulkEntryViewModel = nil
+          }
+        )
+        .id(ObjectIdentifier(viewModel))
       } else {
         // No ViewModel yet — user should not have landed here without one.
         // Redirect to dashboard.

@@ -20,6 +20,8 @@ import SwiftUI
 
 struct RebalancingView: View {
   @State private var viewModel: RebalancingViewModel
+  @Query private var querySnapshots: [Snapshot]
+  @Query private var queryCategories: [Category]
 
   init(modelContext: ModelContext) {
     _viewModel = State(wrappedValue: RebalancingViewModel(modelContext: modelContext))
@@ -37,6 +39,12 @@ struct RebalancingView: View {
     }
     .navigationTitle("Rebalancing")
     .onAppear {
+      viewModel.loadRebalancing()
+    }
+    .onChange(of: querySnapshots) {
+      viewModel.loadRebalancing()
+    }
+    .onChange(of: queryCategories) {
       viewModel.loadRebalancing()
     }
     .accessibilityIdentifier("Rebalancing View")

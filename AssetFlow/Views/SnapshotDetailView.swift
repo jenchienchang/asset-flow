@@ -23,8 +23,9 @@ import SwiftUI
 /// Shows a summary section, asset breakdown,
 /// category allocation, cash flow operations, and a danger zone for snapshot deletion.
 ///
-/// **Important:** The parent view must apply `.id(snapshot.id)` to this view
-/// to force view recreation when the selected snapshot changes.
+/// The parent applies `.id(ObjectIdentifier(snapshot))` so this stateful detail
+/// view is recreated when a restored SwiftData instance replaces the selection,
+/// even when the restored snapshot keeps the same stable app-level UUID.
 struct SnapshotDetailView: View {
   @State private var viewModel: SnapshotDetailViewModel
 

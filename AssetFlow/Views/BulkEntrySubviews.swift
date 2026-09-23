@@ -60,6 +60,7 @@ struct BulkEntryToolbar: View {
       } label: {
         Label("Add Platform", systemImage: "plus.rectangle.on.folder")
       }
+      .disabled(viewModel.isSourceDataStale)
       .helpWhenUnlocked("Add a new platform with an empty asset")
       .popover(isPresented: $showAddPlatformPopover, arrowEdge: .bottom) {
         addPlatformPopover
@@ -69,7 +70,7 @@ struct BulkEntryToolbar: View {
         onSave()
       }
       .buttonStyle(.borderedProminent)
-      .disabled(!stats.canSave)
+      .disabled(!stats.canSave || viewModel.isSourceDataStale)
       .helpWhenUnlocked("Save the snapshot with entered values")
       .accessibilityIdentifier("Save Snapshot Button")
     }

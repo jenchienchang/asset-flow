@@ -24,11 +24,12 @@ import SwiftUI
 /// Shows editable fields (name, target allocation), assets in the category,
 /// value and allocation history charts, and a delete action with validation.
 ///
-/// **Important:** The parent view must apply `.id(category.id)` to this view
-/// to force view recreation when the selected category changes, because `@State`
-/// ViewModel initialization only runs on first view creation.
+/// The parent applies `.id(ObjectIdentifier(category))` so this stateful detail
+/// view is recreated when a restored SwiftData instance replaces the selection,
+/// even when the restored category keeps the same stable app-level UUID.
 struct CategoryDetailView: View {
   @State private var viewModel: CategoryDetailViewModel
+  @Query private var querySnapshots: [Snapshot]
 
   @State private var showDeleteConfirmation = false
   @State private var showSaveError = false
@@ -61,6 +62,9 @@ struct CategoryDetailView: View {
     .formStyle(.grouped)
     .navigationTitle(viewModel.category.name)
     .onAppear {
+      viewModel.loadData()
+    }
+    .onChange(of: querySnapshots) {
       viewModel.loadData()
     }
     .alert("Save Error", isPresented: $showSaveError) {

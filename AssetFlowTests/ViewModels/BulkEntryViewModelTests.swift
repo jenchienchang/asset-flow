@@ -165,6 +165,44 @@ struct BulkEntryRowTests {
 // swiftlint:disable:next type_body_length
 struct BulkEntryViewModelTests {
 
+  @Test("Query invalidation marks bulk entry source data stale")
+  func queryInvalidationMarksSourceDataStale() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    createSnapshotWithAssets(
+      context: context,
+      date: makeDate(2026, 3, 1),
+      assets: [
+        TestAssetData(name: "Stock A", platform: "Vanguard", currency: "USD", value: 1000)
+      ])
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 2))
+
+    viewModel.markSourceDataStale()
+
+    #expect(viewModel.isSourceDataStale)
+  }
+
+  @Test("Stale bulk entry cannot save references from the replaced graph")
+  func staleSourceDataBlocksSaving() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    createSnapshotWithAssets(
+      context: context,
+      date: makeDate(2026, 3, 1),
+      assets: [
+        TestAssetData(name: "Stock A", platform: "Vanguard", currency: "USD", value: 1000)
+      ])
+    let viewModel = BulkEntryViewModel(
+      modelContext: context, date: makeDate(2026, 3, 2))
+    viewModel.markSourceDataStale()
+
+    #expect(throws: BulkEntryError.sourceDataChanged) {
+      try viewModel.saveSnapshot()
+    }
+    #expect(try context.fetch(FetchDescriptor<Snapshot>()).count == 1)
+  }
+
   @Test("init loads rows from latest snapshot before given date")
   func initLoadsFromLatestSnapshot() throws {
     let container = TestDataManager.createInMemoryContainer()

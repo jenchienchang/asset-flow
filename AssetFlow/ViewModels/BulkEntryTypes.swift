@@ -17,6 +17,19 @@
 
 import Foundation
 
+enum BulkEntryError: LocalizedError, Equatable {
+  case sourceDataChanged
+
+  var errorDescription: String? {
+    switch self {
+    case .sourceDataChanged:
+      String(
+        localized: "The source data changed. Reload Bulk Entry before saving.",
+        table: "Snapshot")
+    }
+  }
+}
+
 /// Aggregated toolbar statistics for bulk entry, maintained incrementally
 /// via delta updates rather than recomputed from scratch on every mutation.
 /// Using counts (not booleans) so delta subtraction works correctly.

@@ -18,6 +18,18 @@
 import Foundation
 import SwiftData
 
+enum ModelSelectionResolver {
+  static func resolve<Model, ID: Equatable>(
+    _ selected: Model?,
+    among models: [Model],
+    id: KeyPath<Model, ID>
+  ) -> Model? {
+    guard let selected else { return nil }
+    let selectedID = selected[keyPath: id]
+    return models.first { $0[keyPath: id] == selectedID }
+  }
+}
+
 private struct AssetResolutionKey: Hashable {
   let name: String
   let platform: String

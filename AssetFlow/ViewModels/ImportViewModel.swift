@@ -372,6 +372,20 @@ class ImportViewModel {
     }
   }
 
+  func refreshAfterStoreChange() {
+    let selectedCategoryID = selectedCategory?.id
+    refreshPickerOptions()
+    selectedCategory = selectedCategoryID.flatMap { selectedID in
+      availableCategories.first { $0.id == selectedID }
+    }
+
+    if importType == .assets {
+      rebuildAssetPreviewRows()
+    } else {
+      revalidate()
+    }
+  }
+
   private func fetchExistingPlatforms() throws -> [String] {
     let descriptor = FetchDescriptor<Asset>()
     let allAssets = try fetchModels(

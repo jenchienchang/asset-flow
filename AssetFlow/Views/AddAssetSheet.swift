@@ -25,7 +25,6 @@ struct AddAssetSheet: View {
   let onComplete: () -> Void
 
   @Environment(\.dismiss) private var dismiss
-  @Environment(\.modelContext) private var modelContext
 
   @FocusState private var focusedField: Field?
   enum Field { case asset, marketValue, newName, newMarketValue }
@@ -46,6 +45,7 @@ struct AddAssetSheet: View {
   @State private var newCurrency = SettingsService.shared.mainCurrency
 
   @Query(sort: \Asset.name) private var allAssets: [Asset]
+  @Query private var allCategories: [Category]
 
   @State private var cachedPlatforms: [String] = []
   @State private var cachedCategories: [Category] = []
@@ -101,14 +101,13 @@ struct AddAssetSheet: View {
     }
     .frame(minWidth: 400, minHeight: 300)
     .onAppear {
-      do {
-        cachedPlatforms = existingPlatforms()
-        cachedCategories = try existingCategories()
-      } catch {
-        errorMessage = error.localizedDescription
-        showError = true
-      }
+      refreshCachedOptions()
       focusedField = mode == .selectExisting ? .marketValue : .newName
+    }
+    .onChange(of: queryRevision) {
+      cachedPlatforms = existingPlatforms()
+      selectedAsset = ModelSelectionResolver.resolve(selectedAsset, among: allAssets, id: \.id)
+      refreshCachedCategories()
     }
     .onChange(of: mode) {
       focusedField = mode == .selectExisting ? .marketValue : .newName
@@ -150,6 +149,10 @@ struct AddAssetSheet: View {
         .focused($focusedField, equals: .marketValue)
         .accessibilityIdentifier("Market Value Field")
     }
+  }
+
+  private var queryRevision: ModelQueryRevision {
+    ModelQueryRevision(assets: allAssets, categories: allCategories)
   }
 
   @ViewBuilder
@@ -241,12 +244,18 @@ struct AddAssetSheet: View {
     return platforms.sorted()
   }
 
-  private func existingCategories() throws -> [Category] {
-    let descriptor = FetchDescriptor<Category>(
-      sortBy: [SortDescriptor(\.displayOrder), SortDescriptor(\.name)])
-    return try fetchModels(
-      descriptor,
-      from: ModelContextFetcher(modelContext: modelContext),
-      operation: "load existing categories")
+  private func refreshCachedOptions() {
+    cachedPlatforms = existingPlatforms()
+    refreshCachedCategories()
+  }
+
+  private func refreshCachedCategories() {
+    cachedCategories = allCategories.sorted {
+      if $0.displayOrder != $1.displayOrder {
+        return $0.displayOrder < $1.displayOrder
+      }
+      return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+    }
+    newCategory = ModelSelectionResolver.resolve(newCategory, among: cachedCategories, id: \.id)
   }
 }

@@ -29,6 +29,8 @@ import SwiftUI
 /// because `@State` ViewModel initialization only runs on first view creation.
 struct PlatformDetailView: View {
   @State private var viewModel: PlatformDetailViewModel
+  @Query private var queryAssets: [Asset]
+  @Query private var querySnapshots: [Snapshot]
 
   @State private var showSaveError = false
   @State private var saveErrorMessage = ""
@@ -57,6 +59,12 @@ struct PlatformDetailView: View {
     .formStyle(.grouped)
     .navigationTitle(viewModel.platformName)
     .onAppear {
+      viewModel.loadData()
+    }
+    .onChange(of: queryAssets) {
+      viewModel.reloadAfterStoreChange()
+    }
+    .onChange(of: querySnapshots) {
       viewModel.loadData()
     }
     .alert("Save Error", isPresented: $showSaveError) {

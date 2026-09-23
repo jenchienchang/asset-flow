@@ -12,6 +12,20 @@ Currency conversion tests cover both numeric correctness and availability semant
 
 After careful consideration, the project has opted to **forgo UI testing**. A comprehensive suite of tests at the ViewModel and Service layers provides sufficient confidence in application behavior while avoiding the brittleness and maintenance overhead of UI tests.
 
+### Query-Driven Data Refresh
+
+Unit tests cover query revision changes for both membership and edits to each persisted model type, stable-ID selection rebinding, Import preview revalidation and picker refresh after store replacement, Platform detail reload behavior, and Bulk Entry stale-draft save protection. SwiftUI `@Query` callback wiring is verified manually because the project has no UI test target:
+
+1. Restore a different backup while Dashboard, Rebalancing, Snapshots, Assets, Categories, or Platforms is active; confirm visible data refreshes without navigating away and returning.
+1. Keep the Assets, Categories, and Platforms lists open while adding a newer snapshot with changed values; confirm latest values, allocations, and platform totals refresh without navigating away.
+1. Keep a snapshot, asset, or category detail selected across restore; confirm a matching stable ID shows the restored values and a missing ID clears the detail selection.
+1. Keep the New Snapshot or Add Asset sheet open through restore; confirm date conflicts, picker options, and selected model references reflect the restored store.
+1. Keep Category or Platform detail open while adding and deleting snapshots (including snapshots without asset values); confirm histories incorporate each date.
+1. Keep Import open with a loaded CSV while changing existing asset/category fields and snapshot child values; confirm picker options and duplicate validation update. Navigate away and return to confirm a fresh validation pass.
+1. Keep Bulk Entry open while editing a value in the prior snapshot or changing an asset/category; confirm the stale banner appears, editing and saving are disabled, and **Discard Draft and Reload** creates a fresh draft.
+1. Keep a platform detail selected across restore; confirm its asset/history data reloads, its rename draft resets, and a platform absent from the restored assets is deselected.
+1. Keep Bulk Entry open while restoring; confirm the stale banner appears, editing and saving are disabled, and **Discard Draft and Reload** creates a fresh draft. Also verify a retained Bulk Entry draft becomes stale when restore occurs while another section is selected.
+
 Async file, import, and backup tests use `Sendable` transfer values and deterministic task boundaries. They verify that CSV preparation and backup validation can be called from detached tasks, that cancellation is honored during CSV record and row processing, and that main-actor ViewModels apply only completed worker results. Bulk Entry direct-import tests also verify that cancellation returns a no-op result without changing existing rows or feedback, including deterministic gates that cancel after preparation is ready but before main-actor application. These tests do not inspect thread identities or assert elapsed time; executor threads are an implementation detail and timing thresholds are unstable across machines.
 
 ______________________________________________________________________

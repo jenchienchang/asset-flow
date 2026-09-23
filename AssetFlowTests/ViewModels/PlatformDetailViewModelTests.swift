@@ -66,6 +66,27 @@ struct PlatformDetailViewModelTests {
 
   // MARK: - Asset Listing
 
+  @Test("Store refresh discards a stale rename draft and reloads assets")
+  func storeRefreshDiscardsRenameDraftAndReloadsAssets() {
+    let tc = makeTestContext()
+    let context = tc.context
+    let snapshot = Snapshot(date: makeDate(year: 2025, month: 6, day: 1))
+    context.insert(snapshot)
+    createAssetWithValue(
+      name: "AAPL", platform: "Firstrade", marketValue: 5000,
+      snapshot: snapshot, context: context)
+
+    let viewModel = PlatformDetailViewModel(platformName: "Firstrade", modelContext: context)
+    viewModel.loadData()
+    viewModel.editedName = "Uncommitted Rename"
+    context.insert(Asset(name: "MSFT", platform: "Firstrade"))
+
+    viewModel.reloadAfterStoreChange()
+
+    #expect(viewModel.editedName == "Firstrade")
+    #expect(viewModel.assets.count == 2)
+  }
+
   @Test("Lists assets for selected platform")
   func listsAssetsForSelectedPlatform() {
     let tc = makeTestContext()

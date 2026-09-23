@@ -27,6 +27,7 @@ final class BulkEntryViewModel {
   private(set) var cashFlowRows: [BulkEntryCashFlowRow] = []
   private(set) var toolbarStats = BulkEntryToolbarStats()
   var savedSnapshot: Snapshot?
+  private(set) var isSourceDataStale = false
   var pendingFocusRowID: UUID?
   var pendingCashFlowFocusRowID: UUID?
 
@@ -94,6 +95,10 @@ final class BulkEntryViewModel {
       || rows.contains { !$0.isIncluded }
       || rows.contains { $0.source == .manualNew }
       || !cashFlowRows.isEmpty
+  }
+
+  func markSourceDataStale() {
+    isSourceDataStale = true
   }
 
   init(
@@ -458,6 +463,10 @@ final class BulkEntryViewModel {
   }
 
   func saveSnapshot() throws -> Snapshot {
+    guard !isSourceDataStale else {
+      throw BulkEntryError.sourceDataChanged
+    }
+
     let includedRows = rows.filter(\.isIncluded)
     guard !includedRows.isEmpty else {
       throw SnapshotError.noAssetsIncluded

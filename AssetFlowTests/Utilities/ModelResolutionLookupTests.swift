@@ -25,6 +25,30 @@ import Testing
 @MainActor
 struct ModelResolutionLookupTests {
 
+  @Test("Selection resolves a replacement model by stable app ID")
+  func selectionResolvesReplacementByStableID() {
+    let oldAsset = Asset(name: "Old name", platform: "Old platform")
+    let restoredAsset = Asset(name: "Restored name", platform: "New platform")
+    let stableID = UUID()
+    oldAsset.id = stableID
+    restoredAsset.id = stableID
+
+    let resolved = ModelSelectionResolver.resolve(
+      oldAsset, among: [restoredAsset], id: \.id)
+
+    #expect(resolved === restoredAsset)
+  }
+
+  @Test("Selection clears when the selected app ID is absent")
+  func selectionClearsWhenIDIsAbsent() {
+    let oldAsset = Asset(name: "Old name", platform: "Old platform")
+
+    let resolved = ModelSelectionResolver.resolve(
+      oldAsset, among: [Asset(name: "Other", platform: "Other")], id: \.id)
+
+    #expect(resolved == nil)
+  }
+
   @Test("Asset lookup preserves normalized first-match behavior")
   func assetLookupPreservesNormalizedFirstMatch() {
     let container = TestDataManager.createInMemoryContainer()

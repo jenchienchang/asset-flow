@@ -27,6 +27,7 @@ struct PlatformListView: View {
   @State private var viewModel: PlatformListViewModel
   @Binding var selectedPlatform: String?
   @Query private var assets: [Asset]
+  @Query private var snapshots: [Snapshot]
 
   @State private var renamingPlatform: String?
 
@@ -58,14 +59,23 @@ struct PlatformListView: View {
     .onAppear {
       viewModel.loadPlatforms()
     }
-    .onChange(of: assets) {
+    .onChange(of: queryRevision) {
       viewModel.loadPlatforms()
+      if let selectedPlatform,
+        !viewModel.platformRows.contains(where: { $0.name == selectedPlatform })
+      {
+        self.selectedPlatform = nil
+      }
     }
     .alert("Error", isPresented: $showError) {
       Button("OK") {}
     } message: {
       Text(errorMessage)
     }
+  }
+
+  private var queryRevision: ModelQueryRevision {
+    ModelQueryRevision(snapshots: snapshots, assets: assets)
   }
 
   // MARK: - Platform List

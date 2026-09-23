@@ -445,6 +445,36 @@
         }
       }
     },
+    "Source data changed. Your draft can no longer be saved.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "來源資料已變更，無法儲存目前的草稿。"
+          }
+        }
+      }
+    },
+    "Discard Draft and Reload": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "捨棄草稿並重新載入"
+          }
+        }
+      }
+    },
+    "The source data changed. Reload Bulk Entry before saving.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "來源資料已變更，請先重新載入大量輸入再儲存。"
+          }
+        }
+      }
+    },
     "Unable to Save Snapshot": {
       "localizations": {
         "zh-Hant": {

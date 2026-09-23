@@ -87,6 +87,8 @@ struct SnapshotListView: View {
     }
     .onChange(of: querySnapshots) {
       viewModel.loadRowData()
+      selectedSnapshot = ModelSelectionResolver.resolve(
+        selectedSnapshot, among: querySnapshots, id: \.id)
     }
     .sheet(isPresented: $showNewSnapshotSheet) {
       NewSnapshotSheet(

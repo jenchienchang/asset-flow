@@ -26,6 +26,7 @@ struct AssetListView: View {
   @State private var viewModel: AssetListViewModel
   @Binding var selectedAsset: Asset?
   @Query private var assets: [Asset]
+  @Query private var snapshots: [Snapshot]
   @Environment(\.isAppLocked) private var isAppLocked
 
   @State private var showDeleteError = false
@@ -85,10 +86,11 @@ struct AssetListView: View {
     .onAppear {
       viewModel.loadAssets()
     }
-    .onChange(of: assets) {
+    .onChange(of: queryRevision) {
       withAnimation(AnimationConstants.standard) {
         viewModel.loadAssets()
       }
+      selectedAsset = ModelSelectionResolver.resolve(selectedAsset, among: assets, id: \.id)
     }
     .onChange(of: viewModel.groupingMode) {
       viewModel.loadAssets()
@@ -98,6 +100,10 @@ struct AssetListView: View {
     } message: {
       Text(deleteErrorMessage)
     }
+  }
+
+  private var queryRevision: ModelQueryRevision {
+    ModelQueryRevision(snapshots: snapshots, assets: assets)
   }
 
   // MARK: - Asset List

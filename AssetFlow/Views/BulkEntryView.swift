@@ -27,9 +27,9 @@ import UniformTypeIdentifiers
 /// CSV import, inline asset creation, and keyboard navigation between rows.
 struct BulkEntryView: View {
   @State private var viewModel: BulkEntryViewModel
+  let onReload: () -> Void
   let onSave: (Snapshot) -> Void
 
-  @Environment(\.modelContext) private var modelContext
   @State private var showZeroPendingConfirmation = false
   @State private var zeroPendingCount = 0
   @State private var csvImportTarget: CSVImportTarget?
@@ -40,9 +40,18 @@ struct BulkEntryView: View {
   @State private var importResultMessage = ""
   @State private var csvImportTask: Task<Void, Never>?
   @State private var cachedCategoryNames: [String] = []
+  @Query private var querySnapshots: [Snapshot]
+  @Query private var queryAssets: [Asset]
+  @Query private var queryCategories: [Category]
+  @Query private var querySnapshotAssetValues: [SnapshotAssetValue]
 
-  init(viewModel: BulkEntryViewModel, onSave: @escaping (Snapshot) -> Void) {
+  init(
+    viewModel: BulkEntryViewModel,
+    onReload: @escaping () -> Void,
+    onSave: @escaping (Snapshot) -> Void
+  ) {
     _viewModel = State(initialValue: viewModel)
+    self.onReload = onReload
     self.onSave = onSave
   }
 
@@ -64,6 +73,9 @@ struct BulkEntryView: View {
         BulkEntryToolbar(
           viewModel: viewModel,
           onSave: { handleSave() })
+        if viewModel.isSourceDataStale {
+          staleSourceDataBanner
+        }
         Divider()
         if viewModel.isCSVImporting {
           HStack {
@@ -83,12 +95,18 @@ struct BulkEntryView: View {
           BulkEntryContentArea(
             viewModel: viewModel,
             cachedCategoryNames: $cachedCategoryNames,
-            csvImportTarget: $csvImportTarget)
+            csvImportTarget: $csvImportTarget
+          )
+          .disabled(viewModel.isSourceDataStale)
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .onAppear {
-        loadCachedCategoryNames()
+        cachedCategoryNames = sortedCategoryNames(from: queryCategories)
+      }
+      .onChange(of: queryRevision) {
+        cachedCategoryNames = sortedCategoryNames(from: queryCategories)
+        viewModel.markSourceDataStale()
       }
       .fileImporter(
         isPresented: showCSVFileImporter,
@@ -201,6 +219,30 @@ struct BulkEntryView: View {
     }
   }
 
+  private var staleSourceDataBanner: some View {
+    HStack(spacing: 12) {
+      Image(systemName: "exclamationmark.triangle.fill")
+        .foregroundStyle(.orange)
+      Text(
+        String(
+          localized: "Source data changed. Your draft can no longer be saved.",
+          table: "Snapshot")
+      )
+      .font(.callout)
+      Spacer()
+      Button(
+        String(localized: "Discard Draft and Reload", table: "Snapshot"),
+        action: onReload
+      )
+      .buttonStyle(.bordered)
+      .accessibilityIdentifier("Reload Bulk Entry Button")
+    }
+    .padding(.horizontal)
+    .padding(.vertical, 8)
+    .background(.yellow.opacity(0.15))
+    .accessibilityIdentifier("Bulk Entry Stale Data Banner")
+  }
+
   // MARK: - Save
 
   private func handleSave() {
@@ -232,19 +274,22 @@ struct BulkEntryView: View {
     }
   }
 
-  private func loadCachedCategoryNames() {
-    let descriptor = FetchDescriptor<Category>(
-      sortBy: [SortDescriptor(\.displayOrder), SortDescriptor(\.name)])
-    do {
-      let categories = try fetchModels(
-        descriptor,
-        from: ModelContextFetcher(modelContext: modelContext),
-        operation: "load bulk category names")
-      cachedCategoryNames = categories.map(\.name)
-    } catch {
-      errorMessage = error.localizedDescription
-      showError = true
+  private func sortedCategoryNames(from categories: [Category]) -> [String] {
+    categories.sorted {
+      if $0.displayOrder != $1.displayOrder {
+        return $0.displayOrder < $1.displayOrder
+      }
+      return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
     }
+    .map(\.name)
+  }
+
+  private var queryRevision: ModelQueryRevision {
+    ModelQueryRevision(
+      snapshots: querySnapshots,
+      assets: queryAssets,
+      categories: queryCategories,
+      snapshotAssetValues: querySnapshotAssetValues)
   }
 
   private func showImportResultAlert(for feedback: CSVImportFeedback?) {
