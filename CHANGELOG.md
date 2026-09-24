@@ -2,27 +2,25 @@
 
 ## [0.7.0](https://github.com/jenchienchang/asset-flow/compare/v0.6.0...v0.7.0) (2026-09-24)
 
-
 ### Features
 
-* **csv:** use TabularData for RFC-compliant parsing ([eb42b7d](https://github.com/jenchienchang/asset-flow/commit/eb42b7d08ea825e4ef83b9532d0fce7aee00e529))
-* **dashboard:** refine hero card styling ([2a8b8e4](https://github.com/jenchienchang/asset-flow/commit/2a8b8e4fbbec16675a079a2ef9e9f87f168647d4))
-* **import:** surface CSV failures and preserve prior imports ([7de46c0](https://github.com/jenchienchang/asset-flow/commit/7de46c0a1611982e09320f8ba76f1387d376b48c))
-
+- **csv:** use TabularData for RFC-compliant parsing ([eb42b7d](https://github.com/jenchienchang/asset-flow/commit/eb42b7d08ea825e4ef83b9532d0fce7aee00e529))
+- **dashboard:** refine hero card styling ([2a8b8e4](https://github.com/jenchienchang/asset-flow/commit/2a8b8e4fbbec16675a079a2ef9e9f87f168647d4))
+- **import:** surface CSV failures and preserve prior imports ([7de46c0](https://github.com/jenchienchang/asset-flow/commit/7de46c0a1611982e09320f8ba76f1387d376b48c))
 
 ### Bug Fixes
 
-* **backup:** accept enclosing folder in restore archives ([e48c7c7](https://github.com/jenchienchang/asset-flow/commit/e48c7c74a2979723a9bc4e7e94c60856df8d54a7))
-* **backup:** prevent malformed and partial restores ([67e59b9](https://github.com/jenchienchang/asset-flow/commit/67e59b9ff8a8aad3a54bd8c050ea66b882418376))
-* **ci:** resolve lint tool versions dynamically ([745f1fc](https://github.com/jenchienchang/asset-flow/commit/745f1fc7824423971c7a4f88e09b70fdc27b888e))
-* **data-sync:** keep views in sync with stored data ([aa1caee](https://github.com/jenchienchang/asset-flow/commit/aa1caee16e54ecea2067eb29a4c522b1bb53415d))
-* **exchange-rates:** harden fetching, caching, and conversion ([0d74f21](https://github.com/jenchienchang/asset-flow/commit/0d74f21e4cc1f4443265ef299afd2d559a907450))
-* **financial:** preserve Decimal precision in calculations ([a2ff412](https://github.com/jenchienchang/asset-flow/commit/a2ff412fce2f1870bedbfc4cd35848339ee69d43))
-* **import:** use operation-scoped persistence lookups ([ecb9715](https://github.com/jenchienchang/asset-flow/commit/ecb97157c20bdd97c10f7bd125f555d464a075a2))
-* **import:** validate CSV duplicates before applying rows ([520e1a4](https://github.com/jenchienchang/asset-flow/commit/520e1a4df733289dbff303e76279e791f9c58d54))
-* **links:** update repository URLs ([b3bff19](https://github.com/jenchienchang/asset-flow/commit/b3bff1908b0ec0b631d46a9dea74a4cc5053839a))
-* **persistence:** propagate SwiftData fetch failures ([14a5825](https://github.com/jenchienchang/asset-flow/commit/14a5825f7c91100607300dea2a20a8b83e0e7d15))
-* **snapshots:** remove non-Sendable model capture ([afbdd16](https://github.com/jenchienchang/asset-flow/commit/afbdd169f6ff56b2cab7e5248aa020b4e639cd21))
+- **backup:** accept enclosing folder in restore archives ([e48c7c7](https://github.com/jenchienchang/asset-flow/commit/e48c7c74a2979723a9bc4e7e94c60856df8d54a7))
+- **backup:** prevent malformed and partial restores ([67e59b9](https://github.com/jenchienchang/asset-flow/commit/67e59b9ff8a8aad3a54bd8c050ea66b882418376))
+- **ci:** resolve lint tool versions dynamically ([745f1fc](https://github.com/jenchienchang/asset-flow/commit/745f1fc7824423971c7a4f88e09b70fdc27b888e))
+- **data-sync:** keep views in sync with stored data ([aa1caee](https://github.com/jenchienchang/asset-flow/commit/aa1caee16e54ecea2067eb29a4c522b1bb53415d))
+- **exchange-rates:** harden fetching, caching, and conversion ([0d74f21](https://github.com/jenchienchang/asset-flow/commit/0d74f21e4cc1f4443265ef299afd2d559a907450))
+- **financial:** preserve Decimal precision in calculations ([a2ff412](https://github.com/jenchienchang/asset-flow/commit/a2ff412fce2f1870bedbfc4cd35848339ee69d43))
+- **import:** use operation-scoped persistence lookups ([ecb9715](https://github.com/jenchienchang/asset-flow/commit/ecb97157c20bdd97c10f7bd125f555d464a075a2))
+- **import:** validate CSV duplicates before applying rows ([520e1a4](https://github.com/jenchienchang/asset-flow/commit/520e1a4df733289dbff303e76279e791f9c58d54))
+- **links:** update repository URLs ([b3bff19](https://github.com/jenchienchang/asset-flow/commit/b3bff1908b0ec0b631d46a9dea74a4cc5053839a))
+- **persistence:** propagate SwiftData fetch failures ([14a5825](https://github.com/jenchienchang/asset-flow/commit/14a5825f7c91100607300dea2a20a8b83e0e7d15))
+- **snapshots:** remove non-Sendable model capture ([afbdd16](https://github.com/jenchienchang/asset-flow/commit/afbdd169f6ff56b2cab7e5248aa020b4e639cd21))
 
 ## [0.6.0](https://github.com/jenchienchang/asset-flow/compare/v0.5.0...v0.6.0) (2026-05-08)
 
