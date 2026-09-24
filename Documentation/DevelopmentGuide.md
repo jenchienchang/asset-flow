@@ -63,6 +63,7 @@ Before you begin development, ensure you have the following installed:
    - In Xcode: Cmd+R
    - Target platform: macOS only
    - Debug builds produce `AssetFlow-Debug.app`; Release builds produce `AssetFlow.app`, allowing both builds to coexist in separate locations.
+   - To review the dashboard with disposable sample assets and snapshots, add `--preview-data` under the Run scheme's **Arguments Passed On Launch**. This Debug-only mode uses an in-memory store and does not modify saved portfolio data.
 
 ______________________________________________________________________
 

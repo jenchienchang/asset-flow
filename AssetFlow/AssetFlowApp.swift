@@ -25,7 +25,15 @@ struct AssetFlowApp: App {
 
   init() {
     let schema = Schema(versionedSchema: SchemaV1.self)
-    let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    #if DEBUG
+      let usePreviewData = ProcessInfo.processInfo.arguments.contains("--preview-data")
+    #else
+      let usePreviewData = false
+    #endif
+    let modelConfiguration = ModelConfiguration(
+      schema: schema,
+      isStoredInMemoryOnly: usePreviewData
+    )
 
     do {
       sharedModelContainer = try ModelContainer(
@@ -33,10 +41,89 @@ struct AssetFlowApp: App {
         migrationPlan: AssetFlowMigrationPlan.self,
         configurations: [modelConfiguration]
       )
+      #if DEBUG
+        if usePreviewData {
+          Self.seedPreviewData(in: sharedModelContainer.mainContext)
+        }
+      #endif
     } catch {
       Self.showDatabaseErrorAndExit(error)
     }
   }
+
+  #if DEBUG
+    /// Seeds a disposable dashboard dataset for visual review when `--preview-data` is passed.
+    private static func seedPreviewData(in modelContext: ModelContext) {
+      do {
+        guard try modelContext.fetch(FetchDescriptor<Snapshot>()).isEmpty else { return }
+
+        let categories = [
+          Category(name: "Equities"),
+          Category(name: "Fixed Income"),
+          Category(name: "Real Assets"),
+          Category(name: "Cash"),
+        ]
+        for (index, category) in categories.enumerated() {
+          category.displayOrder = index
+          modelContext.insert(category)
+        }
+
+        let assetDefinitions: [(name: String, platform: String, categoryIndex: Int)] = [
+          ("US Market ETF", "Brokerage", 0),
+          ("Technology ETF", "Brokerage", 0),
+          ("Apple", "Brokerage", 0),
+          ("Microsoft", "Brokerage", 0),
+          ("Global Equity ETF", "Brokerage", 0),
+          ("Emerging Markets ETF", "Brokerage", 0),
+          ("Healthcare ETF", "Brokerage", 0),
+          ("Treasury ETF", "Brokerage", 1),
+          ("Total Bond Market ETF", "Brokerage", 1),
+          ("Investment Grade Bonds", "Brokerage", 1),
+          ("Real Estate ETF", "Brokerage", 2),
+          ("Money Market Fund", "Bank", 3),
+          ("Cash Reserve", "Bank", 3),
+        ]
+        let assets = assetDefinitions.map { definition in
+          let asset = Asset(name: definition.name, platform: definition.platform)
+          asset.currency = "USD"
+          asset.category = categories[definition.categoryIndex]
+          modelContext.insert(asset)
+          return asset
+        }
+
+        let latestValues: [Decimal] = [
+          34_200, 26_500, 24_800, 20_500, 18_000, 12_000, 16_200,
+          16_000, 14_000, 8_000, 6_500, 7_000, 6_288.06,
+        ]
+        let dateComponents = [
+          DateComponents(year: 2025, month: 3, day: 9),
+          DateComponents(year: 2025, month: 9, day: 9),
+          DateComponents(year: 2026, month: 3, day: 9),
+        ]
+        let dates = dateComponents.compactMap { Calendar.current.date(from: $0) }
+        guard dates.count == dateComponents.count else {
+          fatalError("Could not create dates for dashboard preview data.")
+        }
+        let growthFactors: [Decimal] = [0.843, 0.93, 1]
+
+        for (date, growthFactor) in zip(dates, growthFactors) {
+          let snapshot = Snapshot(date: date)
+          modelContext.insert(snapshot)
+
+          for (asset, latestValue) in zip(assets, latestValues) {
+            let assetValue = SnapshotAssetValue(marketValue: latestValue * growthFactor)
+            assetValue.snapshot = snapshot
+            assetValue.asset = asset
+            modelContext.insert(assetValue)
+          }
+        }
+
+        try modelContext.save()
+      } catch {
+        fatalError("Could not seed dashboard preview data: \(error)")
+      }
+    }
+  #endif
 
   /// Shows a modal alert about the database error and terminates the app after dismissal.
   private static func showDatabaseErrorAndExit(_ error: Error) -> Never {

@@ -36,7 +36,8 @@ All core screens and features are **implemented**:
 - ✅ `@FocusState` auto-focus in all sheets and popovers
 - ✅ `.helpWhenUnlocked()` tooltips on toolbar buttons and interactive controls
 - ✅ Accessibility labels on charts, metric cards, and Bulk Entry rows (assets and cash flows)
-- ✅ Glass card material adapts to Reduce Transparency accessibility setting
+- ✅ Dashboard portfolio-total hero card uses a system-adaptive surface with a subtle tint
+- ✅ Glass card material on secondary metrics, performance, and chart cards adapts to Reduce Transparency accessibility setting
 - ✅ Animations with Reduce Motion support via `AnimationConstants`
 
 ______________________________________________________________________
@@ -83,6 +84,7 @@ The dashboard provides a portfolio overview using the latest snapshot.
    - Cumulative TWR (All Time) (since first snapshot)
    - CAGR (since first snapshot) -- shown alongside Cumulative TWR (All Time), with a tooltip: "CAGR is the annualized rate at which the portfolio's total value has grown since inception, including the effect of deposits and withdrawals. TWR measures pure investment performance by removing cash flow effects."
    - Metric cards use a `helpText: LocalizedStringKey?` parameter on `MetricCard` to display a tooltip via `.helpWhenUnlocked()` (suppressed when app is locked)
+   - Secondary summary cards use the glass-card treatment; the portfolio total uses a system-adaptive surface with a 9% tint fill and a 22% tint border for emphasis
 
 1. **Period performance cards**:
 

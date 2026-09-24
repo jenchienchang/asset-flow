@@ -489,14 +489,7 @@ private struct HeroMetricCard: View {
     }
     .padding()
     .frame(maxWidth: .infinity)
-    .background(
-      .tint.opacity(0.06), in: RoundedRectangle(cornerRadius: ChartConstants.cardCornerRadius)
-    )
-    .glassCard()
-    .overlay(
-      RoundedRectangle(cornerRadius: ChartConstants.cardCornerRadius)
-        .strokeBorder(.tint.opacity(0.15), lineWidth: 1)
-    )
+    .metricCardSurface(isHero: true)
     .accessibilityElement(children: .combine)
   }
 }
@@ -529,10 +522,7 @@ private struct NativeTotalsMetricCard: View {
     }
     .padding()
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(
-      .tint.opacity(0.06), in: RoundedRectangle(cornerRadius: ChartConstants.cardCornerRadius)
-    )
-    .glassCard()
+    .metricCardSurface(isHero: true)
     .accessibilityElement(children: .combine)
   }
 }

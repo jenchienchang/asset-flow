@@ -15,6 +15,7 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+import AppKit
 import Charts
 import SwiftUI
 
@@ -98,6 +99,45 @@ extension View {
   /// Applies the glass card treatment: material background, rounded corners, shadows, and border.
   func glassCard() -> some View {
     modifier(GlassCardModifier())
+  }
+}
+
+// MARK: - Metric Card Surface
+
+struct MetricCardSurfaceModifier: ViewModifier {
+  var isHero = false
+
+  private var shape: RoundedRectangle {
+    RoundedRectangle(cornerRadius: ChartConstants.cardCornerRadius)
+  }
+
+  @ViewBuilder
+  private var cardBackground: some View {
+    ZStack {
+      shape.fill(Color(nsColor: .controlBackgroundColor))
+      if isHero {
+        shape.fill(.tint.opacity(0.09))
+      }
+    }
+  }
+
+  func body(content: Content) -> some View {
+    content
+      .background { cardBackground }
+      .overlay {
+        if isHero {
+          shape.strokeBorder(.tint.opacity(0.22), lineWidth: 1)
+        } else {
+          shape.strokeBorder(.primary.opacity(0.08), lineWidth: 0.5)
+        }
+      }
+  }
+}
+
+extension View {
+  /// Applies a stable, appearance-adaptive fill to dashboard summary metric cards.
+  func metricCardSurface(isHero: Bool = false) -> some View {
+    modifier(MetricCardSurfaceModifier(isHero: isHero))
   }
 }
 
