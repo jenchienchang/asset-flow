@@ -62,6 +62,7 @@ struct AboutView: View {
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .center)
 
       HStack(spacing: 16) {
         Link("User Guide", destination: Constants.AppInfo.documentationURL)
