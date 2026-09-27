@@ -65,6 +65,12 @@ Before you begin development, ensure you have the following installed:
    - Debug builds produce `AssetFlow-Debug.app`; Release builds produce `AssetFlow.app`, allowing both builds to coexist in separate locations.
    - To review the dashboard with disposable sample assets and snapshots, add `--preview-data` under the Run scheme's **Arguments Passed On Launch**. This Debug-only mode uses an in-memory store and does not modify saved portfolio data.
 
+### App Version Metadata
+
+- `version.txt` is the release-please source for the marketing version. Release Please's manifest-mode config and current-version manifest are in `.github/release-please/`. Its generic extra-file updater also updates the app target's Xcode `MARKETING_VERSION` entries, which generate `CFBundleShortVersionString`; the build script does not override that value.
+- Local builds use the numeric `CURRENT_PROJECT_VERSION` configured in Xcode. Release archives set it to GitHub Actions' `GITHUB_RUN_NUMBER`, so distributed build numbers increase across workflow runs and may have gaps between releases.
+- The build script writes the first eight characters of the Git revision to the custom `AppCommit` property. It appends `-dirty` when the working tree has uncommitted changes. `CFBundleVersion` remains numeric and is not used for the commit ID.
+
 ______________________________________________________________________
 
 ## Project Structure

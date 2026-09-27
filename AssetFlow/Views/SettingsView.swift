@@ -242,20 +242,7 @@ struct SettingsView: View {
 
   private var aboutSection: some View {
     Section {
-      HStack(alignment: .top, spacing: 12) {
-        if let appIcon = NSApplication.shared.applicationIconImage {
-          Image(nsImage: appIcon)
-            .resizable()
-            .frame(width: 48, height: 48)
-        }
-        VStack(alignment: .leading, spacing: 2) {
-          Text(Constants.AppInfo.name)
-            .font(.headline)
-          Text("Version \(Constants.AppInfo.version) (\(Constants.AppInfo.buildNumber))")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-        }
-      }
+      AppIdentityMetadataView()
       LabeledContent("Developer", value: Constants.AppInfo.developerName)
       LabeledContent("License", value: Constants.AppInfo.license)
       LabeledContent("Privacy") {

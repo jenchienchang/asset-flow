@@ -220,60 +220,7 @@ struct AssetFlowApp: App {
         .keyboardShortcut("i")
         .disabled(importCSVAction == nil || authService.isLocked)
       }
-      CommandGroup(replacing: .appInfo) {
-        Button("About AssetFlow") {
-          let body = NSFont.systemFont(ofSize: NSFont.systemFontSize)
-          let small = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
-          let center = NSMutableParagraphStyle()
-          center.alignment = .center
-
-          let credits = NSMutableAttributedString()
-
-          // License
-          credits.append(
-            NSAttributedString(
-              string: "\(Constants.AppInfo.license)\n",
-              attributes: [.font: body, .paragraphStyle: center]
-            ))
-
-          // Source code link
-          credits.append(
-            NSAttributedString(
-              string: String(localized: "View Source Code on GitHub"),
-              attributes: [
-                .font: body,
-                .link: Constants.AppInfo.repositoryURL,
-                .paragraphStyle: center,
-              ]
-            ))
-
-          // Privacy statement — small, secondary
-          credits.append(
-            NSAttributedString(
-              string:
-                "\n\n"
-                + String(
-                  localized:
-                    """
-                    All data is stored locally on your Mac.
-                    Exchange rates are fetched from cdn.jsdelivr.net.
-                    No personal data is collected or transmitted.
-                    """
-                ),
-              attributes: [
-                .font: small,
-                .foregroundColor: NSColor.secondaryLabelColor,
-                .paragraphStyle: center,
-              ]
-            ))
-
-          NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "AssetFlow",
-            .applicationIcon: NSApp.applicationIconImage as Any,
-            .credits: credits,
-          ])
-        }
-      }
+      AboutCommands()
       CommandGroup(replacing: .help) {
         Button("AssetFlow User Guide") {
           NSWorkspace.shared.open(Constants.AppInfo.documentationURL)
@@ -284,6 +231,12 @@ struct AssetFlowApp: App {
         }
       }
     }
+
+    Window("About AssetFlow", id: "about") {
+      AboutView()
+    }
+    .windowStyle(.hiddenTitleBar)
+    .windowResizability(.contentSize)
 
     Settings {
       ZStack {
@@ -296,5 +249,17 @@ struct AssetFlowApp: App {
       .environment(\.isAppLocked, authService.isLocked)
     }
     .modelContainer(sharedModelContainer)
+  }
+}
+
+private struct AboutCommands: Commands {
+  @Environment(\.openWindow) private var openWindow
+
+  var body: some Commands {
+    CommandGroup(replacing: .appInfo) {
+      Button("About AssetFlow") {
+        openWindow(id: "about")
+      }
+    }
   }
 }

@@ -33,7 +33,11 @@ enum Constants {
 
     static var documentationURL: URL {
       let baseURL = "https://jenchienchang.github.io/asset-flow"
-      let versionPath = version.contains("-dev") ? "/dev/" : "/v\(version)/"
+      #if DEBUG
+        let versionPath = "/dev/"
+      #else
+        let versionPath = "/v\(version)/"
+      #endif
       let localePath: String
       switch Locale.current.language.languageCode?.identifier {
       case "zh": localePath = "zh-TW/"

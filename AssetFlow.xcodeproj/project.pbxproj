@@ -119,7 +119,7 @@
 				FFF30E282E93982F00AB7EBD /* Sources */,
 				FFF30E292E93982F00AB7EBD /* Frameworks */,
 				FFF30E2A2E93982F00AB7EBD /* Resources */,
-				323BEAD501D04E3583CDCA16 /* Inject Build Metadata */,
+				323BEAD501D04E3583CDCA16 /* Inject Commit Metadata */,
 			);
 			buildRules = (
 			);
@@ -193,7 +193,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		323BEAD501D04E3583CDCA16 /* Inject Build Metadata */ = {
+		323BEAD501D04E3583CDCA16 /* Inject Commit Metadata */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -202,16 +202,15 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(SRCROOT)/version.txt",
 			);
-			name = "Inject Build Metadata";
+			name = "Inject Commit Metadata";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "#!/bin/bash\nset -e\n\n# Inject version from version.txt\nVERSION=$(cat \"$SRCROOT/version.txt\" | tr -d '[:space:]')\nif [ -z \"$VERSION\" ]; then\n  VERSION=\"0.0.0\"\nfi\n# Append -dev suffix unless RELEASE_BUILD=YES\nif [ \"$RELEASE_BUILD\" != \"YES\" ]; then\n  VERSION=\"${VERSION}-dev\"\nfi\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $VERSION\" \"$BUILT_PRODUCTS_DIR/$INFOPLIST_PATH\"\n\n# Inject git commit\nCOMMIT=$(git -C \"$SRCROOT\" rev-parse --short HEAD 2>/dev/null || echo \"unknown\")\nif [ -n \"$(git -C \"$SRCROOT\" status --porcelain 2>/dev/null)\" ]; then\n  COMMIT=\"${COMMIT}-dev\"\nfi\n/usr/libexec/PlistBuddy -c \"Set :AppCommit $COMMIT\" \"$BUILT_PRODUCTS_DIR/$INFOPLIST_PATH\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $COMMIT\" \"$BUILT_PRODUCTS_DIR/$INFOPLIST_PATH\"\n";
+			shellScript = "#!/bin/bash\nset -e\n\n# Inject git commit\nCOMMIT=$(git -C \"$SRCROOT\" rev-parse HEAD 2>/dev/null || echo \"unknown\")\nif [ \"$COMMIT\" != \"unknown\" ]; then\n  COMMIT=\"${COMMIT:0:8}\"\nfi\nif [ -n \"$(git -C \"$SRCROOT\" status --porcelain 2>/dev/null)\" ]; then\n  COMMIT=\"${COMMIT}-dirty\"\nfi\n/usr/libexec/PlistBuddy -c \"Set :AppCommit $COMMIT\" \"$BUILT_PRODUCTS_DIR/$INFOPLIST_PATH\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -282,7 +281,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.6.0; /* x-release-please-version */
 				PRODUCT_BUNDLE_IDENTIFIER = JCChang.AssetFlow.testing;
 				PRODUCT_MODULE_NAME = AssetFlow;
 				PRODUCT_NAME = "$(TARGET_NAME)-$(CONFIGURATION)";
@@ -484,7 +483,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.6.0; /* x-release-please-version */
 				PRODUCT_BUNDLE_IDENTIFIER = JCChang.AssetFlow.debug;
 				PRODUCT_MODULE_NAME = AssetFlow;
 				PRODUCT_NAME = "$(TARGET_NAME)-$(CONFIGURATION)";
@@ -543,7 +542,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.6.0; /* x-release-please-version */
 				PRODUCT_BUNDLE_IDENTIFIER = JCChang.AssetFlow;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

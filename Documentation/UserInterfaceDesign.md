@@ -451,10 +451,10 @@ Accessible via menu bar (AssetFlow > Settings) or Cmd+,.
    - **Export Backup**: Exports all data to ZIP archive. User selects save location. Default filename: `AssetFlow-Backup-YYYY-MM-DD.zip`.
    - **Restore from Backup**: Imports backup archive. Confirmation: "Restoring from backup will replace ALL existing data. This cannot be undone. Continue?" Validates file integrity (CSV presence, headers, foreign key references). On failure, shows detailed error. On success, SwiftData `@Query` invalidation and model query fingerprints reload active screens; retained selections are rebound by stable model ID, while deleted selections are cleared. Query-backed caches also refresh after relevant edits to existing records, not only after restore.
 1. **About**: App identity and legal information at the bottom of Settings.
-   - **App identity row**: App icon (48×48), app name (headline), version + build number (subheadline), commit hash (caption). The commit hash includes a `-dev` suffix when built from a dirty working tree.
+   - **App identity row**: App icon (64×64), app name (headline), and a borderless three-row metadata grid for version, build number, and commit hash, in that order. The icon matches the combined height of the app name and metadata. The commit hash is eight characters and includes a `-dirty` suffix when built from a dirty working tree. The values can be selected for copying.
    - **Developer**: Static field showing the developer name.
    - **License**: Static field showing the license (GNU General Public License v3.0).
-   - **Privacy**: "All data is stored locally. No data is collected or transmitted."
+   - **Privacy**: States that data is stored locally, exchange rates come from cdn.jsdelivr.net, and no personal data is collected or transmitted.
    - **GitHub link**: Tappable `Link` that opens the source repository in the browser.
    - **User Guide link**: Tappable `Link` that opens the documentation site, version- and locale-aware (see Help menu below).
 
@@ -462,13 +462,13 @@ Accessible via menu bar (AssetFlow > Settings) or Cmd+,.
 
 **Consistent lock overlays**: Both the main `WindowGroup` and the `Settings` scene use the same `ZStack` + `LockScreenView` pattern. When `authService.isLocked` is `true`, each window independently shows a full opaque material overlay with an Unlock button. No windows are closed when locking — this avoids bugs caused by `NSApplication.shared.mainWindow` returning the wrong window.
 
-**Native About panel** (App menu → About AssetFlow): Replaced via `CommandGroup(replacing: .appInfo)` in `AssetFlowApp.swift`. Shows version + build number as the version string, with a rich-text credits block containing the commit hash, license, copyright, a clickable "Source Code" hyperlink, and the privacy statement.
+**About window** (App menu → About AssetFlow): Opens a custom SwiftUI window from `CommandGroup(replacing: .appInfo)` in `AssetFlowApp.swift`. It uses the same reusable, selectable, borderless metadata grid as Settings to show version, build number, and commit hash in that order. The window width follows the widest natural content group: app identity, copyright and developer/license credits, or guide/source links. The privacy statement wraps to that width below the credits; the links follow the privacy statement. All elements share 24 pt horizontal and 20 pt vertical outer padding.
 
 **File menu commands**: Replaced via `CommandGroup(replacing: .newItem)`. Includes "New Snapshot..." (Cmd+N) and "Import CSV..." (Cmd+I). Uses `@FocusedValue` to bridge actions from the menu bar to `ContentView`. Both commands are disabled when `authService.isLocked` is `true`.
 
 **Help menu** (Help → AssetFlow User Guide / Report an Issue): Replaced via `CommandGroup(replacing: .help)` in `AssetFlowApp.swift`. Two items:
 
-- **AssetFlow User Guide** -- opens the documentation site at the correct version and locale. Dev builds (version contains `-dev`) link to `/dev/`; release builds link to `/v{version}/`. Locale is auto-detected: Chinese → `/zh-TW/`, otherwise root (English is the default, no locale prefix).
+- **AssetFlow User Guide** -- opens the documentation site at the correct version and locale. Debug builds link to `/dev/`; Release builds link to `/v{version}/`. Locale is auto-detected: Chinese → `/zh-TW/`, otherwise root (English is the default, no locale prefix).
 - **Report an Issue** -- opens the GitHub Issues page.
 
 The macOS Help menu's built-in search field (which searches menu items) is preserved -- `CommandGroup(replacing:)` only replaces the menu items, not the search field.
