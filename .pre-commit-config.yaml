@@ -83,3 +83,9 @@ repos:
         args: ["-w", "--ignore-words-list", "zar"]
         files: ^(mkdocs/)
         exclude: \.(png)$
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: v9.27.0
+    hooks:
+      - id: commitlint
+        stages: [commit-msg]
+        additional_dependencies: ['@commitlint/config-conventional']

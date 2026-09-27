@@ -1,0 +1,62 @@
+{
+  "rules": {
+    "body-case": [
+      2,
+      "always",
+      "sentence-case"
+    ],
+    "body-empty": [
+      2,
+      "never"
+    ],
+    "body-full-stop": [
+      2,
+      "always",
+      "."
+    ],
+    "body-max-line-length": [
+      2,
+      "always",
+      72
+    ],
+    "footer-empty": [
+      0,
+      "always"
+    ],
+    "footer-max-line-length": [
+      2,
+      "always",
+      72
+    ],
+    "signed-off-by": [
+      0,
+      "always"
+    ],
+    "subject-case": [
+      2,
+      "always",
+      "lower-case"
+    ],
+    "trailer-exists": [
+      0,
+      "always"
+    ],
+    "type-enum": [
+      2,
+      "always",
+      [
+        "build",
+        "chore",
+        "ci",
+        "docs",
+        "feat",
+        "fix",
+        "perf",
+        "refactor",
+        "revert",
+        "style",
+        "test"
+      ]
+    ]
+  }
+}

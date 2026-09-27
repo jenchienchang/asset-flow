@@ -21,10 +21,12 @@ Commit only the changes that are already staged, and only after the user approve
 
 1. Draft a concise conventional commit message:
 
-   - Format: `<type>(<scope>): <subject>`
+   - Format: `<type>[optional (scope)][!]: <subject>`. If included, put the scope in parentheses.
    - Use the repository's allowed types from `AGENTS.md`.
+   - Mark a breaking change with `!` after the type or scope, or include a `BREAKING CHANGE: <description>` footer.
+   - Use a lowercase subject. Write the body in sentence case and end it with a period.
    - Include a body in every commit, explaining the motivation and summarizing meaningful included changes.
-   - In the generated commit message, wrap long body paragraphs or bullets onto continuation lines so each commit-message body line is 72 characters or fewer.
+   - Wrap body paragraphs, bullets, and footer lines so each line is 72 characters or fewer.
    - If the user supplied a rationale, incorporate it as the "why".
    - Describe the concept-level purpose and list meaningful included changes.
    - Do not describe the iterative workflow of implementation, review, or revision.
@@ -40,15 +42,17 @@ Commit only the changes that are already staged, and only after the user approve
 
 ## Message Shape
 
-Use this shape when a body is warranted:
+Use this shape for every generated commit:
 
 ```text
-<type>(<scope>): <subject>
+<type>[optional (scope)][!]: <subject>
 
-<why this change is being made, wrapping long text onto continuation lines>
+<Why this change is being made, wrapped to 72 columns.>
 
-- <included change, wrapping long text onto continuation lines>
-- <included change>
+- <Included change, wrapped to 72 columns.>
+- <Another included change.>
+
+BREAKING CHANGE: <Description, when applicable>
 ```
 
-Every generated commit message must include a body. Body paragraphs and bullets may contain more than 72 characters of content, but split them across multiple commit-message lines so no individual body line exceeds 72 characters.
+Every generated commit message must include a body. Body paragraphs and bullets must use sentence case, and the body must end with a period. Wrap body and footer lines so no individual line exceeds 72 characters.
