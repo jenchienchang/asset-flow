@@ -42,6 +42,16 @@ enum SnapshotSummaryService {
     try fetchSnapshots(using: ModelContextFetcher(modelContext: modelContext))
   }
 
+  static func fetchSnapshotsNewestFirst(using fetcher: any ModelFetching) throws -> [Snapshot] {
+    let descriptor = FetchDescriptor<Snapshot>(
+      sortBy: [SortDescriptor(\.date, order: .reverse)])
+    return try fetchModels(descriptor, from: fetcher, operation: "fetch snapshots")
+  }
+
+  static func fetchSnapshotsNewestFirst(modelContext: ModelContext) throws -> [Snapshot] {
+    try fetchSnapshotsNewestFirst(using: ModelContextFetcher(modelContext: modelContext))
+  }
+
   static func fetchLatestSnapshot(using fetcher: any ModelFetching) throws -> Snapshot? {
     var descriptor = FetchDescriptor<Snapshot>(
       sortBy: [SortDescriptor(\.date, order: .reverse)])

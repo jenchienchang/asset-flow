@@ -311,7 +311,7 @@ class SnapshotListViewModel {
   // MARK: - Private Helpers
 
   private func fetchAllSnapshots() throws -> [Snapshot] {
-    try SnapshotSummaryService.fetchSnapshots(using: fetcher)
+    try SnapshotSummaryService.fetchSnapshotsNewestFirst(using: fetcher)
   }
 
   /// Copies all direct asset values from the most recent prior snapshot to the new snapshot.

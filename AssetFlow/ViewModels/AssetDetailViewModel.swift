@@ -44,6 +44,11 @@ final class AssetDetailViewModel {
   var editedCurrency: String
   var valueHistory: [AssetValueHistoryEntry] = []
 
+  /// Value history in the order used by the detail table, newest snapshot first.
+  var valueHistoryNewestFirst: [AssetValueHistoryEntry] {
+    valueHistory.sorted { $0.date > $1.date }
+  }
+
   /// Whether the asset uses a currency different from the global display currency.
   ///
   /// Stored (not computed) so it updates in the async `loadValueHistory()` cycle,

@@ -199,7 +199,7 @@ See [DataModel.md](DataModel.md) for detailed model documentation.
 
 1. **CurrencyConversionService** (`enum`): Stateless conversion logic used by ViewModels. Provides date-validated `convert(value:from:to:using:forSnapshotDate:)` and `canConvert(from:to:using:forSnapshotDate:)`, plus `totalValue(for:displayCurrency:exchangeRate:)`, `netCashFlow(for:displayCurrency:exchangeRate:)`, and `categoryValues(for:displayCurrency:exchangeRate:)`. Conversion is unavailable when the exchange rate is missing, incomplete, or does not match the snapshot date; callers can then present native-currency values.
 
-1. **SnapshotSummaryService** (`@MainActor enum`): Provides bounded, throwing snapshot fetch helpers (latest, latest prior, date lookup, sorted history) and one-pass converted snapshot summaries containing total value, asset count, category totals, and platform totals. ViewModels use this to avoid repeated full-table fetches and duplicate aggregate traversal logic. `ModelFetching`/`ModelContextFetcher` provide dependency injection for persistence-read failures.
+1. **SnapshotSummaryService** (`@MainActor enum`): Provides bounded, throwing snapshot fetch helpers (latest, latest prior, date lookup, chronological history, and newest-first list history) and one-pass converted snapshot summaries containing total value, asset count, category totals, and platform totals. ViewModels use this to avoid repeated full-table fetches and duplicate aggregate traversal logic. `ModelFetching`/`ModelContextFetcher` provide dependency injection for persistence-read failures.
 
 **Duplicate Detection**: AssetFlow handles duplicate detection in two layers:
 

@@ -161,7 +161,7 @@ ______________________________________________________________________
 
 **Asset detail view:**
 
-- Value history across snapshots (table and sparkline chart)
+- Value history across snapshots (newest first in the table and chronological in the chart)
 - Asset name (editable)
 - Platform (editable)
 - Category assignment (editable)

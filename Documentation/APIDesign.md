@@ -615,6 +615,7 @@ struct SnapshotSummary {
 @MainActor
 enum SnapshotSummaryService {
     static func fetchSnapshots(modelContext: ModelContext) throws -> [Snapshot]
+    static func fetchSnapshotsNewestFirst(modelContext: ModelContext) throws -> [Snapshot]
     static func fetchLatestSnapshot(modelContext: ModelContext) throws -> Snapshot?
     static func fetchSnapshot(on date: Date, modelContext: ModelContext) throws -> Snapshot?
     static func fetchLatestSnapshot(

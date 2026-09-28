@@ -112,6 +112,41 @@ struct AssetDetailViewModelTests {
     #expect(viewModel.valueHistory[1].date < viewModel.valueHistory[2].date)
   }
 
+  @Test("Value history provides a newest-first presentation order")
+  func valueHistoryProvidesNewestFirstPresentationOrder() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+
+    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    context.insert(asset)
+
+    let oldest = Snapshot(date: makeDate(year: 2025, month: 1, day: 1))
+    let newest = Snapshot(date: makeDate(year: 2025, month: 3, day: 1))
+    let middle = Snapshot(date: makeDate(year: 2025, month: 2, day: 1))
+    context.insert(oldest)
+    context.insert(newest)
+    context.insert(middle)
+
+    for (snapshot, value) in [
+      (oldest, Decimal(10000)), (newest, Decimal(15000)), (middle, Decimal(12000)),
+    ] {
+      let sav = SnapshotAssetValue(marketValue: value)
+      sav.snapshot = snapshot
+      sav.asset = asset
+      context.insert(sav)
+    }
+
+    let viewModel = AssetDetailViewModel(asset: asset, modelContext: context)
+    viewModel.loadValueHistory()
+
+    #expect(
+      viewModel.valueHistoryNewestFirst.map(\.marketValue)
+        == [Decimal(15000), Decimal(12000), Decimal(10000)])
+    #expect(
+      viewModel.valueHistoryNewestFirst.map(\.date)
+        == [newest.date, middle.date, oldest.date])
+  }
+
   @Test("Value history empty when asset has no snapshot values")
   func valueHistoryEmptyWhenAssetHasNoSnapshotValues() throws {
     let container = TestDataManager.createInMemoryContainer()

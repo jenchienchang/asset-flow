@@ -188,7 +188,7 @@ ______________________________________________________________________
 
 **Asset detail view**:
 
-- Value history across snapshots (table and interactive 250pt line chart with hover tooltips and a `ChartTimeRangeSelector` for filtering by time range)
+- Value history across snapshots (newest first in the table; chronological in the interactive 250pt line chart with hover tooltips and a `ChartTimeRangeSelector` for filtering by time range)
 - Value history shows all recorded values across snapshots
 - Asset name (editable)
 - Platform (editable via picker with existing platforms + "New Platform..." option)
@@ -203,7 +203,7 @@ ______________________________________________________________________
 - **AssetListView** (`AssetFlow/Views/AssetListView.swift`): Uses `AssetListViewModel` with `@State`. Segmented control binds to `viewModel.groupingMode`. List sections iterate over `viewModel.groups`. Context menu on rows provides delete action for eligible assets.
 - **AssetDetailView** (`AssetFlow/Views/AssetDetailView.swift`): Uses `AssetDetailViewModel` with `@State`. Form with `.grouped` style. Platform picker is provided by `PlatformPickerField`. Value history section shows a `ChartTimeRangeSelector` and an interactive 250pt line chart (`ChartConstants.standardChartHeight`) with hover tooltips via `.onContinuousHoverWhenUnlocked`. When the asset currency differs from the display currency, a `showConvertedChart` toggle button appears next to the range selector; activating it switches the chart to show values converted to the display currency (in green) and adds a "Converted Value" column to the value history table. Delete confirmation dialog before deletion. Value history table supports inline editing: double-click a market value or right-click and choose "Edit Value" to open a popover for editing the value in place.
 - **AssetListViewModel** (`AssetFlow/ViewModels/AssetListViewModel.swift`): Groups assets by platform or category. Computes latest values from the most recent snapshot using a bounded latest-snapshot fetch. "(No Platform)" and "(Uncategorized)" groups always sorted last. Reads `SettingsService.hideStaleAssets` inside `withObservationTracking` so toggling the filter automatically reloads. `hasHiddenStaleAssets` is true when the filter dropped at least one asset; the View uses it to swap the empty-state message. Persistence failures are represented by `DataLoadState.failed` and shown with a retry action.
-- **AssetDetailViewModel** (`AssetFlow/ViewModels/AssetDetailViewModel.swift`): Editable fields (`editedName`, `editedPlatform`, `editedCategory`) initialized from asset. `save()` validates normalized identity uniqueness. `loadValueHistory()` returns direct SAVs sorted chronologically. `editAssetValue(_:newValue:)` mutates the `SnapshotAssetValue` market value and refreshes the history.
+- **AssetDetailViewModel** (`AssetFlow/ViewModels/AssetDetailViewModel.swift`): Editable fields (`editedName`, `editedPlatform`, `editedCategory`) initialized from asset. `save()` validates normalized identity uniqueness. `loadValueHistory()` returns direct SAVs sorted chronologically for chart data, while `valueHistoryNewestFirst` provides the table presentation order. `editAssetValue(_:newValue:)` mutates the `SnapshotAssetValue` market value and refreshes the history.
 
 ______________________________________________________________________
 

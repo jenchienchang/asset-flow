@@ -401,6 +401,24 @@ struct SnapshotListViewModelTests {
 
   // MARK: - Row Data Map
 
+  @Test("loadRowData returns snapshots newest first")
+  func loadRowDataReturnsSnapshotsNewestFirst() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let viewModel = createViewModel(context: context)
+
+    let oldest = Snapshot(date: makeDate(year: 2025, month: 1, day: 1))
+    let newest = Snapshot(date: makeDate(year: 2025, month: 3, day: 1))
+    let middle = Snapshot(date: makeDate(year: 2025, month: 2, day: 1))
+    context.insert(oldest)
+    context.insert(newest)
+    context.insert(middle)
+
+    viewModel.loadRowData()
+
+    #expect(viewModel.snapshots.map(\.date) == [newest.date, middle.date, oldest.date])
+  }
+
   @Test("loadAllSnapshotRowData returns empty map when no snapshots exist")
   func loadAllSnapshotRowDataEmptyContext() throws {
     let container = TestDataManager.createInMemoryContainer()

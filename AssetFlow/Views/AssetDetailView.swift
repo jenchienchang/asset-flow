@@ -297,11 +297,12 @@ struct AssetDetailView: View {
       ? SettingsService.shared.mainCurrency : viewModel.asset.currency
     let displayCurrency = SettingsService.shared.mainCurrency
     let showConverted = viewModel.isDifferentCurrency
-    let tableHeight = CGFloat(viewModel.valueHistory.count) * 28 + 32
+    let history = viewModel.valueHistoryNewestFirst
+    let tableHeight = CGFloat(history.count) * 28 + 32
 
     return Group {
       if showConverted {
-        Table(viewModel.valueHistory) {
+        Table(history) {
           TableColumn("Date") { entry in
             Text(entry.date.settingsFormatted())
           }
@@ -328,7 +329,7 @@ struct AssetDetailView: View {
         .padding(-1)
         .clipped()
       } else {
-        Table(viewModel.valueHistory) {
+        Table(history) {
           TableColumn("Date") { entry in
             Text(entry.date.settingsFormatted())
           }
