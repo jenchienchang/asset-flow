@@ -298,7 +298,6 @@ struct AssetDetailView: View {
     let displayCurrency = SettingsService.shared.mainCurrency
     let showConverted = viewModel.isDifferentCurrency
     let history = viewModel.valueHistoryNewestFirst
-    let tableHeight = CGFloat(history.count) * 28 + 32
 
     return Group {
       if showConverted {
@@ -325,7 +324,7 @@ struct AssetDetailView: View {
         }
         .tableStyle(.bordered(alternatesRowBackgrounds: true))
         .scrollDisabled(true)
-        .frame(height: tableHeight)
+        .fixedSize(horizontal: false, vertical: true)
         .padding(-1)
         .clipped()
       } else {
@@ -340,7 +339,7 @@ struct AssetDetailView: View {
         }
         .tableStyle(.bordered(alternatesRowBackgrounds: true))
         .scrollDisabled(true)
-        .frame(height: tableHeight)
+        .fixedSize(horizontal: false, vertical: true)
         .padding(-1)
         .clipped()
       }
