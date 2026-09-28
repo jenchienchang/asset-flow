@@ -281,7 +281,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.6.0; /* x-release-please-version */
+				MARKETING_VERSION = 0.7.0; /* x-release-please-version */
 				PRODUCT_BUNDLE_IDENTIFIER = JCChang.AssetFlow.testing;
 				PRODUCT_MODULE_NAME = AssetFlow;
 				PRODUCT_NAME = "$(TARGET_NAME)-$(CONFIGURATION)";
@@ -483,7 +483,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.6.0; /* x-release-please-version */
+				MARKETING_VERSION = 0.7.0; /* x-release-please-version */
 				PRODUCT_BUNDLE_IDENTIFIER = JCChang.AssetFlow.debug;
 				PRODUCT_MODULE_NAME = AssetFlow;
 				PRODUCT_NAME = "$(TARGET_NAME)-$(CONFIGURATION)";
@@ -542,7 +542,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.6.0; /* x-release-please-version */
+				MARKETING_VERSION = 0.7.0; /* x-release-please-version */
 				PRODUCT_BUNDLE_IDENTIFIER = JCChang.AssetFlow;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
