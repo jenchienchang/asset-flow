@@ -1,0 +1,2324 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A macOS app for snapshot-based portfolio management and asset allocation tracking.">
+      
+      
+      
+        <link rel="canonical" href="https://jenchienchang.github.io/asset-flow/latest/user-guide/changelog/">
+      
+      
+        <link rel="prev" href="../troubleshooting/">
+      
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../../zh-TW/user-guide/changelog/" hreflang="zh-TW">
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+    
+    
+      
+        <title>Changelog - AssetFlow</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#changelog" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="AssetFlow" class="md-header__button md-logo" aria-label="AssetFlow" data-md-component="logo">
+      
+  <img src="../../assets/images/favicon.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AssetFlow
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Changelog
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      
+
+  
+    
+      
+    
+      
+    
+  
+
+<div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            
+              
+            
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            
+              
+            
+            <a href="../../zh-TW/user-guide/changelog/" hreflang="zh-TW" class="md-select__link">
+              中文（台灣）
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jenchienchang/asset-flow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    jenchienchang/asset-flow
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="AssetFlow" class="md-nav__button md-logo" aria-label="AssetFlow" data-md-component="logo">
+      
+  <img src="../../assets/images/favicon.png" alt="logo">
+
+    </a>
+    AssetFlow
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jenchienchang/asset-flow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    jenchienchang/asset-flow
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../getting-started/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_2" id="__nav_2_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/performance-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/snapshots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Snapshots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/bulk-entry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk Entry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/assets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/categories/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Categories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/platforms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platforms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/cash-flows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cash Flows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/rebalancing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rebalancing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/import-csv/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import CSV
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Settings
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/preferences/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preferences
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/backup-restore/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backup & Restore
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/csv-format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CSV Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/currencies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Currencies & Exchange Rates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/keyboard-shortcuts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Keyboard Shortcuts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#070-2026-09-28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.0 (2026-09-28)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.7.0 (2026-09-28)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#060-2026-05-08" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.0 (2026-05-08)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.6.0 (2026-05-08)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance-improvements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Improvements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#050-2026-04-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.5.0 (2026-04-18)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.5.0 (2026-04-18)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance-improvements_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Improvements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#041-2026-03-15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.4.1 (2026-03-15)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.4.1 (2026-03-15)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#continuous-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Continuous Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#040-2026-03-15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.4.0 (2026-03-15)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.4.0 (2026-03-15)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#030-2026-02-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.3.0 (2026-02-21)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.3.0 (2026-02-21)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#020-2026-02-20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.0 (2026-02-20)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.0 (2026-02-20)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#070-2026-09-28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.0 (2026-09-28)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.7.0 (2026-09-28)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#060-2026-05-08" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.0 (2026-05-08)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.6.0 (2026-05-08)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance-improvements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Improvements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#050-2026-04-18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.5.0 (2026-04-18)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.5.0 (2026-04-18)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance-improvements_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Improvements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#041-2026-03-15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.4.1 (2026-03-15)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.4.1 (2026-03-15)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#continuous-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Continuous Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#040-2026-03-15" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.4.0 (2026-03-15)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.4.0 (2026-03-15)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#030-2026-02-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.3.0 (2026-02-21)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.3.0 (2026-02-21)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#020-2026-02-20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.0 (2026-02-20)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.2.0 (2026-02-20)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#features_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bug-fixes_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bug Fixes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    User Guide
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h1>
+<h2 id="070-2026-09-28"><a href="https://github.com/jenchienchang/asset-flow/compare/v0.6.0...v0.7.0">0.7.0</a> (2026-09-28)<a class="headerlink" href="#070-2026-09-28" title="Permanent link">&para;</a></h2>
+<h3 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>app-info:</strong> add version metadata and custom about window (<a href="https://github.com/jenchienchang/asset-flow/commit/7de5df18f6f8789084198ba265f5f267a01808bd">7de5df1</a>)</li>
+<li><strong>csv:</strong> use TabularData for RFC-compliant parsing (<a href="https://github.com/jenchienchang/asset-flow/commit/eb42b7d08ea825e4ef83b9532d0fce7aee00e529">eb42b7d</a>)</li>
+<li><strong>dashboard:</strong> refine hero card styling (<a href="https://github.com/jenchienchang/asset-flow/commit/2a8b8e4fbbec16675a079a2ef9e9f87f168647d4">2a8b8e4</a>)</li>
+<li><strong>import:</strong> surface CSV failures and preserve prior imports (<a href="https://github.com/jenchienchang/asset-flow/commit/7de46c0a1611982e09320f8ba76f1387d376b48c">7de46c0</a>)</li>
+</ul>
+<h3 id="bug-fixes">Bug Fixes<a class="headerlink" href="#bug-fixes" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>about:</strong> center privacy text within content width (<a href="https://github.com/jenchienchang/asset-flow/commit/dd5e69e55a0fd1af97f0903198cca3a36c99f763">dd5e69e</a>)</li>
+<li><strong>asset-detail:</strong> size value history table to its contents (<a href="https://github.com/jenchienchang/asset-flow/commit/3959b9adf35b675f245cf04d08d90ee1ab2a4026">3959b9a</a>)</li>
+<li><strong>backup:</strong> accept enclosing folder in restore archives (<a href="https://github.com/jenchienchang/asset-flow/commit/e48c7c74a2979723a9bc4e7e94c60856df8d54a7">e48c7c7</a>)</li>
+<li><strong>backup:</strong> prevent malformed and partial restores (<a href="https://github.com/jenchienchang/asset-flow/commit/67e59b9ff8a8aad3a54bd8c050ea66b882418376">67e59b9</a>)</li>
+<li><strong>ci:</strong> resolve lint tool versions dynamically (<a href="https://github.com/jenchienchang/asset-flow/commit/745f1fc7824423971c7a4f88e09b70fdc27b888e">745f1fc</a>)</li>
+<li><strong>data-sync:</strong> keep views in sync with stored data (<a href="https://github.com/jenchienchang/asset-flow/commit/aa1caee16e54ecea2067eb29a4c522b1bb53415d">aa1caee</a>)</li>
+<li><strong>exchange-rates:</strong> harden fetching, caching, and conversion (<a href="https://github.com/jenchienchang/asset-flow/commit/0d74f21e4cc1f4443265ef299afd2d559a907450">0d74f21</a>)</li>
+<li><strong>financial:</strong> preserve Decimal precision in calculations (<a href="https://github.com/jenchienchang/asset-flow/commit/a2ff412fce2f1870bedbfc4cd35848339ee69d43">a2ff412</a>)</li>
+<li><strong>history:</strong> show snapshots and asset values newest first (<a href="https://github.com/jenchienchang/asset-flow/commit/a1bd19bdacf511cd3e0ad55a40ae9d6c1400209e">a1bd19b</a>)</li>
+<li><strong>import:</strong> use operation-scoped persistence lookups (<a href="https://github.com/jenchienchang/asset-flow/commit/ecb97157c20bdd97c10f7bd125f555d464a075a2">ecb9715</a>)</li>
+<li><strong>import:</strong> validate CSV duplicates before applying rows (<a href="https://github.com/jenchienchang/asset-flow/commit/520e1a4df733289dbff303e76279e791f9c58d54">520e1a4</a>)</li>
+<li><strong>links:</strong> update repository URLs (<a href="https://github.com/jenchienchang/asset-flow/commit/b3bff1908b0ec0b631d46a9dea74a4cc5053839a">b3bff19</a>)</li>
+<li><strong>persistence:</strong> propagate SwiftData fetch failures (<a href="https://github.com/jenchienchang/asset-flow/commit/14a5825f7c91100607300dea2a20a8b83e0e7d15">14a5825</a>)</li>
+<li><strong>snapshots:</strong> remove non-Sendable model capture (<a href="https://github.com/jenchienchang/asset-flow/commit/afbdd169f6ff56b2cab7e5248aa020b4e639cd21">afbdd16</a>)</li>
+</ul>
+<h2 id="060-2026-05-08"><a href="https://github.com/jenchienchang/asset-flow/compare/v0.5.0...v0.6.0">0.6.0</a> (2026-05-08)<a class="headerlink" href="#060-2026-05-08" title="Permanent link">&para;</a></h2>
+<h3 id="features_1">Features<a class="headerlink" href="#features_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>asset-list:</strong> add Hide Stale Assets toggle (<a href="https://github.com/jenchienchang/asset-flow/commit/0c7b0ca0f99b3c38a5250d163943a4184e1dcea9">0c7b0ca</a>)</li>
+<li><strong>bulk-entry:</strong> size CSV mapping preview to content (<a href="https://github.com/jenchienchang/asset-flow/commit/5c97ca9c188d9991c4b3db6d09f0564ff58c7209">5c97ca9</a>)</li>
+<li><strong>sidebar:</strong> adopt system Liquid Glass background on macOS 26+ (<a href="https://github.com/jenchienchang/asset-flow/commit/37d46be86257384f0b03db9bcd231486cd79569f">37d46be</a>)</li>
+</ul>
+<h3 id="bug-fixes_1">Bug Fixes<a class="headerlink" href="#bug-fixes_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>bulk-entry:</strong> left-align text-categorical column headers (<a href="https://github.com/jenchienchang/asset-flow/commit/146decccf1113d8ae20b45982e20781b3d43d697">146decc</a>)</li>
+<li><strong>bulk-entry:</strong> paint updated-row tint as a contiguous strip (<a href="https://github.com/jenchienchang/asset-flow/commit/44568759d671e02394b9bd76ee54c963a3696def">4456875</a>)</li>
+<li><strong>docs:</strong> support Chinese anchors and search in zh-TW pages (<a href="https://github.com/jenchienchang/asset-flow/commit/e0daf34e75131dac7b763738741bab8c39a4e1b3">e0daf34</a>)</li>
+<li><strong>docs:</strong> track included file's git history for include-only pages (<a href="https://github.com/jenchienchang/asset-flow/commit/ff225a69636b9b73bdc506176df42b2f17cfb2d4">ff225a6</a>)</li>
+<li><strong>settings:</strong> set initial settings window size (<a href="https://github.com/jenchienchang/asset-flow/commit/7847236070f9121a963017f21c07b358dc509fcb">7847236</a>)</li>
+</ul>
+<h3 id="performance-improvements">Performance Improvements<a class="headerlink" href="#performance-improvements" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>viewmodels:</strong> share snapshot summary aggregation (<a href="https://github.com/jenchienchang/asset-flow/commit/9f56f0a6c0d97636c5083f3daf37c4d043543337">9f56f0a</a>)</li>
+</ul>
+<h2 id="050-2026-04-18"><a href="https://github.com/jenchienchang/asset-flow/compare/v0.4.1...v0.5.0">0.5.0</a> (2026-04-18)<a class="headerlink" href="#050-2026-04-18" title="Permanent link">&para;</a></h2>
+<h3 id="features_2">Features<a class="headerlink" href="#features_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>bulk-entry:</strong> add bulk entry workflow for snapshot creation (<a href="https://github.com/jenchienchang/asset-flow/issues/26">#26</a>) (<a href="https://github.com/jenchienchang/asset-flow/commit/50b9c8e08897409e42067ad8fa617bb0685df171">50b9c8e</a>)</li>
+<li><strong>bulk-entry:</strong> add cash flow support for snapshot creation (<a href="https://github.com/jenchienchang/asset-flow/commit/0e822594175df7f081d3ff6dcd9b6ba1e36c6fcf">0e82259</a>)</li>
+<li><strong>bulk-entry:</strong> add keyboard navigation, auto-focus, and summary to cash flow section (<a href="https://github.com/jenchienchang/asset-flow/commit/6909c5e40bff4029fc52ab212612675cd0f758e5">6909c5e</a>), closes <a href="https://github.com/jenchienchang/asset-flow/issues/30">#30</a></li>
+<li><strong>bulk-entry:</strong> show full-precision previous values with fill button (<a href="https://github.com/jenchienchang/asset-flow/commit/08f352148547ed3fd795850a3e5f3efbb598ee1e">08f3521</a>)</li>
+<li><strong>csv:</strong> add column mapping for CSV imports (<a href="https://github.com/jenchienchang/asset-flow/issues/28">#28</a>) (<a href="https://github.com/jenchienchang/asset-flow/commit/6b04e1c590b239e242337260e63aacb4e96385bf">6b04e1c</a>)</li>
+<li><strong>parsing:</strong> add locale-aware decimal parsing for number fields (<a href="https://github.com/jenchienchang/asset-flow/commit/c854267b05eb520202afb81be94f20f1638e7189">c854267</a>)</li>
+<li><strong>ui:</strong> apply explicit button styles to HStack popovers (<a href="https://github.com/jenchienchang/asset-flow/commit/ac3a01467e5a63ab0e72c8c5c7b9af5c61fb79c9">ac3a014</a>)</li>
+</ul>
+<h3 id="bug-fixes_2">Bug Fixes<a class="headerlink" href="#bug-fixes_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>bulk-entry:</strong> commit field values on focus change despite .equatable() (<a href="https://github.com/jenchienchang/asset-flow/commit/f1db3f1a18e1285eb0e45bab86e4278283f9972d">f1db3f1</a>)</li>
+<li><strong>bulk-entry:</strong> consolidate duplicate .fileImporter into single modifier (<a href="https://github.com/jenchienchang/asset-flow/commit/a7155ab93f11406e67916dee40f24be8ccfd2025">a7155ab</a>)</li>
+<li><strong>bulk-entry:</strong> preserve field values when rows scroll off-screen (<a href="https://github.com/jenchienchang/asset-flow/commit/f120c203576730d7f2858e75897ab6ad1d882446">f120c20</a>)</li>
+<li><strong>bulk-entry:</strong> preserve field values when toggling row exclusion (<a href="https://github.com/jenchienchang/asset-flow/commit/9405a7376e208964e800f5b8d7ee705cc611274d">9405a73</a>)</li>
+</ul>
+<h3 id="performance-improvements_1">Performance Improvements<a class="headerlink" href="#performance-improvements_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>bulk-entry:</strong> eliminate input latency from redundant view recomputation (<a href="https://github.com/jenchienchang/asset-flow/commit/33f3bf77a3f8ac45a500811ad4dfc6c39c268e2a">33f3bf7</a>), closes <a href="https://github.com/jenchienchang/asset-flow/issues/29">#29</a></li>
+<li><strong>bulk-entry:</strong> reduce SwiftUI invalidation cascades and redundant iterations (<a href="https://github.com/jenchienchang/asset-flow/commit/a076a40468827a2e323ad026e1b0f187857b7384">a076a40</a>)</li>
+<li><strong>bulk-entry:</strong> reduce unnecessary work in focus advance and CSV import (<a href="https://github.com/jenchienchang/asset-flow/commit/a4caafd525dc2dd90e242e4c0eadafe7aefe1bb9">a4caafd</a>)</li>
+<li><strong>snapshot:</strong> use #Predicate and fetchLimit for snapshot lookups (<a href="https://github.com/jenchienchang/asset-flow/commit/28ad9fde230a0e4a0209a1907156d4b09cceab88">28ad9fd</a>)</li>
+</ul>
+<h2 id="041-2026-03-15"><a href="https://github.com/jenchienchang/asset-flow/compare/v0.4.0...v0.4.1">0.4.1</a> (2026-03-15)<a class="headerlink" href="#041-2026-03-15" title="Permanent link">&para;</a></h2>
+<h3 id="continuous-integration">Continuous Integration<a class="headerlink" href="#continuous-integration" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>docs:</strong> move release docs deployment into release-please workflow (<a href="https://github.com/jenchienchang/asset-flow/commit/faa08e018255d78b4dea0479719a640e3b9601d8">faa08e0</a>)</li>
+</ul>
+<h2 id="040-2026-03-15"><a href="https://github.com/jenchienchang/asset-flow/compare/v0.3.0...v0.4.0">0.4.0</a> (2026-03-15)<a class="headerlink" href="#040-2026-03-15" title="Permanent link">&para;</a></h2>
+<h3 id="features_3">Features<a class="headerlink" href="#features_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Add documentation links and dev-aware version suffix (<a href="https://github.com/jenchienchang/asset-flow/commit/a5e9ab99437f4cce2836db80d7703a59d6ee41d9">a5e9ab9</a>)</li>
+<li>Add multi-currency support with exchange rate conversion (<a href="https://github.com/jenchienchang/asset-flow/issues/22">#22</a>) (<a href="https://github.com/jenchienchang/asset-flow/commit/36b58f99ad78abc34a99769703a81d2544e55d63">36b58f9</a>)</li>
+<li><strong>asset:</strong> Add converted value column and chart to asset detail view (<a href="https://github.com/jenchienchang/asset-flow/commit/70ebf17ee88de9c8a9da70172a0d6816977b953b">70ebf17</a>)</li>
+<li><strong>assets:</strong> Add inline value editing to asset detail history table (<a href="https://github.com/jenchienchang/asset-flow/commit/144da63873e58d4582470e02d0af3842093a7807">144da63</a>)</li>
+<li><strong>categories:</strong> Add configurable category order via drag-and-drop (<a href="https://github.com/jenchienchang/asset-flow/commit/687066a5e1c781192817091ef36623328e380ba6">687066a</a>)</li>
+<li><strong>chart:</strong> Add dynamic multi-column legend to pie chart (<a href="https://github.com/jenchienchang/asset-flow/commit/568cf7534e0a63ccfadcfb7452ce243635dfa08c">568cf75</a>)</li>
+<li><strong>charts:</strong> Add target allocation line and dynamic y-axis to category allocation chart (<a href="https://github.com/jenchienchang/asset-flow/commit/851c45c3b34cbfbd532b007d33f44b7c1670647e">851c45c</a>)</li>
+<li><strong>dashboard:</strong> Elevate UI to premium FinTech aesthetic (<a href="https://github.com/jenchienchang/asset-flow/commit/5cc344b3cbd87c4b1d36db3d97d2f8b7e0c6aad4">5cc344b</a>)</li>
+<li><strong>dashboard:</strong> Replace 14-day backward lookback with bidirectional closest-snapshot matching (<a href="https://github.com/jenchienchang/asset-flow/commit/9135f6fbdd11fcdf393ce725b621c85d1af77b84">9135f6f</a>)</li>
+<li><strong>dashboard:</strong> Smooth pie chart angle animation and improved color palette (<a href="https://github.com/jenchienchang/asset-flow/commit/76a0f6729677a212192ebb1c608b14a9c78ca4df">76a0f67</a>)</li>
+<li><strong>exchange-rate:</strong> Auto-fetch missing exchange rates for all snapshots (<a href="https://github.com/jenchienchang/asset-flow/commit/ba64beeb465c2f57191503e5477081fcfa711aba">ba64bee</a>)</li>
+<li><strong>import:</strong> Add currency column support with validation and auth-aware popovers (<a href="https://github.com/jenchienchang/asset-flow/commit/852d88793d028ce6c371a52b2600fa5694357608">852d887</a>)</li>
+<li><strong>import:</strong> Move validation to per-row errors and add category apply mode (<a href="https://github.com/jenchienchang/asset-flow/commit/e803c30cf5c0431a3b428572d2392ef04ab3cbaf">e803c30</a>)</li>
+<li><strong>security:</strong> Add lock-aware hover modifiers to prevent data leakage (<a href="https://github.com/jenchienchang/asset-flow/commit/107eecbe9acdef510605552af9e07f25beacf187">107eecb</a>)</li>
+<li><strong>security:</strong> Add optional app lock with Touch ID and system password (<a href="https://github.com/jenchienchang/asset-flow/commit/833de3b8b239861e74cd710f6e66df53c4a6ffc9">833de3b</a>)</li>
+<li><strong>settings:</strong> Make settings window resizable (<a href="https://github.com/jenchienchang/asset-flow/commit/464a76c7d13a826f2f3e7f2729d6f5f6031794d2">464a76c</a>)</li>
+<li><strong>settings:</strong> Use adaptive text alignment for privacy disclaimer (<a href="https://github.com/jenchienchang/asset-flow/commit/36c427c2bc1f7a7485d3fe7a22bfdd956bb13fc8">36c427c</a>)</li>
+<li><strong>ui:</strong> Add exchange rate display section to snapshot detail (<a href="https://github.com/jenchienchang/asset-flow/commit/399355e8bda6b2f99c5edbd261986880de1ed3b4">399355e</a>)</li>
+<li><strong>ui:</strong> Add platform list reordering and category deviation help messages (<a href="https://github.com/jenchienchang/asset-flow/commit/5a78c9f3c735956808423925e2b5c5d970aeb92f">5a78c9f</a>)</li>
+<li><strong>ui:</strong> Add shared animation constants with Reduce Motion support (<a href="https://github.com/jenchienchang/asset-flow/commit/cc34621a6affe60d81cef97cdfdc619e29b3dff6">cc34621</a>)</li>
+</ul>
+<h3 id="bug-fixes_3">Bug Fixes<a class="headerlink" href="#bug-fixes_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>asset:</strong> Initialize picker caches in init to prevent invalid selection warnings (<a href="https://github.com/jenchienchang/asset-flow/commit/10b98161da40783791e69d1e09d1bc0ebc74ad6d">10b9816</a>)</li>
+<li><strong>charts:</strong> Use idiomatic RuleMark annotation for category chart tooltip (<a href="https://github.com/jenchienchang/asset-flow/commit/1454f85c3ce7697100ebde9df99aaad50d9e115a">1454f85</a>)</li>
+<li><strong>dashboard:</strong> Prevent stat card labels from wrapping or truncating (<a href="https://github.com/jenchienchang/asset-flow/commit/daa0c6e9bd92b54d13a74bf0174bf79a7753036b">daa0c6e</a>)</li>
+<li><strong>docs:</strong> Exclude CLAUDE.md and README.md from MkDocs build output (<a href="https://github.com/jenchienchang/asset-flow/commit/bb915de8dcc484409ef071eff9b284be64643d88">bb915de</a>)</li>
+<li><strong>docs:</strong> Fix language switcher on home pages for mike versioning (<a href="https://github.com/jenchienchang/asset-flow/commit/e5f037cc09cae3979f89f1db5b6bdc98508e1698">e5f037c</a>)</li>
+<li><strong>l10n:</strong> Add missing zh-Hant translations for charts, toolbars, and buttons (<a href="https://github.com/jenchienchang/asset-flow/commit/7fdc4d78fe4a70148abd0784959ab802f79ac93c">7fdc4d7</a>)</li>
+<li><strong>l10n:</strong> Localize privacy disclaimer in native About panel (<a href="https://github.com/jenchienchang/asset-flow/commit/aefc6c81a3fffd4efb55dca36b9ef64cc7876c0c">aefc6c8</a>)</li>
+<li><strong>reactivity:</strong> Refresh list views after detail view edits (<a href="https://github.com/jenchienchang/asset-flow/commit/3ac18d3cea2813f886a7b6b0ce64d728719c5c40">3ac18d3</a>)</li>
+<li><strong>tables:</strong> Add visible column resize handles to detail view tables (<a href="https://github.com/jenchienchang/asset-flow/commit/ec51c140b5dbfffe1ad93f9303f11e3e4a354e82">ec51c14</a>)</li>
+<li><strong>test:</strong> Replace flaky Task.sleep with deterministic Task.value await (<a href="https://github.com/jenchienchang/asset-flow/commit/e1477c8a1588488b6d0ef3c30a4971d0d4ea7f85">e1477c8</a>)</li>
+</ul>
+<h2 id="030-2026-02-21"><a href="https://github.com/jenchienchang/asset-flow/compare/v0.2.0...v0.3.0">0.3.0</a> (2026-02-21)<a class="headerlink" href="#030-2026-02-21" title="Permanent link">&para;</a></h2>
+<h3 id="features_4">Features<a class="headerlink" href="#features_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>charts:</strong> Upgrade asset detail sparkline to full line chart (<a href="https://github.com/jenchienchang/asset-flow/commit/5d51754350f58b0f69d66def9a164d3f6dd98297">5d51754</a>)</li>
+<li><strong>dashboard:</strong> Rebase cumulative TWR chart to 0% on period selection (<a href="https://github.com/jenchienchang/asset-flow/commit/34065774bda15122d7ccd34550350249b0f4d644">3406577</a>)</li>
+<li><strong>ui:</strong> Modernize UI patterns with native macOS conventions (<a href="https://github.com/jenchienchang/asset-flow/commit/8a5c3093a707e8bf34471a31bd57f98785937bf7">8a5c309</a>)</li>
+</ul>
+<h3 id="bug-fixes_4">Bug Fixes<a class="headerlink" href="#bug-fixes_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>charts:</strong> Pin axes and fix tooltip clipping in detail view charts (<a href="https://github.com/jenchienchang/asset-flow/commit/d505c915c845c964a7ae4420472dc074eecd7c3b">d505c91</a>)</li>
+<li><strong>charts:</strong> Pin Y-axis domain to prevent axis shift during hover (<a href="https://github.com/jenchienchang/asset-flow/commit/c02d963a62a1fa47f4f8e713c831de00a7e2e372">c02d963</a>)</li>
+<li><strong>dashboard:</strong> Add 0% origin point to TWR history for consistent rebasing (<a href="https://github.com/jenchienchang/asset-flow/commit/44ad4ca0666fece4305060c64f719162746925e3">44ad4ca</a>)</li>
+<li><strong>i18n:</strong> Add missing zh-Hant translations for empty state views (<a href="https://github.com/jenchienchang/asset-flow/commit/1137cb96d10c3e456e35d12fa962409773e934d1">1137cb9</a>)</li>
+<li><strong>l10n:</strong> Make CSV column names non-localizable in import view (<a href="https://github.com/jenchienchang/asset-flow/commit/470ec97f16609baf4383730fa196bd099fb61a28">470ec97</a>)</li>
+</ul>
+<h2 id="020-2026-02-20"><a href="https://github.com/jenchienchang/asset-flow/compare/v0.1.0...v0.2.0">0.2.0</a> (2026-02-20)<a class="headerlink" href="#020-2026-02-20" title="Permanent link">&para;</a></h2>
+<h3 id="features_5">Features<a class="headerlink" href="#features_5" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>import:</strong> Add platform apply mode for CSV import (<a href="https://github.com/jenchienchang/asset-flow/commit/af70a67d8141a0bd5481e13f634ffffdae115585">af70a67</a>)</li>
+<li><strong>ui:</strong> Make sidebar always visible and non-collapsible (<a href="https://github.com/jenchienchang/asset-flow/commit/275db37ae892e676cb9ff45baa61b669adcb5e63">275db37</a>)</li>
+</ul>
+<h3 id="bug-fixes_5">Bug Fixes<a class="headerlink" href="#bug-fixes_5" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>import:</strong> Cache CSV file data to fix platform selection after file load (<a href="https://github.com/jenchienchang/asset-flow/commit/5d8b1e613cd3489ddec87f9489b44b9e527e5284">5d8b1e6</a>)</li>
+<li><strong>import:</strong> Improve CSV import reliability and UX (<a href="https://github.com/jenchienchang/asset-flow/issues/15">#15</a>) (<a href="https://github.com/jenchienchang/asset-flow/commit/d58be4d33de42ad2737ae2859efef93189f6ec11">d58be4d</a>)</li>
+<li><strong>import:</strong> Preserve excluded rows when platform or category changes (<a href="https://github.com/jenchienchang/asset-flow/commit/13c9aefa5292a1b9589225cf4e834c8a4764725b">13c9aef</a>)</li>
+<li><strong>import:</strong> Reset import form after successful CSV import (<a href="https://github.com/jenchienchang/asset-flow/commit/5b807830542c614b7756a88dee912a3c66e4810c">5b80783</a>)</li>
+</ul>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 29, 2026 13:18:45 UTC">September 29, 2026</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="February 20, 2026 17:53:33 UTC">February 20, 2026</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../troubleshooting/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Troubleshooting">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Troubleshooting
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2025-2026 Jen-Chien Chang
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.path", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"alias": true, "default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
