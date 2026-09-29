@@ -176,7 +176,7 @@ jobs:
   build-and-upload:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: macos-26
+    runs-on: xcode-27
     permissions:
       contents: write
     steps:
