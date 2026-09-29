@@ -87,7 +87,7 @@ jobs:
 
       - name: Cache lint tools
         id: cache-tools
-        uses: actions/cache@v4
+        uses: actions/cache@v6.1.0
         with:
           path: ~/lint-tools
           key: lint-tools-swiftlint-${{ steps.swiftlint.outputs.version }}-swift-format-${{ steps.swift-format.outputs.version }}
