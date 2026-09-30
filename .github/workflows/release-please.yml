@@ -176,8 +176,9 @@ jobs:
   build-and-upload:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
-    uses: ./.github/workflows/archive.yml
+    uses: ./.github/workflows/xcode-build.yml
     with:
+      operation: archive
       package_release_artifact: true
     permissions:
       contents: read

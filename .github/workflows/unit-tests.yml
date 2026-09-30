@@ -1,4 +1,4 @@
-name: Archive Check
+name: Unit Tests
 
 on:
   pull_request:
@@ -7,9 +7,9 @@ permissions:
   contents: read
 
 jobs:
-  archive:
+  unit-tests:
     uses: ./.github/workflows/xcode-build.yml
     with:
-      operation: archive
+      operation: test
     permissions:
       contents: read

@@ -1,8 +1,12 @@
-name: Archive
+name: Xcode Build
 
 on:
   workflow_call:
     inputs:
+      operation:
+        description: Xcode operation to run.
+        required: true
+        type: string
       package_release_artifact:
         description: Package and upload the app artifact for a GitHub release.
         required: false
@@ -13,7 +17,7 @@ permissions:
   contents: read
 
 jobs:
-  archive:
+  xcode:
     runs-on: xcode-27
     steps:
       - name: Checkout
@@ -24,7 +28,16 @@ jobs:
         with:
           xcode-version: '27.0'
 
+      - name: Validate operation
+        if: ${{ inputs.operation != 'archive' && inputs.operation != 'test' }}
+        env:
+          XCODE_OPERATION: ${{ inputs.operation }}
+        run: |
+          echo "Unsupported Xcode operation: $XCODE_OPERATION" >&2
+          exit 1
+
       - name: Archive
+        if: ${{ inputs.operation == 'archive' }}
         run: |
           xcodebuild archive \
             -project AssetFlow.xcodeproj \
@@ -36,13 +49,21 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
 
+      - name: Run unit tests
+        if: ${{ inputs.operation == 'test' }}
+        run: |
+          xcodebuild test \
+            -project AssetFlow.xcodeproj \
+            -scheme AssetFlow \
+            -destination 'platform=macOS'
+
       - name: Copy .app from archive
-        if: ${{ inputs.package_release_artifact }}
+        if: ${{ inputs.operation == 'archive' && inputs.package_release_artifact }}
         run: |
           cp -R build/AssetFlow.xcarchive/Products/Applications/AssetFlow.app build/AssetFlow.app
 
       - name: Zip .app
-        if: ${{ inputs.package_release_artifact }}
+        if: ${{ inputs.operation == 'archive' && inputs.package_release_artifact }}
         run: |
           VERSION=$(cat version.txt | tr -d '[:space:]')
           ditto -c -k --sequesterRsrc --keepParent \
@@ -50,7 +71,7 @@ jobs:
             "build/AssetFlow-${VERSION}.zip"
 
       - name: Upload release build artifact
-        if: ${{ inputs.package_release_artifact }}
+        if: ${{ inputs.operation == 'archive' && inputs.package_release_artifact }}
         uses: actions/upload-artifact@v4
         with:
           name: AssetFlow-release
