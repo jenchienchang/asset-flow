@@ -1,0 +1,13 @@
+name: Archive Check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    uses: ./.github/workflows/archive.yml
+    permissions:
+      contents: read

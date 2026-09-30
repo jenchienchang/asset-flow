@@ -176,40 +176,26 @@ jobs:
   build-and-upload:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: xcode-27
+    uses: ./.github/workflows/archive.yml
+    with:
+      package_release_artifact: true
+    permissions:
+      contents: read
+
+  upload-release:
+    needs:
+      - release-please
+      - build-and-upload
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Select Xcode version
-        uses: maxim-lobanov/setup-xcode@v1
+      - name: Download release asset
+        uses: actions/download-artifact@v4
         with:
-          xcode-version: '27.0'
-
-      - name: Archive
-        run: |
-          xcodebuild archive \
-            -project AssetFlow.xcodeproj \
-            -scheme AssetFlow \
-            -configuration Release \
-            -archivePath build/AssetFlow.xcarchive \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
-
-      - name: Copy .app from archive
-        run: |
-          cp -R build/AssetFlow.xcarchive/Products/Applications/AssetFlow.app build/AssetFlow.app
-
-      - name: Zip .app
-        run: |
-          VERSION=$(cat version.txt | tr -d '[:space:]')
-          ditto -c -k --sequesterRsrc --keepParent \
-            build/AssetFlow.app \
-            "build/AssetFlow-${VERSION}.zip"
+          name: AssetFlow-release
+          path: build
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2

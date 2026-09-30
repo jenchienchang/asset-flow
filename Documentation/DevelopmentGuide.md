@@ -69,6 +69,7 @@ Before you begin development, ensure you have the following installed:
 
 - `version.txt` is the release-please source for the marketing version. Release Please's manifest-mode config and current-version manifest are in `.github/release-please/`. Its generic extra-file updater also updates the app target's Xcode `MARKETING_VERSION` entries, which generate `CFBundleShortVersionString`; the build script does not override that value.
 - Local builds use the numeric `CURRENT_PROJECT_VERSION` configured in Xcode. Release archives set it to GitHub Actions' `GITHUB_RUN_NUMBER`, so distributed build numbers increase across workflow runs and may have gaps between releases.
+- Pull requests run the archive check in `.github/workflows/archive-check.yml`. It and the release workflow call `.github/workflows/archive.yml`, sharing the `xcode-27` runner, Xcode 27.0 selection, and archive step. The PR check stops after archiving; packaging and workflow artifact upload run only for releases, whose workflow downloads the app artifact and attaches it to the GitHub release.
 - The build script writes the first eight characters of the Git revision to the custom `AppCommit` property. It appends `-dirty` when the working tree has uncommitted changes. `CFBundleVersion` remains numeric and is not used for the commit ID.
 
 ______________________________________________________________________

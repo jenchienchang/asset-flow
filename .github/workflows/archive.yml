@@ -1,0 +1,58 @@
+name: Archive
+
+on:
+  workflow_call:
+    inputs:
+      package_release_artifact:
+        description: Package and upload the app artifact for a GitHub release.
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: xcode-27
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '27.0'
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project AssetFlow.xcodeproj \
+            -scheme AssetFlow \
+            -configuration Release \
+            -archivePath build/AssetFlow.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+
+      - name: Copy .app from archive
+        if: ${{ inputs.package_release_artifact }}
+        run: |
+          cp -R build/AssetFlow.xcarchive/Products/Applications/AssetFlow.app build/AssetFlow.app
+
+      - name: Zip .app
+        if: ${{ inputs.package_release_artifact }}
+        run: |
+          VERSION=$(cat version.txt | tr -d '[:space:]')
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/AssetFlow.app \
+            "build/AssetFlow-${VERSION}.zip"
+
+      - name: Upload release build artifact
+        if: ${{ inputs.package_release_artifact }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: AssetFlow-release
+          path: build/AssetFlow-*.zip
+          if-no-files-found: error
