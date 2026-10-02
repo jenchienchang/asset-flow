@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.1](https://github.com/jenchienchang/asset-flow/compare/v0.7.0...v0.7.1) (2026-10-02)
+
+
+### Features
+
+* **dashboard:** sort category hover values ([dbc818d](https://github.com/jenchienchang/asset-flow/commit/dbc818d02fb8ce4ba8811072c79f8283eb5ac53b))
+
+
+### Continuous Integration
+
+* **release:** use xcode 27 runner for release builds ([ed29239](https://github.com/jenchienchang/asset-flow/commit/ed29239487cca468216279625bdace87667861fc))
+
 ## [0.7.0](https://github.com/jenchienchang/asset-flow/compare/v0.6.0...v0.7.0) (2026-09-28)
 
 ### Features
