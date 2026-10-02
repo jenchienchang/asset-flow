@@ -212,20 +212,39 @@ struct CategoryValueLineChart: View {
   private func categoryTooltipView(
     for date: Date, data: [CategoryChartPoint]
   ) -> some View {
-    let pointsAtDate = data.filter { $0.date == date }
+    let pointsAtDate =
+      data
+      .filter { $0.date == date }
+      .sorted { lhs, rhs in
+        if lhs.value != rhs.value {
+          return lhs.value > rhs.value
+        }
+        let nameOrder = lhs.categoryName.localizedCaseInsensitiveCompare(rhs.categoryName)
+        if nameOrder != .orderedSame {
+          return nameOrder == .orderedAscending
+        }
+        return lhs.categoryName < rhs.categoryName
+      }
+
     return ChartTooltipView {
       Text(date.settingsFormatted())
         .font(.caption2)
-      ForEach(pointsAtDate, id: \.categoryName) { point in
-        HStack(spacing: 4) {
-          Circle()
-            .fill(colorForCategory(point.categoryName))
-            .frame(width: 6, height: 6)
-          Text(point.categoryName)
-            .font(.caption2)
-          Spacer()
-          Text(point.value.formatted(currency: SettingsService.shared.mainCurrency))
-            .font(.caption2.bold())
+      Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 2) {
+        ForEach(pointsAtDate, id: \.categoryName) { point in
+          GridRow {
+            HStack(spacing: 4) {
+              Circle()
+                .fill(colorForCategory(point.categoryName))
+                .frame(width: 6, height: 6)
+              Text(point.categoryName)
+                .font(.caption2)
+            }
+
+            Text(point.value.formatted(currency: SettingsService.shared.mainCurrency))
+              .font(.caption2.bold())
+              .monospacedDigit()
+              .gridColumnAlignment(.trailing)
+          }
         }
       }
     }

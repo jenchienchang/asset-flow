@@ -566,7 +566,7 @@ All line charts include a zoom selector:
 - Multiple lines, one per category
 - Legend with category names
 - Toggle individual categories on/off
-- Hover: tooltip with date, category name, value. No click-to-navigate.
+- Hover: tooltip with the date and category values at that date, sorted from highest to lowest (ties alphabetically). Currency values are right-aligned in a shared column with tabular digits. No click-to-navigate.
 - Time range zoom controls
 
 Category detail also includes allocation percentage line chart (same format, single category).

@@ -892,7 +892,7 @@ ______________________________________________________________________
 - Multiple lines, one per category
 - Legend with category names
 - Toggle individual categories on/off
-- Hover shows tooltip with date, category name, and value. No click-to-navigate behavior.
+- Hover shows the date and category values at that date, sorted from highest to lowest (ties alphabetically). Currency values are right-aligned in a shared column with tabular digits. No click-to-navigate behavior.
 - Time range zoom controls (see above)
 
 The category detail view also includes an allocation percentage line chart (same format as 12.3 but showing percentage instead of value, for a single category). Time range zoom controls apply.
