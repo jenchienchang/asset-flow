@@ -32,6 +32,8 @@ extension BackupService {
           csvEscape(cat.name),
           cat.targetAllocationPercentage.map { "\($0)" } ?? "",
           "\(cat.displayOrder)",
+          cat.minimumBalanceAmount.map { "\($0)" } ?? "",
+          cat.minimumBalanceCurrency ?? "",
         ]))
     }
     try lines.joined(separator: "\n")

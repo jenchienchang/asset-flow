@@ -49,7 +49,7 @@ extension BackupService {
     let hasExchangeRates = FileManager.default.fileExists(
       atPath: exchangeRateURL.path)
     if hasExchangeRates {
-      if version == .v3 {
+      if version.rawValue >= BackupFormatVersion.v3.rawValue {
         documents[BackupCSV.ExchangeRates.fileName] = try loadCSVDocument(
           at: exchangeRateURL,
           fileName: BackupCSV.ExchangeRates.fileName,
@@ -153,10 +153,13 @@ extension BackupService {
   ) -> [String] {
     switch fileName {
     case BackupCSV.Categories.fileName:
-      version == .v1 ? BackupCSV.Categories.v1Headers : BackupCSV.Categories.headers
+      version == .v1
+        ? BackupCSV.Categories.v1Headers
+        : (version == .v4 ? BackupCSV.Categories.headers : BackupCSV.Categories.v3Headers)
 
     case BackupCSV.Assets.fileName:
-      version == .v3 ? BackupCSV.Assets.headers : BackupCSV.Assets.v2Headers
+      version.rawValue >= BackupFormatVersion.v3.rawValue
+        ? BackupCSV.Assets.headers : BackupCSV.Assets.v2Headers
 
     case BackupCSV.Snapshots.fileName:
       BackupCSV.Snapshots.headers
@@ -165,7 +168,7 @@ extension BackupService {
       BackupCSV.SnapshotAssetValues.headers
 
     case BackupCSV.CashFlowOperations.fileName:
-      version == .v3
+      version.rawValue >= BackupFormatVersion.v3.rawValue
         ? BackupCSV.CashFlowOperations.headers
         : BackupCSV.CashFlowOperations.v2Headers
 

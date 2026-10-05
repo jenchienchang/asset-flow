@@ -128,17 +128,15 @@ class ImportViewModel {
 
 ##### Automatic Data Reload
 
-ViewModels that compute aggregate or currency-converted values use `withObservationTracking` to automatically re-trigger their load method when any `@Observable`/`@Model` property read during computation changes. SwiftData `@Query` invalidation covers fetched collection membership changes, including child records and whole-store replacement. Query-backed caches compare `ModelQueryRevision`, a value fingerprint of all six persisted model types, so an edit to an existing model is not lost merely because the queried array still contains the same model instances.
+Aggregate ViewModels use `ObservedRefresh` to separate source observation from display publication. Fetch and calculate into local values inside tracking, then publish derived properties outside tracking. Private dashboard caches do not participate in source observation; public cache readers observe a publication revision to invalidate UI consumers. No derived value may trigger its own reload.
 
-**Two complementary mechanisms:**
+1. Model observation detects edits to existing dependencies and settings. Its callback requests a coalesced main-actor refresh after the mutation completes.
+1. Each explicit load advances a generation, cancels pending work, and supersedes old registrations. Callbacks from old generations cannot refresh the screen. Changes during result publication or while a request is pending remain covered by a subsequent refresh using the latest source values.
+1. `ContentView` projects all six persisted types into `ModelQueryRevision` and publishes it through the `storeRevision` environment. All ten aggregate screens call `.refreshOnStoreChanges` and their ViewModel's `requestRefresh()`. This covers membership, child records, reordered snapshot dates and replacement stores, even when changed records were outside the last observation dependency set.
+1. Local queries remain for standalone screens and selection reconciliation. Explicit mutation handlers retain synchronous loads; notifications from observation and queries share the pending request queue.
+1. Store reconciliation re-resolves retained selections by stable UUID. Detail panes use `ObjectIdentifier(model)` so replacement records create ViewModels bound to live instances. Background category refreshes preserve unsaved drafts; asset editor options update without resetting edited values.
 
-1. `withObservationTracking` — detects property changes on existing objects (currency change, value edit, exchange rate update) and reloads aggregate ViewModels that are bound to those objects.
-1. `@Query` + `.onChange(of:)` in views — invalidates fetch-backed ViewModels when queried collection membership changes; views continue to render the ViewModel's successfully fetched collection rather than treating a query failure as an empty state. Asset, Category, and Platform lists also query snapshots because their row values are derived from the latest snapshot. Category and Platform detail screens query snapshots because their history includes dates with no child values.
-1. `ModelQueryRevision` fingerprints IDs and display-relevant fields for Snapshot, Asset, Category, SnapshotAssetValue, CashFlowOperation, and ExchangeRate. It is used where a screen caches state derived from several query results, including the app shell, Import, Add Asset, and Bulk Entry.
-1. `ContentView` keeps queries for all persisted model types alive across sidebar navigation. On store changes it re-resolves retained selections by each model's stable app UUID, clears missing selections, and refreshes a retained Import ViewModel. Changes to Bulk Entry's source models separately mark a retained draft stale. Detail panes use `ObjectIdentifier(model)` as their SwiftUI identity so a replacement model with the same app UUID still creates a ViewModel bound to the new SwiftData instance.
-1. Import refreshes picker options and revalidates its current preview when any query fingerprint changes and whenever the screen reappears. Bulk Entry does not silently rebuild a user's draft: source changes, including edits to the prior snapshot values used to seed the draft, disable editing and saving until the user explicitly discards the draft and reloads it.
-
-**Property-observation reloads are used by:** `DashboardViewModel`, `SnapshotDetailViewModel`, `SnapshotListViewModel`, `CategoryListViewModel`, `CategoryDetailViewModel`, `PlatformListViewModel`, `PlatformDetailViewModel`, `AssetListViewModel`, `AssetDetailViewModel`, `RebalancingViewModel`.
+**Coordinated aggregate loaders:** `DashboardViewModel`, `SnapshotDetailViewModel`, `SnapshotListViewModel`, `CategoryListViewModel`, `CategoryDetailViewModel`, `PlatformListViewModel`, `PlatformDetailViewModel`, `AssetListViewModel`, `AssetDetailViewModel`, and `RebalancingViewModel`.
 
 `ImportViewModel` and `BulkEntryViewModel` use explicit Query-driven refresh behavior because they cache picker/validation state and an editable draft, respectively. `BulkEntryViewModel` keeps `private(set)` rows with centralized mutation methods and a stored `toolbarStats` property maintained via O(1) delta updates. `SettingsViewModel` does not display persisted aggregate values and does not require a data query.
 
@@ -248,13 +246,13 @@ User Action -> View -> ViewModel -> Service/Model -> SwiftData
 - **Single ModelContainer**: Shared container injected at app root in `AssetFlowApp.swift`
 - **Automatic Persistence**: No manual `save()` calls required
 - **SwiftUI Integration**: `@Query` property wrapper for reactive data binding
-- **Schema Registration**: All models registered in `SchemaV1` (`Models/SchemaVersioning.swift`)
+- **Schema Registration**: All models registered in `SchemaV2` (`Models/SchemaVersioning.swift`)
 
 ```swift
 @main
 struct AssetFlowApp: App {
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema(versionedSchema: SchemaV1.self)
+        let schema = CurrentSchema.schema
         // Container configuration
     }()
 }
@@ -425,3 +423,27 @@ See [TestingStrategy.md](TestingStrategy.md) for comprehensive testing approach.
 1. **iOS/iPadOS Support**: Platform expansion in future versions
 1. **Column Mapping**: Configurable CSV column mapping (future version)
 1. **Category-Level Cash Flows**: Per-category cash flow tracking (future version)
+
+## Category Goal Assessment
+
+The app opens CurrentSchema.schema (V2) using AssetFlowMigrationPlan; historical V1 definitions are frozen. RebalancingCalculator is a pure Decimal active-set allocation service with structured feasibility results. CategoryGoalAssessmentService maps snapshot values by UUID and handles original goal currencies separately from asset valuation. Category list/detail and Rebalancing reuse this assessment rather than duplicating allocation rules. Missing goal rates disable dependent comparisons/plans without disabling valid portfolio statistics.
+
+Rate fetching includes goal currencies after successful configuration changes; ContentView uses a cancellable task keyed by required goal currencies, snapshot identities/dates, display currency, and asset/cash-flow currencies. Background requests reuse existing rate caching and endpoint policies. Rebalancing never changes stored assets or creates cash flows.
+
+## Category Editing and Compact Goal Presentation
+
+`ContentView` owns a CategoryEditingSession registered by the active CategoryDetailView. Category selection, sidebar changes, history navigation, and New Snapshot navigation guard unsaved drafts before replacing the editor. Opening the sidebar New Snapshot sheet retains the active editor. Cancelling that sheet leaves subsequent edits guarded. Session cleanup follows actual visible category/section replacement, including category identity changes after store replacement. The session is UI state only and does not persist goals. Category detail uses field-scoped Return submission and Command-S; no default Return shortcut is assigned to Save Changes.
+
+## Structured Rebalancing Help
+
+Structured rebalancing help uses RebalancingHelpPresentation (view-facing data and localization) plus RebalancingHelpView (section/grid/bullet layout). The existing assessment remains the source of converted balances, minimum status, and feasibility. No new calculations, persisted fields, or network requests are introduced.
+
+### Category goal calculation work
+
+The category list reuses one `CategoryGoalAssessment` for valuations, availability, minimum status and effective targets, indexed by category UUID. Category detail calculates the current plan once and converts only the selected category's configured minimum for each historical overlay point. It skips minimum history when disabled; missing conversions retain segmented gaps. Historical overlays never invoke the full rebalancing calculator. No persistent calculation cache is introduced.
+
+Clean category editors adopt externally updated saved fields after a data refresh; editors with unsaved changes retain every draft field. Saved-field source reads are tracked even for empty categories.
+
+### Minimum-first transfer planning
+
+`RebalancingTransferPlanner` consumes feasible `CategoryGoalTarget` values and produces typed category-ID/Decimal transfers, actionable row IDs, and the omitted/unmatched residual. It reserves donor capacity for all minimum shortfalls before optional percentage demand. `RebalancingViewModel` uses this single result for action eligibility and localized Suggested Moves, keeping financial planning independent of presentation.

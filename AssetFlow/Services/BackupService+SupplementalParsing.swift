@@ -27,7 +27,7 @@ extension BackupService {
     issues: inout [BackupValidationIssue]
   ) -> [BackupCashFlowRecord] {
     let file = BackupCSV.CashFlowOperations.fileName
-    let expectedCount = version == .v3 ? 5 : 4
+    let expectedCount = version.rawValue >= BackupFormatVersion.v3.rawValue ? 5 : 4
     var result: [BackupCashFlowRecord] = []
     var ids: Set<UUID> = []
     var identities: Set<String> = []
@@ -90,7 +90,8 @@ extension BackupService {
       result.append(
         BackupCashFlowRecord(
           id: id, snapshotID: snapshotID, description: description,
-          amount: amount, currency: version == .v3 ? record.fields[4] : ""))
+          amount: amount,
+          currency: version.rawValue >= BackupFormatVersion.v3.rawValue ? record.fields[4] : ""))
     }
     return result
   }

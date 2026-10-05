@@ -62,6 +62,7 @@ struct SnapshotDetailView: View {
     .navigationTitle(
       viewModel.snapshot.date.settingsFormatted()
     )
+    .refreshOnStoreChanges { viewModel.requestRefresh() }
     .onAppear {
       viewModel.loadData()
     }

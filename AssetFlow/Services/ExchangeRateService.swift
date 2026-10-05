@@ -321,24 +321,33 @@ final class ExchangeRateService: @unchecked Sendable {
     let display = displayCurrency.lowercased()
     var results: [ExchangeRateFetchResult] = []
 
+    let categories: [Category]
+    do { categories = try modelContext.fetch(FetchDescriptor<Category>()) } catch {
+      return snapshots.map {
+        ExchangeRateFetchResult(snapshotID: $0.id, status: .failed(error.localizedDescription))
+      }
+    }
+    let goalCurrencies = CategoryGoalAssessmentService.requiredCurrencies(
+      categories: categories, displayCurrency: display)
     for snapshot in snapshots {
       // Check if any assets or cash flows use a different currency
       let assetValues = snapshot.assetValues ?? []
       let cashFlows = snapshot.cashFlowOperations ?? []
 
-      let requiredCurrencies = Set(
-        assetValues.compactMap { value -> String? in
-          let currency =
-            value.asset?.currency
-            .trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-          return currency.isEmpty || currency == display ? nil : currency
-        }
-          + cashFlows.compactMap { operation -> String? in
-            let currency = operation.currency
-              .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      let requiredCurrencies = goalCurrencies.union(
+        Set(
+          assetValues.compactMap { value -> String? in
+            let currency =
+              value.asset?.currency
+              .trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
             return currency.isEmpty || currency == display ? nil : currency
           }
-      )
+            + cashFlows.compactMap { operation -> String? in
+              let currency = operation.currency
+                .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+              return currency.isEmpty || currency == display ? nil : currency
+            }
+        ))
 
       guard !requiredCurrencies.isEmpty else {
         results.append(ExchangeRateFetchResult(snapshotID: snapshot.id, status: .notNeeded))

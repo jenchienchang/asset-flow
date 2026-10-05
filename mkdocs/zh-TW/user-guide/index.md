@@ -46,3 +46,7 @@
 
 - [常見問題](faq.md)：常見問題解答
 - [疑難排解](troubleshooting.md)：常見問題的解決方法
+
+## 類別餘額目標
+
+在 [類別](guide/categories.md) 設定目標比例、最低餘額或兩者，並使用 [再平衡](guide/rebalancing.md) 比較調整後目標與資金缺口。

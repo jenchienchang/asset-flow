@@ -48,11 +48,20 @@ struct CategoryListView: View {
             .transition(.move(edge: .top).combined(with: .opacity))
         }
 
-        if viewModel.hasSignificantDeviation {
+        if viewModel.categoryRows.contains(where: \.hasWarning) {
           deviationInfoBanner
             .transition(.move(edge: .top).combined(with: .opacity))
         }
 
+        if let message = viewModel.goalAssessment.goalConversion.unavailableMessage {
+          warningBanner(message)
+        }
+        if let message = CategoryGoalPresentation.diagnostic(
+          viewModel.goalAssessment.plan, currency: SettingsService.shared.mainCurrency),
+          viewModel.goalAssessment.plan?.status != .noGoals
+        {
+          warningBanner(message)
+        }
         if let message = viewModel.conversionStatus.unavailableMessage {
           warningBanner(message)
             .transition(.move(edge: .top).combined(with: .opacity))
@@ -78,19 +87,22 @@ struct CategoryListView: View {
         .accessibilityIdentifier("Add Category Button")
       }
     }
+    .refreshOnStoreChanges { viewModel.requestRefresh() }
     .onAppear {
       viewModel.loadCategories()
     }
     .onChange(of: queryRevision) {
       withAnimation(AnimationConstants.standard) {
-        viewModel.loadCategories()
+        viewModel.requestRefresh()
       }
       selectedCategory = ModelSelectionResolver.resolve(
         selectedCategory, among: categories, id: \.id)
     }
     .sheet(isPresented: $showAddSheet) {
-      AddCategorySheet { name, targetAllocation in
-        try viewModel.createCategory(name: name, targetAllocation: targetAllocation)
+      AddCategorySheet { name, targetAllocation, minimum, currency in
+        try viewModel.createCategory(
+          name: name, targetAllocation: targetAllocation, minimumBalance: minimum,
+          minimumCurrency: currency)
         viewModel.loadCategories()
       }
     }
@@ -125,7 +137,7 @@ struct CategoryListView: View {
         .foregroundStyle(.blue)
       Text(
         // swiftlint:disable:next line_length
-        "Categories marked with ⚠ have current allocations that differ from their target allocations by more than 5 percentage points."
+        "Categories marked with ⚠ have a minimum balance shortfall or differ from their effective target by more than 5 percentage points."
       )
       .font(.caption)
     }
@@ -166,40 +178,55 @@ struct CategoryListView: View {
           .font(.body)
 
         if let target = rowData.targetAllocation {
-          Text("Target: \(target.formattedPercentage())")
+          Text("Pool target: \(target.formattedPercentage())")
             .font(.caption)
             .foregroundStyle(.secondary)
-        } else {
+        } else if rowData.category.minimumBalanceAmount == nil {
           Text("No target")
             .font(.caption)
             .foregroundStyle(.secondary)
+        }
+        if let amount = rowData.category.minimumBalanceAmount,
+          let currency = rowData.category.minimumBalanceCurrency
+        {
+          Text("Minimum: \(CategoryGoalPresentation.amount(amount, currency: currency))")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text(
+            CategoryGoalPresentation.minimumStatus(
+              rowData.minimumStatus, currency: SettingsService.shared.mainCurrency)
+          )
+          .font(.caption).foregroundStyle(.secondary)
         }
       }
 
       Spacer()
 
       HStack(spacing: 12) {
-        if let target = rowData.targetAllocation,
-          let current = rowData.currentAllocation
-        {
-          let deviation = abs(current - target)
-          if deviation > significantDeviationThreshold {
-            Image(systemName: "exclamationmark.triangle.fill")
-              .foregroundStyle(.orange)
-              .font(.caption)
-              .helpWhenUnlocked("Current allocation differs from target by more than 5%.")
-          }
+        if rowData.hasWarning {
+          Image(systemName: "exclamationmark.triangle.fill")
+            .foregroundStyle(.orange)
+            .font(.caption)
+            .helpWhenUnlocked(rowData.warningMessage)
+            .accessibilityLabel(rowData.warningMessage)
         }
 
         VStack(alignment: .trailing, spacing: 2) {
-          if let current = rowData.currentAllocation {
-            Text(current.formattedPercentage())
-              .font(.body)
-              .monospacedDigit()
-          } else {
-            Text("\u{2014}")
-              .font(.body)
-              .foregroundStyle(.secondary)
+          Text("Current: \(rowData.currentAllocation?.formattedPercentage() ?? "—")")
+            .font(.body)
+            .monospacedDigit()
+          if rowData.category.targetAllocationPercentage != nil
+            || rowData.category.minimumBalanceAmount != nil
+          {
+            Text(
+              "Effective target: \(rowData.effectiveTargetAllocation?.formattedPercentage() ?? "—")"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            .helpWhenUnlocked(
+              "Effective targets are shares of the whole portfolio. Minimum-only categories retain any balance above their minimum."
+            )
           }
           if viewModel.conversionStatus.isComplete {
             Text(rowData.currentValue.formatted(currency: SettingsService.shared.mainCurrency))
@@ -269,7 +296,7 @@ struct CategoryListView: View {
 // MARK: - Add Category Sheet
 
 private struct AddCategorySheet: View {
-  let onCreate: (String, Decimal?) throws -> Void
+  let onCreate: (String, Decimal?, Decimal?, String?) throws -> Void
 
   @Environment(\.dismiss) private var dismiss
   @FocusState private var focusedField: Field?
@@ -277,6 +304,9 @@ private struct AddCategorySheet: View {
 
   @State private var name = ""
   @State private var targetAllocationText = ""
+  @State private var minimumEnabled = false
+  @State private var minimumBalanceText = ""
+  @State private var minimumCurrency = SettingsService.shared.mainCurrency
   @State private var showError = false
   @State private var errorMessage = ""
 
@@ -287,13 +317,20 @@ private struct AddCategorySheet: View {
           .focused($focusedField, equals: .name)
           .accessibilityIdentifier("Category Name Field")
 
-        TextField("Target Allocation (e.g. 40)", text: $targetAllocationText)
-          .focused($focusedField, equals: .targetAllocation)
-          .accessibilityIdentifier("Target Allocation Field")
-
-        Text("Optional. Enter a value between 0 and 100.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+        HStack {
+          TextField("Allocation target (%)", text: $targetAllocationText)
+            .focused($focusedField, equals: .targetAllocation)
+            .accessibilityIdentifier("Target Allocation Field")
+          GoalHelpButton(title: "Allocation target (%)") {
+            Text("Optional. Enter a value between 0 and 100.")
+            Text(
+              "Percentage targets apply to the available allocation pool after protected balances are reserved."
+            )
+          }
+        }
+        CategoryGoalEditor(
+          minimumEnabled: $minimumEnabled, amountText: $minimumBalanceText,
+          currency: $minimumCurrency, onSubmit: createCategory)
       }
       .formStyle(.grouped)
       .navigationTitle("New Category")
@@ -311,7 +348,7 @@ private struct AddCategorySheet: View {
         }
       }
     }
-    .frame(minWidth: 350, minHeight: 220)
+    .frame(minWidth: 420, minHeight: 420)
     .onAppear { focusedField = .name }
     .alert("Error", isPresented: $showError) {
       Button("OK") {}
@@ -321,21 +358,11 @@ private struct AddCategorySheet: View {
   }
 
   private func createCategory() {
-    let targetAllocation: Decimal?
-    if targetAllocationText.trimmingCharacters(in: .whitespaces).isEmpty {
-      targetAllocation = nil
-    } else if let value = Decimal.parse(targetAllocationText) {
-      targetAllocation = value
-    } else {
-      errorMessage = String(
-        localized: "Invalid target allocation value.",
-        table: "Category")
-      showError = true
-      return
-    }
-
     do {
-      try onCreate(name, targetAllocation)
+      let target = try CategoryGoalValidator.parse(targetAllocationText)
+      let minimum = minimumEnabled ? try CategoryGoalValidator.parse(minimumBalanceText) : nil
+      if minimumEnabled && minimum == nil { throw CategoryGoalValidationError.minimum }
+      try onCreate(name, target, minimum, minimumEnabled ? minimumCurrency : nil)
       dismiss()
     } catch {
       errorMessage = error.localizedDescription

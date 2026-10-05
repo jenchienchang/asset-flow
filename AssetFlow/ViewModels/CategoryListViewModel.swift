@@ -26,6 +26,39 @@ struct CategoryRowData: Identifiable {
   let currentAllocation: Decimal?
   let currentValue: Decimal
   let assetCount: Int
+  var effectiveTargetAllocation: Decimal?
+  var minimumStatus: MinimumBalanceStatus = .notSet
+  var displayCurrency: String = ""
+
+  var hasAllocationDeviation: Bool {
+    guard let currentAllocation, let effectiveTargetAllocation,
+      targetAllocation != nil
+    else { return false }
+    return abs(currentAllocation - effectiveTargetAllocation) > significantDeviationThreshold
+  }
+  var hasMinimumShortfall: Bool {
+    if case .shortfall(let amount) = minimumStatus { return amount > 0 }
+    return false
+  }
+  var hasWarning: Bool { hasAllocationDeviation || hasMinimumShortfall }
+  var warningMessage: String {
+    var reasons: [String] = []
+    if hasAllocationDeviation {
+      reasons.append(
+        String(
+          localized:
+            "Current allocation differs from the effective target by more than 5 percentage points.",
+          table: "Category"))
+    }
+    if case .shortfall(let amount) = minimumStatus, amount > 0 {
+      reasons.append(
+        String(
+          localized:
+            "Minimum balance shortfall: \(RebalancingHelpPresentation.monetaryValue(amount, currency: displayCurrency))",
+          table: "Category"))
+    }
+    return reasons.map { "• " + $0 }.joined(separator: "\n")
+  }
 }
 
 /// Deviation threshold (in percentage points) for showing the warning indicator.
@@ -38,9 +71,13 @@ let significantDeviationThreshold: Decimal = 5
 @Observable
 @MainActor
 final class CategoryListViewModel {
+  @ObservationIgnored private let refresh = ObservedRefresh()
+
   private let modelContext: ModelContext
   private let fetcher: any ModelFetching
   private let settingsService: SettingsService
+
+  var goalAssessment = CategoryGoalAssessment()
 
   var categoryRows: [CategoryRowData] = []
   var loadState: DataLoadState = .idle
@@ -58,20 +95,23 @@ final class CategoryListViewModel {
     self.settingsService = settingsService ?? .shared
   }
 
+  /// Coalesces source-observation and query notifications before refreshing.
+  func requestRefresh() {
+    refresh.request { [weak self] in self?.loadCategories() }
+  }
+
   // MARK: - Loading
 
   /// Fetches all categories, computes current values and allocations from the
   /// most recent snapshot, and builds sorted row data.
   ///
-  /// Wraps the load in `withObservationTracking` so that any `@Observable`/`@Model`
+  /// Uses `ObservedRefresh` to track source reads and publish derived results. Any `@Observable`/`@Model`
   /// property change automatically triggers a reload.
   func loadCategories() {
-    withObservationTracking {
+    refresh.perform {
       performLoadCategories()
-    } onChange: { [weak self] in
-      Task { @MainActor [weak self] in
-        self?.loadCategories()
-      }
+    } reload: { [weak self] in
+      self?.loadCategories()
     }
   }
 
@@ -79,61 +119,52 @@ final class CategoryListViewModel {
     do {
       let allCategories = try fetchAllCategories()
       let latestSnapshot = try SnapshotSummaryService.fetchLatestSnapshot(using: fetcher)
-      conversionStatus =
-        latestSnapshot.map {
-          CurrencyConversionService.totalValueReport(
-            for: $0,
-            displayCurrency: settingsService.mainCurrency,
-            exchangeRate: $0.exchangeRate
-          ).status
-        } ?? .notNeeded
-
-      // Build latest value lookup grouped by category
-      let categoryValues = buildCategoryValueLookup(
-        latestSnapshot: latestSnapshot)
-
-      let totalValue = categoryValues.values.reduce(Decimal(0), +)
-      let hasSnapshots = latestSnapshot != nil
-
+      // Ordering normalization is a source mutation; perform it before reading row order.
       normalizeDisplayOrderIfNeeded(allCategories)
-
-      categoryRows =
-        allCategories.map { category in
-          let value = categoryValues[category.id] ?? 0
-          let allocation: Decimal? =
-            hasSnapshots
-            ? conversionStatus.isComplete
-              ? CalculationService.categoryAllocation(
-                categoryValue: value, totalValue: totalValue)
-              : nil
-            : nil
-          return CategoryRowData(
-            category: category,
-            targetAllocation: category.targetAllocationPercentage,
-            currentAllocation: allocation,
-            currentValue: value,
-            assetCount: (category.assets ?? []).count
-          )
+      let assessment = CategoryGoalAssessmentService.assess(
+        snapshot: latestSnapshot, categories: allCategories,
+        displayCurrency: settingsService.mainCurrency)
+      let total = assessment.totalValue ?? 0
+      let targets = Dictionary(
+        uniqueKeysWithValues: (assessment.plan?.targets ?? []).map { ($0.id, $0) })
+      let rows = allCategories.map { category in
+        let value = assessment.values[category.id] ?? 0
+        let allocation: Decimal? =
+          latestSnapshot != nil && total > 0 && assessment.assetConversion.isComplete
+          ? CalculationService.categoryAllocation(categoryValue: value, totalValue: total) : nil
+        var row = CategoryRowData(
+          category: category, targetAllocation: category.targetAllocationPercentage,
+          currentAllocation: allocation, currentValue: value,
+          assetCount: (category.assets ?? []).count)
+        row.displayCurrency = settingsService.mainCurrency
+        row.minimumStatus = assessment.statuses[category.id] ?? .notSet
+        if assessment.plan?.status == .feasible, total > 0,
+          category.targetAllocationPercentage != nil || category.minimumBalanceAmount != nil,
+          let target = targets[category.id]
+        {
+          row.effectiveTargetAllocation = target.targetValue / total * 100
         }
-        .sorted {
-          if $0.category.displayOrder != $1.category.displayOrder {
-            return $0.category.displayOrder < $1.category.displayOrder
-          }
-          return $0.category.name.localizedCaseInsensitiveCompare($1.category.name)
-            == .orderedAscending
+        return row
+      }.sorted {
+        if $0.category.displayOrder != $1.category.displayOrder {
+          return $0.category.displayOrder < $1.category.displayOrder
         }
-
-      targetAllocationSumWarning = computeTargetAllocationWarning(categories: allCategories)
-
-      hasSignificantDeviation = categoryRows.contains { row in
-        guard let target = row.targetAllocation, let current = row.currentAllocation else {
-          return false
-        }
-        return abs(current - target) > significantDeviationThreshold
+        return $0.category.name.localizedCaseInsensitiveCompare($1.category.name)
+          == .orderedAscending
       }
-      loadState = .loaded
+      let sumWarning = computeTargetAllocationWarning(categories: allCategories)
+      let deviation = rows.contains { $0.hasAllocationDeviation }
+      refresh.publish {
+        self.goalAssessment = assessment
+        self.conversionStatus = assessment.assetConversion
+        self.categoryRows = rows
+        self.targetAllocationSumWarning = sumWarning
+        self.hasSignificantDeviation = deviation
+        self.loadState = .loaded
+      }
     } catch {
-      loadState = .failed(error.localizedDescription)
+      let message = error.localizedDescription
+      refresh.publish { self.loadState = .failed(message) }
     }
   }
 
@@ -145,7 +176,10 @@ final class CategoryListViewModel {
   ///   `CategoryError.invalidTargetAllocation` if target is outside 0-100,
   ///   `CategoryError.duplicateName` if name conflicts with existing category.
   @discardableResult
-  func createCategory(name: String, targetAllocation: Decimal?) throws -> Category {
+  func createCategory(
+    name: String, targetAllocation: Decimal?, minimumBalance: Decimal? = nil,
+    minimumCurrency: String? = nil
+  ) throws -> Category {
     let trimmed = name.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty else { throw CategoryError.emptyName }
 
@@ -157,7 +191,16 @@ final class CategoryListViewModel {
       throw CategoryError.duplicateName(trimmed)
     }
 
+    do {
+      try CategoryGoalValidator.validate(
+        percentage: targetAllocation, minimum: minimumBalance, currency: minimumCurrency,
+        supportedCurrencies: Set(CurrencyService.shared.currencies.map { $0.code.uppercased() }))
+    } catch CategoryGoalValidationError.percentage { throw CategoryError.invalidTargetAllocation }
     let category = Category(name: trimmed, targetAllocationPercentage: targetAllocation)
+    category.minimumBalanceAmount = minimumBalance
+    category.minimumBalanceCurrency = minimumCurrency?.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    ).uppercased()
     category.displayOrder = try nextDisplayOrder()
     modelContext.insert(category)
     return category
@@ -170,8 +213,16 @@ final class CategoryListViewModel {
   /// - Throws: `CategoryError.emptyName` if name is blank,
   ///   `CategoryError.invalidTargetAllocation` if target is outside 0-100,
   ///   `CategoryError.duplicateName` if name conflicts with another category.
+  func editCategory(_ category: Category, newName: String, newTargetAllocation: Decimal?) throws {
+    try editCategory(
+      category, newName: newName, newTargetAllocation: newTargetAllocation,
+      minimumBalance: category.minimumBalanceAmount,
+      minimumCurrency: category.minimumBalanceCurrency)
+  }
+
   func editCategory(
-    _ category: Category, newName: String, newTargetAllocation: Decimal?
+    _ category: Category, newName: String, newTargetAllocation: Decimal?, minimumBalance: Decimal?,
+    minimumCurrency: String?
   ) throws {
     let trimmed = newName.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty else { throw CategoryError.emptyName }
@@ -184,8 +235,19 @@ final class CategoryListViewModel {
       throw CategoryError.duplicateName(trimmed)
     }
 
+    var supported = Set(CurrencyService.shared.currencies.map { $0.code.uppercased() })
+    if let previous = category.minimumBalanceCurrency { supported.insert(previous) }
+    do {
+      try CategoryGoalValidator.validate(
+        percentage: newTargetAllocation, minimum: minimumBalance, currency: minimumCurrency,
+        supportedCurrencies: supported)
+    } catch CategoryGoalValidationError.percentage { throw CategoryError.invalidTargetAllocation }
     category.name = trimmed
     category.targetAllocationPercentage = newTargetAllocation
+    category.minimumBalanceAmount = minimumBalance
+    category.minimumBalanceCurrency = minimumCurrency?.trimmingCharacters(
+      in: .whitespacesAndNewlines
+    ).uppercased()
   }
 
   // MARK: - Delete
@@ -258,40 +320,6 @@ final class CategoryListViewModel {
     for (index, category) in sorted.enumerated() {
       category.displayOrder = index
     }
-  }
-
-  /// Builds a lookup of category ID → total market value from the latest snapshot,
-  /// converting each asset's value to the display currency.
-  private func buildCategoryValueLookup(
-    latestSnapshot: Snapshot?
-  ) -> [UUID: Decimal] {
-    guard let latestSnapshot else { return [:] }
-
-    let assetValues = latestSnapshot.assetValues ?? []
-    let displayCurrency = settingsService.mainCurrency
-    let exchangeRate = latestSnapshot.exchangeRate
-
-    let report = CurrencyConversionService.totalValueReport(
-      for: latestSnapshot,
-      displayCurrency: displayCurrency,
-      exchangeRate: exchangeRate
-    )
-    guard report.status.isComplete else { return [:] }
-
-    var lookup: [UUID: Decimal] = [:]
-    for sav in assetValues {
-      guard let asset = sav.asset, let categoryID = asset.category?.id else { continue }
-      let assetCurrency = asset.currency
-      let effectiveCurrency = assetCurrency.isEmpty ? displayCurrency : assetCurrency
-      let converted = CurrencyConversionService.convert(
-        value: sav.marketValue,
-        from: effectiveCurrency,
-        to: displayCurrency,
-        using: exchangeRate,
-        forSnapshotDate: latestSnapshot.date)
-      lookup[categoryID, default: 0] += converted ?? 0
-    }
-    return lookup
   }
 
   /// Checks if a category name already exists (case-insensitive), optionally excluding one ID.

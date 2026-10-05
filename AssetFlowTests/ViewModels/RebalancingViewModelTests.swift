@@ -251,7 +251,9 @@ struct RebalancingViewModelTests {
         #expect(
           suggestion.actionText
             == String(
-              localized: "No action needed", table: "Rebalancing"))
+              localized:
+                "Small adjustment: \(CategoryGoalPresentation.amount(suggestion.difference, currency: SettingsService.shared.mainCurrency))",
+              table: "Rebalancing"))
       }
     }
   }

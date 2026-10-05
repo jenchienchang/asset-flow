@@ -65,6 +65,40 @@ overrides/                      # Material theme overrides (custom_dir, at repo 
 
 Screenshots in `assets/images/` are tracked by Git LFS. Simply add or replace `.png` files as usual. Git LFS handles the rest transparently.
 
+### Screenshot review (2026-10-04)
+
+Removed the obsolete `category-list.png`, `category-detail.png`, and `rebalancing.png`. They showed the previous category editor, allocation warning, or rebalancing columns and were no longer referenced by any page.
+
+The current `category-minimum-en.png`, `category-minimum-zh.png`, `rebalancing-minimum-en.png`, and `rebalancing-minimum-zh.png` match the revised layouts and remain in the guide. The other existing screenshots have no identified mismatch with the minimum balance changes.
+
+### Rendered screenshots (2026-10-04)
+
+These screenshots were rendered from the actual SwiftUI views, reviewed, and added to both language versions of the guide. Each filename stem has `-en.png` and `-zh.png` variants in `assets/images/`.
+
+| Filename stem                    | Content                                                                        |
+| -------------------------------- | ------------------------------------------------------------------------------ |
+| `category-list-minimum`          | Minimums met and below minimum, percentage goals, and a category without goals |
+| `category-minimum-history`       | Category settings and minimum comparison across three snapshots                |
+| `rebalancing-insufficient-funds` | A blocked plan with minimum requirements exceeding portfolio value             |
+
+The disposable demo uses an in-memory portfolio, a separate app identifier/settings domain, a fixed October 4, 2026 snapshot, and an illustrative rate of USD 1 = TWD 32. App source changes for this renderer exist only in `/private/tmp/assetflow-documentation-demo`, outside the repository.
+
+### Native popup captures (2026-10-04)
+
+All ten assisted captures (five in each language) are complete, reviewed, and linked in the respective guides. No screenshots remain pending. The eight initial rendered popup-only images were replaced by these native captures and removed to avoid keeping superseded copies.
+
+The following filename stems have `-en.png` and `-zh.png` variants in `assets/images/`. Each capture includes the popup or dialog and its surrounding demo window.
+
+| Filename stem                            | Action in the prepared demo                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `rebalancing-calculation-help-context`   | Click the information button beside Calculation details in the header.                                  |
+| `rebalancing-category-help-context`      | Click the information button beside Reserve (準備金).                                                   |
+| `rebalancing-minimum-help-context`       | Click the orange status icon beside Reserve's USD minimum.                                              |
+| `rebalancing-minimum-help-mixed-context` | In the mixed-currency demo, click the orange status icon beside Reserve's TWD minimum.                  |
+| `category-unsaved-changes`               | Select Reserve in Categories, change a text field, and navigate away to show Save, Discard, and Cancel. |
+
+The demo is built at `/private/tmp/assetflow-documentation-demo-build/Build/Products/Debug/AssetFlow-Debug.app`. Relaunch with `-AppleLanguages '(en)' -AppleLocale en_US` for English or `-AppleLanguages '(zh-Hant)' -AppleLocale zh_TW --chinese` for Traditional Chinese. Add `--mixed` for the TWD minimum; omit it for the USD minimum. The demo opens Rebalancing by default. Close only this demo before switching language or dataset; its in-memory edits are disposable.
+
 ## Adding a New Language
 
 The site uses [mkdocs-static-i18n](https://github.com/ultrabug/mkdocs-static-i18n) with a folder-based layout. To add a new language:

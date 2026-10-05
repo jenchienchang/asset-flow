@@ -69,6 +69,12 @@ This can happen with very large portfolios (hundreds of assets across many snaps
 
     If you encounter an issue not listed here, try restarting AssetFlow. If the problem persists, you can report it on the project's GitHub page.
 
+## Minimum balance or rebalancing unavailable
+
+Check the latest snapshot, the minimum's original currency and stored exchange rates, and whether percentage targets total 100%. Protected holdings may leave insufficient funds even when total minimums fit. A minimum-only category keeps its surplus; add a percentage target if you want it to participate in allocation. See [Rebalancing](guide/rebalancing.md).
+
+Currency conversion can produce very small rounding differences. These are handled automatically during rebalancing; you do not need to edit balances or goals to remove them.
+
 ## See also
 
 - [FAQ](faq.md): Answers to frequently asked questions

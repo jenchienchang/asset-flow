@@ -176,8 +176,8 @@ ______________________________________________________________________
 **List view:**
 
 - All categories listed alphabetically by category name
-- Each row shows: name, target allocation %, current allocation %, current value, asset count
-- Visual indicator when current allocation deviates significantly from target
+- Each row shows: name, requested pool percentage, labelled current/effective shares of the total portfolio, current value, minimum status, and asset count
+- One warning indicator for any positive minimum shortfall and/or deviation of more than 5 percentage points from a feasible effective target. Minimum-only surplus is protected; no-goal categories have no effective target. Effective shares are unavailable for infeasible plans, missing conversion or zero portfolio total; independently determinable minimum shortfalls still warn.
 - Add/edit/delete category actions
 
 **Category detail view:**
@@ -208,12 +208,12 @@ ______________________________________________________________________
 
 ### 3.7 Rebalancing Screen
 
-- Current allocation vs. target allocation table
-- For each category: current value, current %, target %, difference ($), action (buy/sell amount)
+- Column order: Category, Current balance, Current %, Effective target balance, Effective target %, Change, Action, Minimum. Both current and effective percentages use the entire portfolio; unavailable effective shares show an em dash.
+- For each category: current value/share of total, minimum, effective target balance/share, difference, and action/status. Configured percentage inputs appear in category settings and relevant category calculations
 - Sort order: by absolute adjustment magnitude (largest deviation first)
 - Summary of suggested moves (e.g., "Move $25,000 from Equities to Bonds")
 - This is read-only/preview — no data modification occurs
-- Only categories with a target allocation are included
+- Categories with a percentage target or minimum balance are included; protected holdings appear separately
 
 ______________________________________________________________________
 
@@ -257,7 +257,7 @@ Accessible via menu bar (AssetFlow > Settings) or keyboard shortcut (Cmd+,).
      - A `manifest.json` file containing: format version identifier (e.g., `"formatVersion": 1`), export timestamp, and app version
      - Backup CSV files use the data model field names (Section 7) as column headers. Each row represents one record. UUID fields are serialized as standard UUID strings. Decimal fields are serialized at full precision. Date fields use ISO 8601 timestamps. Optional/nullable fields use an empty string for null values. The CSV files are internal to the backup format and are not intended for direct user editing.
      - User selects save location via standard macOS save dialog. Default filename: `AssetFlow-Backup-YYYY-MM-DD.zip`.
-   - **Restore from Backup** — Imports a previously exported backup archive. Confirmation required: "Restoring from backup will replace ALL existing data. This cannot be undone. Continue?" Restore validates the complete archive before replacing existing data and supports backup format versions 1 through 3. Files may be at the ZIP root or inside exactly one enclosing folder. If validation or persistence fails, the existing database and settings remain unchanged. On success, reloads all views.
+   - **Restore from Backup** — Imports a previously exported backup archive. Confirmation required: "Restoring from backup will replace ALL existing data. This cannot be undone. Continue?" Restore validates the complete archive before replacing existing data and supports backup format versions 1 through 4. Files may be at the ZIP root or inside exactly one enclosing folder. If validation or persistence fails, the existing database and settings remain unchanged. On success, reloads all views.
 
 1. **App Lock** — Protects portfolio data behind device authentication.
 
@@ -289,7 +289,7 @@ ______________________________________________________________________
 
 **Number formatting:**
 
-- Monetary values: Full stored precision with thousand separators (e.g., $1,234.5, $28,000, $5,000.75). No minimum or maximum decimal places are enforced — values display exactly as entered or computed.
+- Monetary values: ordinary asset displays use the existing currency formatter with locale grouping and Foundation currency fraction defaults (for example, $1,234.50). Entry, storage and calculation retain full Decimal precision. Rebalancing help follows asset display precision and keeps tiny nonzero amounts visible as bounds; see Shared Currency Headings in Rebalancing Help.
 - Percentages: 2 decimal places (e.g., 45.23%)
 - Chart axes: Abbreviated for large values (K for thousands, M for millions, B for billions)
 
@@ -497,15 +497,17 @@ ______________________________________________________________________
 
 ### 5.2 Operations
 
-- **Create:** User provides name and optional target allocation. Categories can also be created implicitly: selecting "New Category..." in any category picker and entering a name that doesn't match an existing category (case-insensitive) automatically creates the category with no target allocation.
-- **Edit:** Rename or change target allocation
+- **Create:** User provides name, optional percentage target, and optional minimum balance/currency. Categories can also be created implicitly: selecting "New Category..." in any category picker and entering a name that doesn't match an existing category (case-insensitive) automatically creates the category with no target allocation.
+- **Edit:** Draft the name, percentage, and minimum together in Category Settings. Save Changes validates and saves all fields atomically; Revert restores saved values. Return submits only from the name, percentage, or minimum amount text field; Command-S saves within the detail view. Save/Revert are disabled without edits. Leaving the category or section with edits offers Save, Discard, or Cancel. Contextual help uses accessible information popovers; the footer assesses the saved minimum at the latest snapshot.
 - **Delete:** Only allowed if no assets are assigned. If assets exist, user must reassign them first.
 
-### 5.3 Target Allocation Rules
+### 5.3 Target Allocation and Minimum Balance Rules
 
-- Target allocations across all categories should sum to 100% (app warns if they don't, but does not block)
-- Categories without target allocation are excluded from rebalancing calculations
-- An "Uncategorized" virtual group appears in allocation views for assets without a category
+A category may have an optional percentage target, an optional minimum balance, both, or neither. Minimums are finite nonnegative Decimal amounts with an explicit currency; amount and currency are either both present or both absent. Explicit zero is valid. Currency defaults to the single currency shared by the category's assets, or the display currency if mixed or empty. Changing display currency preserves the saved denomination. Changing the goal currency does not convert the entered amount.
+
+Percentage targets distribute the available allocation pool, after protecting uncategorized assets and categories without percentage targets. A minimum-only category protects `max(current balance, minimum)`. No-target categories protect their current balances. Percentage targets may be saved incrementally, but their sum must equal 100% before an actionable percentage plan is available. An explicit 0% targets its minimum, or zero; absence of a percentage protects the category instead.
+
+All assets still contribute to total value and actual allocation percentages. Minimums take priority over percentage preferences. Infeasible requirements can be saved and produce diagnostics rather than partial buy/sell plans. Ordinary asset/cash-flow imports do not change category goals.
 
 ______________________________________________________________________
 
@@ -545,12 +547,14 @@ ______________________________________________________________________
 
 ### 7.1 Category
 
-| Field                      | Type     | Notes                               |
-| -------------------------- | -------- | ----------------------------------- |
-| id                         | UUID     | Primary key                         |
-| name                       | String   | Required, unique (case-insensitive) |
-| targetAllocationPercentage | Decimal? | Optional, 0-100                     |
-| displayOrder               | Int      | Sort order for display              |
+| Field                      | Type     | Notes                                 |
+| -------------------------- | -------- | ------------------------------------- |
+| id                         | UUID     | Primary key                           |
+| name                       | String   | Required, unique (case-insensitive)   |
+| targetAllocationPercentage | Decimal? | Optional pool preference, 0-100       |
+| minimumBalanceAmount       | Decimal? | Optional finite nonnegative amount    |
+| minimumBalanceCurrency     | String?  | Explicit currency paired with minimum |
+| displayOrder               | Int      | Sort order for display                |
 
 ### 7.2 Asset
 
@@ -824,37 +828,49 @@ ______________________________________________________________________
 
 ## 11. Rebalancing Engine
 
-### 11.1 Inputs
+Rebalancing is a read-only, closed-portfolio preview using the latest snapshot's directly recorded values. Missing entries do not carry forward. Convert both asset values and minimums using that snapshot's valid exchange-rate record. Missing goal rates disable the plan independently of otherwise valid asset valuations.
 
-- Current category allocation (from latest snapshot)
-- Target allocation (from category settings)
+### Inputs and protected funds
 
-### 11.2 Calculation
+Use category UUIDs for identity. Let `V` be total value, `c_i` current category balance, `m_i` minimum or zero, and `u` uncategorized value.
 
-For each category with a target allocation:
+1. If `sum(m_i) > V`, report globally infeasible minimums and funding shortfall `sum(m_i) - V`.
+1. For every category without a percentage, protect `q_i = max(c_i, m_i)`.
+1. Define `Q = u + sum(q_i)` and the percentage pool `A = V - Q`.
+1. Let `F` be minimums of percentage-target categories. If `Q + F > V`, report insufficient available funds and shortfall `Q + F - V`. Protected holdings can cause this even when total minimums fit within V.
+1. Require percentage targets to sum to 100% when any exist. Save is permitted before this condition is met; actions are unavailable.
 
+Per-category shortfalls `max(0, m_i - c_i)` are distinct from external funding shortfalls. With only minimum goals, current surpluses remain protected; unmet minimums require new funds or changed configuration, without an automatically chosen donor.
+
+### Constrained allocation
+
+Reserve explicit zero-percentage targets at their minimums. For positive percentages solve:
+
+```text
+target_i = max(minimum_i, lambda * percentage_i)
+sum(target_i for percentage categories) = available_pool
+adjustment_i = target_i - current_i
 ```
-target_value = total_portfolio_value * target_percentage / 100
-adjustment_amount = target_value - current_category_value
-```
 
-### 11.3 Output
+Repeatedly distribute remaining funds according to remaining percentage weights, fix any below-minimum category at its minimum, and redistribute. Each iteration removes a bound category, so iteration count is bounded by category count. Minimum-only targets are q_i; no-target and uncategorized balances are unchanged. A feasible plan conserves portfolio value and never violates a minimum.
 
-A table showing:
+For V = TWD 1,000,000, reserve 10% with a TWD 300,000 minimum, equities 60%, and bonds 30%, effective targets are approximately TWD 300,000 / 466,666.67 / 233,333.33. Flexible weights retain a 60:30 ratio after the reserve minimum binds.
 
-| Category | Current Value | Current % | Target % | Difference ($) | Action       |
-| -------- | ------------- | --------- | -------- | -------------- | ------------ |
-| Equities | $75,000       | 60%       | 50%      | -$12,500       | Sell $12,500 |
-| Bonds    | $25,000       | 20%       | 30%      | +$12,500       | Buy $12,500  |
-| Cash     | $25,000       | 20%       | 20%      | $0             | No action    |
+Use checked Decimal arithmetic at full precision. Finite balance-arithmetic results with normal Decimal precision loss are accepted; overflow, underflow, division by zero and invalid numbers are rejected. Percentage aggregation remains exact. Minimum and protected funding sums that lose precision are usable only when their strict budget comparison is unambiguous: a conservative error bound of `max(requiredTotal, budget, 1) * componentCount * 1e-37` accounts for Decimal's 38 significant digits. If the rounded sum lies within that bound of the budget, the plan remains unavailable rather than erasing a requirement. Original components participate in the combined funding check, so rounded subtotals cannot conceal a deficit. This error bound never permits underfunding. Asset values are summed in stable asset UUID order, and allocation inputs in category UUID order. Independently summed portfolio and category totals may differ by at most `max(V, 1) * 1e-28`; larger inconsistencies are invalid. This tolerance applies only to arithmetic consistency and target reconciliation, never to genuine funding deficits or minimum compliance. A division/rounding remainder within that bound may be reconciled to a flexible positive-weight category that remains above its minimum; otherwise the calculation is unavailable. No financial value is converted through Double or rounded to currency display precision. Display and chart conversion do not feed back into the calculation.
 
-### 11.4 Rules
+### Result and presentation
 
-- Pure calculation — does NOT modify stored data
-- Only categories with target allocations are included
-- Categories without targets are shown separately as "No target set"
-- Uncategorized assets are shown as a separate row displaying current value and current %, with "—" in the Target % column and "N/A" in the Difference and Action columns
-- Minimum threshold: adjustments under $1 are displayed as "No action needed"
+Structured results distinguish feasible, no goals, invalid data, invalid percentage sum, globally infeasible minimums, and insufficient available funds. The assessment layer separately represents no snapshot and missing asset/goal conversion. Zero-valued snapshots can still have funding shortfalls; shares of a zero total/pool are unavailable.
+
+Each category occupies one line with Category, Current balance, Current %, Effective target balance, Effective target %, Change, Action, and Minimum columns. Configured percentages remain in category settings and relevant calculation inputs. Category information popovers explain the selected target with lettered inputs and formula result rows. A minimum status icon identifies a shortfall or unavailable assessment. The compact header shows total and snapshot date. Calculation details reconciles portfolio total minus protected amount to the available allocation, and when applicable subtracts percentage targets fixed at minimums to show the remaining allocation. Minimum-only requirements are already included in protection and are never subtracted twice. Financial diagnostics remain visible banners. Minimum-only, protected and uncategorized rows remain visible. Sort by absolute adjustment and then stable UUID.
+
+Mandatory minimum top-ups remain actionable below one display-currency unit. Transfer planning first funds every actual minimum shortfall, then uses remaining donor capacity for actionable percentage adjustments. Small donor reductions participate when large reductions cannot cover the total minimum shortfall; optional increases above minimums do not count toward this mandatory demand. Repeated transfers between the same pair are combined for display. Other subunit differences show “Small adjustment” with their precise value. Transfer summaries are limited by actual donor and recipient capacity. Omitted/unmatched adjustments are disclosed as a residual; invalid or infeasible plans have no actions or transfer summaries.
+
+### Rebalancing contextual help
+
+Calculation details combines lettered allocation-basis rows with formula result rows and compact allocation-rule bullets. Category information uses the category name as its only title, a contextual explanation, and a Target calculation table. Flexible percentage targets use remaining allocation × category percentage ÷ combined remaining percentages; minimum-bound targets equal the converted minimum; minimum-only targets use max(current balance, converted minimum); explicit 0% targets use their minimum or zero. Final effective percentages divide the target by the entire portfolio. No category lists or duplicated current/change/configuration grids are shown. Zero totals show an unavailable share without division; unavailable plans show a reason without calculation rows. Minimum warning symbols retain original/converted requirement, current balance, shortfall and date. Popovers remain lock-aware.
+
+Historical comparisons use current goal settings and each snapshot's rates, with unavailable gaps; they do not record goal history. Value charts include the converted minimum overlay. Raw pool percentages are not plotted as whole-portfolio allocation references.
 
 ______________________________________________________________________
 
@@ -1057,3 +1073,13 @@ After implementation, verify by:
 1. Export a backup, delete all data, restore from backup, verify data integrity
 1. Delete an asset with no snapshot associations; verify assets with associations cannot be deleted
 1. Test chart zoom controls across all time ranges
+
+## Shared Currency Headings in Rebalancing Help
+
+Each popup table independently checks the intended currencies of its monetary rows. When they all match, the table heading shows that ISO code once and monetary values show localized numbers without a currency prefix. A previously untitled minimum assessment table uses Assessment as its heading. Mixed-currency tables retain prefixes on every available monetary value. Percentage rows are excluded from the check; unavailable monetary rows still contribute their intended currency and remain an em dash. Amounts in explanatory sentences retain their codes. The currency-heading rule does not convert values or parse formatted strings. Monetary formatting separately uses the existing asset currency formatter's fraction precision, with the same trailing decimal places, locale separators and grouping; Foundation supplies the currency defaults without an app-maintained currency list. Apply this to all popup amount rows, shortfall explanations and funding diagnostics. Nonzero values below one display unit use a bound (for example, `<0.01`), with localized Increase/Decrease text for tiny signed changes; actual zero remains a formatted zero and unavailable values remain an em dash. No Full precision section is shown. Stored Decimal values, allocation arithmetic and minimum-status comparisons remain unrounded.
+
+### Lettered rebalancing calculations
+
+Input rows use (A), (B), (C), etc.; result rows show their plain-language label, referenced formula, and value in the same grid. Formula text follows the label inline in caption styling. All row labels use secondary color and regular weight. All popup values use the standard system callout font with one bold weight and tabular digits (`.monospacedDigit()`), matching the dashboard category value trend tooltip approach. Result rows remain distinguished by dividers; no monospaced font design or per-result weight change is applied. Percentage symbols occupy a separate suffix column with a small gap, so percentage numbers share the right-aligned numeric column with monetary values. Tables without suffixes retain two columns. Unavailable shares have no suffix. Accessibility includes the suffix with the numeric value and hides the separate decorative symbol cell. Each data row is a single baseline-aligned GridRow; dividers are full-width table overlays positioned from result-row bounds, never extra conditional grid rows. Rebalancing popovers use their natural title/table width with explanatory paragraphs wrapping to that width. Available screen width bounds the content, allowing wrapping instead of clipping when necessary. Non-rebalancing help retains its existing sizing. Shared monetary currency headings and asset display precision remain in place. Results use ≈ when a displayed result or referenced input is rounded; arithmetic and funding decisions retain original Decimal precision. Category lists are omitted from aggregate and category explanations.
+
+The rebalancing Keep/Protected operation includes a secondary-gray `minus.circle.fill` icon before its existing localized text.

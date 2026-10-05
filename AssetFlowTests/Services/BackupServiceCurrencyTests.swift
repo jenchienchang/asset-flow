@@ -183,8 +183,8 @@ struct BackupServiceCurrencyTests {
     #expect(lines[1].contains("usd"))
   }
 
-  @Test("Export manifest has formatVersion 3")
-  func exportManifestVersion3() async throws {
+  @Test("Export manifest has formatVersion 4")
+  func exportManifestVersion4() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
@@ -194,7 +194,7 @@ struct BackupServiceCurrencyTests {
       settingsService: tc.settingsService)
 
     let manifest = try await BackupService.validateBackup(at: zipURL)
-    #expect(manifest.formatVersion == 3)
+    #expect(manifest.formatVersion == 4)
   }
 
   // MARK: - Backward Compatibility Tests
@@ -230,6 +230,9 @@ struct BackupServiceCurrencyTests {
 
     // Tamper to v2 format (remove currency columns, set formatVersion 2)
     try tamperAndRezip(zipURL: zipURL) { dir in
+      // V2 category layout predates minimum goals.
+      try "id,name,targetAllocationPercentage,displayOrder\n".write(
+        to: dir.appending(path: BackupCSV.Categories.fileName), atomically: true, encoding: .utf8)
       // Rewrite assets.csv without currency column
       let assetFile = dir.appending(path: BackupCSV.Assets.fileName)
       try "id,name,platform,categoryID\n\(asset.id.uuidString),AAPL,Schwab,\n"

@@ -19,30 +19,31 @@
 
 ### ViewModel Data Reload
 
-ViewModels that compute aggregate/converted values wrap their load method with `withObservationTracking` to auto-reload when any `@Observable`/`@Model` dependency changes:
+Aggregate ViewModels use an `@ObservationIgnored` `ObservedRefresh` coordinator:
 
 ```swift
 func loadData() {
-  withObservationTracking {
-    performLoadData()
-  } onChange: { [weak self] in
-    Task { @MainActor [weak self] in
-      self?.loadData()
-    }
-  }
+  refresh.perform {
+    let rows = calculateRowsFromSourceModels()
+    refresh.publish { self.rows = rows }
+  } reload: { [weak self] in self?.loadData() }
 }
-private func performLoadData() { /* original load body */ }
+func requestRefresh() {
+  refresh.request { [weak self] in self?.loadData() }
+}
 ```
 
-- `onChange` fires exactly once per registration, then re-registers on next `loadData()` call — no accumulation
-- Double `[weak self]` prevents ViewModel retention after container deallocation (critical for tests with in-memory containers)
-- Complements `@Query` + `.onChange(of:)` in views for collection membership detection (add/delete objects), which `modelContext.fetch()` inside `withObservationTracking` cannot track
-- Explicit `viewModel.loadData()` calls in mutation handlers are intentional — they provide immediate synchronous UI response; `withObservationTracking` handles external changes (e.g., currency switch from Settings)
-- Applied to: all ViewModels except `ImportViewModel`, `BulkEntryViewModel`, and `SettingsViewModel` (no converted aggregate values). `BulkEntryViewModel` uses `private(set)` rows with centralized mutation methods, `@ObservationIgnored` structural caches and pending commit buffers, and a stored `toolbarStats` property maintained via O(1) delta updates
+- Track source model/settings reads while calculating into locals; publish observable results outside tracking. Never read derived output as an input to the tracked calculation.
+- Explicit loads remain synchronous. `requestRefresh()` coalesces observation/query notifications; each explicit load supersedes callbacks and tasks from older generations. New changes after that load remain observed.
+- Use weak ViewModel captures so pending work does not retain SwiftData containers.
+- `ContentView` publishes its six-model `ModelQueryRevision` through the `storeRevision` environment. All ten aggregate screens use `.refreshOnStoreChanges` to request a refresh after membership changes, date ordering changes, child-record changes and whole-store replacement. Local queries remain supported for standalone screens.
+- Background data reloads preserve category editor drafts. Asset editor option lists also refresh without resetting edited fields.
+- Dashboard internal caches are excluded from source observation; their public readers observe a publication revision so chart and period consumers still invalidate.
+- Applied to Dashboard, Snapshot list/detail, Category list/detail, Platform list/detail, Asset list/detail and Rebalancing. Import and Bulk Entry retain their existing query reconciliation and draft-staleness behavior.
 
 ### Model
 
-`@Model final class` with `Decimal` for money, `#Unique` for constraints, explicit `@Relationship` with delete rules (`.cascade`, `.deny`, `.nullify`). Register new models in `SchemaV1.models` (`Models/SchemaVersioning.swift`). Domain error enums (`AssetError`, `CategoryError`, `PlatformError`) also live in `Models/`.
+`@Model final class` with `Decimal` for money, `#Unique` for constraints, explicit `@Relationship` with delete rules (`.cascade`, `.deny`, `.nullify`). Register new models in `SchemaV2.models` (`Models/SchemaVersioning.swift`). Domain error enums (`AssetError`, `CategoryError`, `PlatformError`) also live in `Models/`.
 
 ### Services
 
@@ -117,3 +118,5 @@ Stateless enums or classes with no direct SwiftData dependency:
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 ```
+
+Clean category editors adopt externally updated saved fields after a data refresh; editors with unsaved changes retain every draft field. Saved-field source reads are tracked even for empty categories.

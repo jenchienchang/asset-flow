@@ -64,7 +64,9 @@ nonisolated enum BackupService {
         id: category.id,
         name: category.name,
         targetAllocationPercentage: category.targetAllocationPercentage,
-        displayOrder: category.displayOrder)
+        displayOrder: category.displayOrder,
+        minimumBalanceAmount: category.minimumBalanceAmount,
+        minimumBalanceCurrency: category.minimumBalanceCurrency)
     }
     let assetRecords = assets.map { asset in
       BackupAssetRecord(

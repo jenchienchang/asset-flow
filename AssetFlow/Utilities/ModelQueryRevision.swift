@@ -43,6 +43,8 @@ struct ModelQueryRevision: Equatable {
     let id: UUID
     let name: String
     let targetAllocationPercentage: Decimal?
+    let minimumBalanceAmount: Decimal?
+    let minimumBalanceCurrency: String?
     let displayOrder: Int
   }
 
@@ -108,6 +110,8 @@ struct ModelQueryRevision: Equatable {
         id: $0.id,
         name: $0.name,
         targetAllocationPercentage: $0.targetAllocationPercentage,
+        minimumBalanceAmount: $0.minimumBalanceAmount,
+        minimumBalanceCurrency: $0.minimumBalanceCurrency,
         displayOrder: $0.displayOrder)
     }
     self.snapshotAssetValues = snapshotAssetValues.map {

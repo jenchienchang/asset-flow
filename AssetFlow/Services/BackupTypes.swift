@@ -54,8 +54,9 @@ enum BackupFormatVersion: Int, CaseIterable, Sendable {
   case v1 = 1
   case v2 = 2
   case v3 = 3
+  case v4 = 4
 
-  nonisolated static let current = BackupFormatVersion.v3
+  nonisolated static let current = BackupFormatVersion.v4
 }
 
 struct BackupValidationIssue: Sendable {
@@ -171,6 +172,8 @@ struct BackupCategoryRecord: Sendable {
   let name: String
   let targetAllocationPercentage: Decimal?
   let displayOrder: Int
+  var minimumBalanceAmount: Decimal?
+  var minimumBalanceCurrency: String?
 }
 
 struct BackupAssetRecord: Sendable {
@@ -226,7 +229,11 @@ enum BackupRestoreCheckpoint: Sendable {
 enum BackupCSV {
   enum Categories {
     nonisolated static let fileName = "categories.csv"
-    nonisolated static let headers = ["id", "name", "targetAllocationPercentage", "displayOrder"]
+    nonisolated static let headers = [
+      "id", "name", "targetAllocationPercentage", "displayOrder", "minimumBalanceAmount",
+      "minimumBalanceCurrency",
+    ]
+    nonisolated static let v3Headers = ["id", "name", "targetAllocationPercentage", "displayOrder"]
     nonisolated static let v1Headers = ["id", "name", "targetAllocationPercentage"]
   }
 

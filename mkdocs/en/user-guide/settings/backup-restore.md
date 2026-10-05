@@ -39,6 +39,10 @@ A backup file contains everything in your portfolio:
 
     Create regular backups, especially before major changes to your portfolio data. Store backups in a safe location like an external drive or cloud storage.
 
+## Minimums in backups
+
+Backup format v4 preserves category minimum amounts and currencies at full precision. Versions 1–3 remain restorable and have no minimum goals. Older app versions cannot restore v4. Invalid archives are rejected before replacing your data; structurally valid goals may still be financially infeasible.
+
 ## See also
 
 - [Preferences](preferences.md): Customize display and import settings

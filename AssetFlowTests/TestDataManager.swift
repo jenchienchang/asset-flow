@@ -29,14 +29,7 @@ class TestDataManager {
   ///
   /// - Returns: A new `ModelContainer` configured for in-memory storage.
   static func createInMemoryContainer() -> ModelContainer {
-    let schema = Schema([
-      Category.self,
-      Asset.self,
-      Snapshot.self,
-      SnapshotAssetValue.self,
-      CashFlowOperation.self,
-      ExchangeRate.self,
-    ])
+    let schema = CurrentSchema.schema
     // Use a unique name per container to ensure true isolation.
     // Without a unique name, ModelConfiguration(isStoredInMemoryOnly: true) may
     // share the same backing store across calls, causing test interference.

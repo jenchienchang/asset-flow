@@ -32,7 +32,7 @@ Snapshot (1:Many) → CashFlowOperation
 Snapshot (1:1) → ExchangeRate
 ```
 
-All models registered in `SchemaV1` (`Models/SchemaVersioning.swift`). When adding models, update `SchemaV1.models`, `Models/README.md`, and `Documentation/DataModel.md`.
+All models registered in `SchemaV2` (`Models/SchemaVersioning.swift`). When adding models, update `SchemaV2.models`, `Models/README.md`, and `Documentation/DataModel.md`.
 
 **Xcode:** When adding files/features, update targets, `Info.plist`, entitlements, and scheme configs as needed.
 

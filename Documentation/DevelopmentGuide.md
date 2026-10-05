@@ -249,7 +249,7 @@ ______________________________________________________________________
    }
    ```
 
-1. **Register in Schema** (update `SchemaV1.models` in `Models/SchemaVersioning.swift`):
+1. **Register in Schema** (update `SchemaV2.models` in `Models/SchemaVersioning.swift`):
 
    ```swift
    static var models: [any PersistentModel.Type] {
@@ -668,3 +668,11 @@ ______________________________________________________________________
 - [SwiftLint](https://github.com/realm/SwiftLint)
 - [swift-format](https://github.com/apple/swift-format)
 - [SF Symbols](https://developer.apple.com/sf-symbols/) - Icon library
+
+## Changing Category Goals
+
+Keep SchemaV1Models.swift frozen. Add current fields to a new active schema and prove migration with disposable disk fixtures; the app now uses SchemaV2 and AssetFlowMigrationPlan. Goal rules live in CategoryGoalValidator, RebalancingCalculator, and CategoryGoalAssessmentService. Currency/percentage formatting follows the existing Decimal conventions. Run test/build skills with required host access; normal formatter/linter work remains with pre-commit hooks. App catalogs use zh-Hant, while user guide content lives in mkdocs/zh-TW. Backup v4 parsing must retain v3 asset/cash-flow currencies and exchange rates.
+
+## Category Editing and Compact Goal Presentation
+
+Category draft edits remain in CategoryDetailViewModel until save. Keep CategoryEditingSession navigation guards when adding routes out of Categories. Information popovers use GoalHelpButton so lock transitions dismiss their content. Do not add a default Return shortcut to Save Changes; attach onSubmit only to editable text fields.

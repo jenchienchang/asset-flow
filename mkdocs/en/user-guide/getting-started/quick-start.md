@@ -93,6 +93,10 @@ Once you have at least one snapshot with assets, the dashboard comes to life.
 
 ---
 
+## Add an optional minimum balance
+
+Alongside percentage targets, a category can have a minimum balance with its own currency. Percentage targets must total 100% for an actionable plan. Minimums take priority and categories without percentages retain their balances. See [Categories](../guide/categories.md).
+
 ## See also
 
 - [Dashboard](../guide/dashboard.md): Deep dive into the overview screen

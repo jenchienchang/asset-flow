@@ -32,6 +32,8 @@ struct CategoryAllocationData: Sendable, Equatable {
 @Observable
 @MainActor
 class SnapshotDetailViewModel {
+  @ObservationIgnored private let refresh = ObservedRefresh()
+
   let snapshot: Snapshot
   private let modelContext: ModelContext
   private let fetcher: any ModelFetching
@@ -113,51 +115,65 @@ class SnapshotDetailViewModel {
   /// rates are currently unavailable.
   var usedCurrencyCodes: [String] = []
 
+  /// Coalesces source-observation and query notifications before refreshing.
+  func requestRefresh() {
+    refresh.request { [weak self] in self?.loadData() }
+  }
+
   // MARK: - Load Data
 
   /// Loads (or reloads) asset values and cash flow operations for the snapshot.
   ///
-  /// Wraps the load in `withObservationTracking` so that any `@Observable`/`@Model`
+  /// Uses `ObservedRefresh` to track source reads and publish derived results. Any `@Observable`/`@Model`
   /// property change automatically triggers a reload.
   func loadData() {
-    withObservationTracking {
+    refresh.perform {
       performLoadData()
-    } onChange: { [weak self] in
-      Task { @MainActor [weak self] in
-        self?.loadData()
-      }
+    } reload: { [weak self] in
+      self?.loadData()
     }
   }
 
   private func performLoadData() {
-    assetValues = snapshot.assetValues ?? []
-    cashFlowOperations = snapshot.cashFlowOperations ?? []
-    exchangeRate = snapshot.exchangeRate
+    let displayCurrency = self.displayCurrency
+    let loadedAssetValues = snapshot.assetValues ?? []
+    refresh.publish { self.assetValues = loadedAssetValues }
+    let loadedCashFlowOperations = snapshot.cashFlowOperations ?? []
+    refresh.publish { self.cashFlowOperations = loadedCashFlowOperations }
+    let loadedExchangeRate = snapshot.exchangeRate
+    refresh.publish { self.exchangeRate = loadedExchangeRate }
 
     let totalReport = CurrencyConversionService.totalValueReport(
       for: snapshot,
       displayCurrency: displayCurrency,
-      exchangeRate: exchangeRate
+      exchangeRate: snapshot.exchangeRate
     )
     let cashFlowReport = CurrencyConversionService.netCashFlowReport(
       for: snapshot,
       displayCurrency: displayCurrency,
-      exchangeRate: exchangeRate
+      exchangeRate: snapshot.exchangeRate
     )
-    totalValue = totalReport.convertedTotal ?? 0
-    totalConversionStatus = totalReport.status
-    nativeCurrencyTotals = totalReport.nativeTotals
+    let loadedTotalValue = totalReport.convertedTotal ?? 0
+    refresh.publish { self.totalValue = loadedTotalValue }
+    let loadedTotalConversionStatus = totalReport.status
+    refresh.publish { self.totalConversionStatus = loadedTotalConversionStatus }
+    let loadedNativeCurrencyTotals = totalReport.nativeTotals
       .sorted { $0.key < $1.key }
       .map { (code: $0.key, value: $0.value) }
-    netCashFlow = cashFlowReport.convertedTotal ?? 0
-    cashFlowConversionStatus = cashFlowReport.status
-    nativeCashFlowTotals = cashFlowReport.nativeTotals
+    refresh.publish { self.nativeCurrencyTotals = loadedNativeCurrencyTotals }
+    let loadedNetCashFlow = cashFlowReport.convertedTotal ?? 0
+    refresh.publish { self.netCashFlow = loadedNetCashFlow }
+    let loadedCashFlowConversionStatus = cashFlowReport.status
+    refresh.publish { self.cashFlowConversionStatus = loadedCashFlowConversionStatus }
+    let loadedNativeCashFlowTotals = cashFlowReport.nativeTotals
       .sorted { $0.key < $1.key }
       .map { (code: $0.key, value: $0.value) }
-    conversionStatus = CurrencyConversionStatus.merged([
+    refresh.publish { self.nativeCashFlowTotals = loadedNativeCashFlowTotals }
+    let loadedConversionStatus = CurrencyConversionStatus.merged([
       totalReport.status,
       cashFlowReport.status,
     ])
+    refresh.publish { self.conversionStatus = loadedConversionStatus }
 
     computeSortedAssetValues()
     computeSortedCashFlowOperations()
@@ -166,8 +182,8 @@ class SnapshotDetailViewModel {
   }
 
   private func computeSortedAssetValues() {
-    sortedAssetValues =
-      assetValues
+    let loadedSortedAssetValues =
+      (snapshot.assetValues ?? [])
       .filter { $0.asset != nil }
       .sorted { lhs, rhs in
         let lhsAsset = lhs.asset!
@@ -178,30 +194,34 @@ class SnapshotDetailViewModel {
         }
         return lhsAsset.name.localizedCaseInsensitiveCompare(rhsAsset.name) == .orderedAscending
       }
+    refresh.publish { self.sortedAssetValues = loadedSortedAssetValues }
   }
 
   private func computeSortedCashFlowOperations() {
-    sortedCashFlowOperations = cashFlowOperations.sorted {
+    let loadedSortedCashFlowOperations = (snapshot.cashFlowOperations ?? []).sorted {
       $0.cashFlowDescription < $1.cashFlowDescription
     }
+    refresh.publish { self.sortedCashFlowOperations = loadedSortedCashFlowOperations }
   }
 
   private func computeCategoryAllocations(totalReport: CurrencyConversionReport) {
-    let total = totalValue
+    let total = totalReport.convertedTotal ?? 0
     guard totalReport.status.isComplete, total > 0 else {
-      categoryAllocations = []
+      let loadedCategoryAllocations: [CategoryAllocationData] = []
+      refresh.publish { self.categoryAllocations = loadedCategoryAllocations }
       return
     }
 
     guard
       let catValues = CurrencyConversionService.categoryValues(
-        for: snapshot, displayCurrency: displayCurrency, exchangeRate: exchangeRate)
+        for: snapshot, displayCurrency: displayCurrency, exchangeRate: snapshot.exchangeRate)
     else {
-      categoryAllocations = []
+      let loadedCategoryAllocations: [CategoryAllocationData] = []
+      refresh.publish { self.categoryAllocations = loadedCategoryAllocations }
       return
     }
 
-    categoryAllocations =
+    let loadedCategoryAllocations: [CategoryAllocationData] =
       catValues.map { name, value in
         let displayName = name.isEmpty ? "Uncategorized" : name
         return CategoryAllocationData(
@@ -211,38 +231,42 @@ class SnapshotDetailViewModel {
             categoryValue: value, totalValue: total)
         )
       }.sorted { $0.value > $1.value }
+    refresh.publish { self.categoryAllocations = loadedCategoryAllocations }
   }
 
   private func computeUsedCurrencyRates() {
     let display = displayCurrency.lowercased()
 
     var usedCodes = Set<String>()
-    for sav in assetValues {
+    for sav in snapshot.assetValues ?? [] {
       let currency = sav.asset?.currency ?? ""
       if !currency.isEmpty && currency.lowercased() != display {
         usedCodes.insert(currency.lowercased())
       }
     }
-    for cf in cashFlowOperations {
+    for cf in snapshot.cashFlowOperations ?? [] {
       if !cf.currency.isEmpty && cf.currency.lowercased() != display {
         usedCodes.insert(cf.currency.lowercased())
       }
     }
 
-    usedCurrencyCodes = usedCodes.sorted()
-    guard let er = exchangeRate else {
-      usedCurrencyRates = []
+    let loadedUsedCurrencyCodes = usedCodes.sorted()
+    refresh.publish { self.usedCurrencyCodes = loadedUsedCurrencyCodes }
+    guard let er = snapshot.exchangeRate else {
+      let loadedUsedCurrencyRates: [(code: String, rate: Decimal)] = []
+      refresh.publish { self.usedCurrencyRates = loadedUsedCurrencyRates }
       return
     }
     let rates = er.rates
 
-    usedCurrencyRates =
+    let loadedUsedCurrencyRates: [(code: String, rate: Decimal)] =
       usedCodes.compactMap { code in
         if let rate = rates[code], rate.isFinite, rate > 0 {
           return (code: code, rate: Decimal(1) / rate)
         }
         return nil
       }.sorted { $0.code < $1.code }
+    refresh.publish { self.usedCurrencyRates = loadedUsedCurrencyRates }
   }
 
   /// Fetches exchange rates if not already attached to this snapshot.

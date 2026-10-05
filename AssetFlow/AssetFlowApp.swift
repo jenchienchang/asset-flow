@@ -24,7 +24,7 @@ struct AssetFlowApp: App {
   let sharedModelContainer: ModelContainer
 
   init() {
-    let schema = Schema(versionedSchema: SchemaV1.self)
+    let schema = CurrentSchema.schema
     #if DEBUG
       let usePreviewData = ProcessInfo.processInfo.arguments.contains("--preview-data")
     #else

@@ -44,6 +44,8 @@ struct AssetGroup {
 @Observable
 @MainActor
 final class AssetListViewModel {
+  @ObservationIgnored private let refresh = ObservedRefresh()
+
   private let modelContext: ModelContext
   private let fetcher: any ModelFetching
   private let settingsService: SettingsService
@@ -67,20 +69,23 @@ final class AssetListViewModel {
     self.settingsService = settingsService ?? .shared
   }
 
+  /// Coalesces source-observation and query notifications before refreshing.
+  func requestRefresh() {
+    refresh.request { [weak self] in self?.loadAssets() }
+  }
+
   // MARK: - Loading
 
   /// Fetches all assets, computes latest values from the most recent snapshot,
   /// and groups them by the current grouping mode.
   ///
-  /// Wraps the load in `withObservationTracking` so that any `@Observable`/`@Model`
+  /// Uses `ObservedRefresh` to track source reads and publish derived results. Any `@Observable`/`@Model`
   /// property change automatically triggers a reload.
   func loadAssets() {
-    withObservationTracking {
+    refresh.perform {
       performLoadAssets()
-    } onChange: { [weak self] in
-      Task { @MainActor [weak self] in
-        self?.loadAssets()
-      }
+    } reload: { [weak self] in
+      self?.loadAssets()
     }
   }
 
@@ -102,13 +107,18 @@ final class AssetListViewModel {
       // Apply the "Hide Stale Assets" filter — stale = no value in the latest snapshot.
       let hideStale = settingsService.hideStaleAssets
       let visibleRows = hideStale ? allRows.filter { $0.latestValue != nil } : allRows
-      hasHiddenStaleAssets = hideStale && visibleRows.count < allRows.count
+      let hidden = hideStale && visibleRows.count < allRows.count
 
       // Group and sort
-      groups = buildGroups(from: visibleRows)
-      loadState = .loaded
+      let loadedGroups = buildGroups(from: visibleRows)
+      refresh.publish {
+        self.hasHiddenStaleAssets = hidden
+        self.groups = loadedGroups
+        self.loadState = .loaded
+      }
     } catch {
-      loadState = .failed(error.localizedDescription)
+      let message = error.localizedDescription
+      refresh.publish { self.loadState = .failed(message) }
     }
   }
 

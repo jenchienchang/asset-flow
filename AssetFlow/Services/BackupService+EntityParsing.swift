@@ -27,7 +27,7 @@ extension BackupService {
     issues: inout [BackupValidationIssue]
   ) -> [BackupCategoryRecord] {
     let file = BackupCSV.Categories.fileName
-    let expectedCount = version == .v1 ? 3 : 4
+    let expectedCount = version == .v1 ? 3 : (version == .v4 ? 6 : 4)
     var result: [BackupCategoryRecord] = []
     var ids: Set<UUID> = []
     var identities: Set<String> = []
@@ -103,6 +103,29 @@ extension BackupService {
               "Expected a nonnegative integer.")))
       }
 
+      let minimum: Decimal?
+      let currency: String?
+      if version == .v4 {
+        let amountText = scalar(record.fields[4])
+        minimum = amountText.isEmpty ? nil : strictDecimal(amountText)
+        let code = scalar(record.fields[5]).uppercased()
+        currency = code.isEmpty ? nil : code
+        do {
+          if !amountText.isEmpty && minimum == nil { throw CategoryGoalValidationError.minimum }
+          try CategoryGoalValidator.validate(
+            percentage: target, minimum: minimum, currency: currency)
+        } catch {
+          issues.append(
+            issue(
+              file: file, record: record, column: "minimumBalanceAmount/minimumBalanceCurrency",
+              detail: localizedBackupMessage(
+                "Expected a nonnegative minimum balance with a valid currency, or two empty values."
+              )))
+        }
+      } else {
+        minimum = nil
+        currency = nil
+      }
       guard let id else { continue }
       validateUniqueID(
         id,
@@ -113,7 +136,8 @@ extension BackupService {
       result.append(
         BackupCategoryRecord(
           id: id, name: name, targetAllocationPercentage: target,
-          displayOrder: displayOrder))
+          displayOrder: displayOrder, minimumBalanceAmount: minimum,
+          minimumBalanceCurrency: currency))
     }
     return result
   }
@@ -124,7 +148,7 @@ extension BackupService {
     issues: inout [BackupValidationIssue]
   ) -> [BackupAssetRecord] {
     let file = BackupCSV.Assets.fileName
-    let expectedCount = version == .v3 ? 5 : 4
+    let expectedCount = version.rawValue >= BackupFormatVersion.v3.rawValue ? 5 : 4
     var result: [BackupAssetRecord] = []
     var ids: Set<UUID> = []
     var identities: Set<String> = []
@@ -168,7 +192,7 @@ extension BackupService {
       let categoryID = parseOptionalUUID(
         record.fields[3], file: file, record: record,
         column: "categoryID", issues: &issues)
-      let currency = version == .v3 ? record.fields[4] : ""
+      let currency = version.rawValue >= BackupFormatVersion.v3.rawValue ? record.fields[4] : ""
       guard let id else { continue }
       validateUniqueID(
         id,

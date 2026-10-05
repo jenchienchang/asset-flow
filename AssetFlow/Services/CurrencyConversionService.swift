@@ -73,7 +73,10 @@ enum CurrencyConversionService {
     exchangeRate: ExchangeRate?
   ) -> CurrencyConversionReport {
     let display = displayCurrency.lowercased()
-    let assetValues = snapshot.assetValues ?? []
+    // SwiftData relationship order is unspecified. Keep summation stable across reloads.
+    let assetValues = (snapshot.assetValues ?? []).sorted {
+      ($0.asset?.id.uuidString ?? "") < ($1.asset?.id.uuidString ?? "")
+    }
     var nativeTotals: [String: Decimal] = [:]
     var requiredCurrencies = Set<String>()
 

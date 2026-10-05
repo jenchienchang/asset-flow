@@ -38,11 +38,17 @@ struct CategoryDetailView: View {
   @State private var allocationChartRange: ChartTimeRange = .all
 
   let onDelete: () -> Void
+  let onEditorReady: (CategoryDetailViewModel) -> Void
+  @Environment(\.isAppLocked) private var isAppLocked
 
-  init(category: Category, modelContext: ModelContext, onDelete: @escaping () -> Void) {
+  init(
+    category: Category, modelContext: ModelContext, onDelete: @escaping () -> Void,
+    onEditorReady: @escaping (CategoryDetailViewModel) -> Void = { _ in }
+  ) {
     _viewModel = State(
       wrappedValue: CategoryDetailViewModel(category: category, modelContext: modelContext))
     self.onDelete = onDelete
+    self.onEditorReady = onEditorReady
   }
 
   var body: some View {
@@ -61,13 +67,20 @@ struct CategoryDetailView: View {
     }
     .formStyle(.grouped)
     .navigationTitle(viewModel.category.name)
+    .refreshOnStoreChanges { viewModel.requestRefresh() }
     .onAppear {
       viewModel.loadData()
+      onEditorReady(viewModel)
     }
     .onChange(of: querySnapshots) {
-      viewModel.loadData()
+      viewModel.requestRefresh()
     }
-    .alert("Save Error", isPresented: $showSaveError) {
+    .alert(
+      "Save Error",
+      isPresented: Binding(
+        get: { showSaveError && !isAppLocked },
+        set: { showSaveError = $0 })
+    ) {
       Button("OK") {}
     } message: {
       Text(saveErrorMessage)
@@ -97,13 +110,45 @@ struct CategoryDetailView: View {
         .accessibilityIdentifier("Category Name Field")
 
       HStack {
-        TextField("Target Allocation (e.g. 40)", text: $viewModel.targetAllocationText)
+        TextField("Allocation target (%)", text: $viewModel.targetAllocationText)
           .onSubmit { saveChanges() }
-        Text("%")
-          .foregroundStyle(.secondary)
+        Text("%").foregroundStyle(.secondary)
+        GoalHelpButton(title: "Allocation target (%)") {
+          Text(
+            "Percentage targets apply to the available allocation pool after protected balances are reserved."
+          )
+        }
+      }
+      CategoryGoalEditor(
+        minimumEnabled: $viewModel.minimumEnabled,
+        amountText: $viewModel.minimumBalanceText,
+        currency: $viewModel.editedMinimumCurrency,
+        onSubmit: saveChanges)
+      HStack {
+        Spacer()
+        Button("Revert") { viewModel.revertChanges() }
+          .disabled(!viewModel.hasUnsavedChanges || isAppLocked)
+        Button("Save Changes") { saveChanges() }
+          .keyboardShortcut("s", modifiers: .command)
+          .disabled(!viewModel.hasUnsavedChanges || isAppLocked)
       }
     } header: {
-      Text("Category Details")
+      Text("Category Settings")
+    } footer: {
+      if viewModel.category.minimumBalanceAmount != nil {
+        VStack(alignment: .leading, spacing: 4) {
+          Text(
+            CategoryGoalPresentation.minimumStatus(
+              viewModel.goalAssessment.statuses[viewModel.category.id] ?? .noSnapshot,
+              currency: SettingsService.shared.mainCurrency))
+          if let date = viewModel.valueHistory.last?.date {
+            Text("Saved minimum · Snapshot: \(date.settingsFormatted())")
+          }
+          if viewModel.hasUnsavedChanges {
+            Text("Unsaved changes are not included in this assessment.")
+          }
+        }
+      }
     }
   }
 
@@ -136,6 +181,7 @@ struct CategoryDetailView: View {
       ChartTimeRangeSelector(selection: $valueChartRange)
 
       let points = filteredValueHistory
+      let minimums = ChartDataService.filter(viewModel.minimumHistory, range: valueChartRange)
       if viewModel.valueHistory.isEmpty {
         Text("No value history")
           .foregroundStyle(.secondary)
@@ -155,9 +201,52 @@ struct CategoryDetailView: View {
                 .font(.caption2)
               Text(entry.totalValue.formatted(currency: SettingsService.shared.mainCurrency))
                 .font(.caption.bold())
+              if let minimum = minimums.first(where: { $0.date == entry.date }) {
+                Text(
+                  "Current minimum: \(CategoryGoalPresentation.amount(minimum.amount, currency: SettingsService.shared.mainCurrency))"
+                )
+                .font(.caption)
+              }
+            }
+          },
+          yDomain: { lower, upper in
+            (
+              min(lower, minimums.map { $0.amount.doubleValue }.min() ?? lower),
+              max(upper, minimums.map { $0.amount.doubleValue }.max() ?? upper)
+            )
+          },
+          extraContent: {
+            ForEach(minimums) { entry in
+              LineMark(
+                x: .value("Date", entry.date),
+                y: .value("Current minimum", entry.amount.doubleValue),
+                series: .value("Segment", entry.segment)
+              )
+              .foregroundStyle(.orange)
+              .lineStyle(StrokeStyle(dash: [6, 4]))
+              PointMark(
+                x: .value("Date", entry.date),
+                y: .value("Current minimum", entry.amount.doubleValue)
+              )
+              .foregroundStyle(.orange).symbolSize(12)
             }
           }
         )
+      }
+      if viewModel.category.minimumBalanceAmount != nil {
+        Label(
+          "Current minimum balance, compared using each snapshot's exchange rates",
+          systemImage: "line.diagonal"
+        )
+        .font(.caption).foregroundStyle(.orange)
+        if let message = viewModel.goalAssessment.goalConversion.unavailableMessage {
+          Text(message).font(.caption)
+        }
+        if viewModel.minimumHistory.count < viewModel.valueHistory.count {
+          Text(
+            "Some historical minimum comparisons are unavailable because exchange rates are missing."
+          ).font(.caption)
+        }
       }
     } header: {
       Text("Value History")
@@ -172,7 +261,7 @@ struct CategoryDetailView: View {
       CategoryAllocationLineChart(
         entries: viewModel.allocationHistory,
         timeRange: $allocationChartRange,
-        targetAllocationPercentage: viewModel.category.targetAllocationPercentage
+        targetAllocationPercentage: nil
       )
     } header: {
       VStack(alignment: .leading, spacing: 2) {
@@ -208,6 +297,7 @@ struct CategoryDetailView: View {
   // MARK: - Actions
 
   private func saveChanges() {
+    guard !isAppLocked, viewModel.hasUnsavedChanges else { return }
     do {
       try viewModel.save()
     } catch {

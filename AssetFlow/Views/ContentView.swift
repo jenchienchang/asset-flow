@@ -104,6 +104,7 @@ struct ContentView: View {
   @State private var selectedSnapshot: Snapshot?
   @State private var selectedAsset: Asset?
   @State private var selectedCategory: Category?
+  @State private var categoryEditingSession = CategoryEditingSession()
   @State private var selectedPlatform: String?
 
   @State private var showNewSnapshotSheet = false
@@ -122,6 +123,7 @@ struct ContentView: View {
   @State private var isNavigatingHistory = false
 
   var body: some View {
+    let revision = modelQueryRevision
     NavigationSplitView(columnVisibility: .constant(.all)) {
       sidebar
         .navigationTitle("AssetFlow")
@@ -130,13 +132,24 @@ struct ContentView: View {
     } detail: {
       detailPane
     }
+    .environment(\.storeRevision, revision)
     .frame(minWidth: 900, minHeight: 600)
     .focusedValue(\.newSnapshotAction) {
-      pushHistory(.snapshots)
-      showNewSnapshotSheet = true
+      categoryEditingSession.requestNavigation {
+        pushHistory(.snapshots)
+        showNewSnapshotSheet = true
+      }
     }
     .focusedValue(\.importCSVAction) { navigateToImport() }
-    .onChange(of: modelQueryRevision) {
+    .onChange(of: selectedSection) {
+      categoryEditingSession.updateVisibleCategory(
+        selectedSection == .categories ? selectedCategory : nil)
+    }
+    .onChange(of: selectedCategory.map(ObjectIdentifier.init)) {
+      categoryEditingSession.updateVisibleCategory(
+        selectedSection == .categories ? selectedCategory : nil)
+    }
+    .onChange(of: revision) {
       scheduleQueryReconciliation()
     }
     .onChange(of: bulkEntryQueryRevision) {
@@ -144,6 +157,24 @@ struct ContentView: View {
     }
     .onDisappear {
       queryReconciliationTask?.cancel()
+    }
+    .alert(
+      "Save category changes?",
+      isPresented: Binding(
+        get: {
+          categoryEditingSession.needsConfirmation && !isAppLocked && persistenceError == nil
+        },
+        set: { _ in })
+    ) {
+      Button("Save Changes") {
+        do { try categoryEditingSession.saveAndNavigate() } catch {
+          persistenceError = error.localizedDescription
+        }
+      }
+      Button("Discard", role: .destructive) { categoryEditingSession.discardAndNavigate() }
+      Button("Cancel", role: .cancel) { categoryEditingSession.cancelNavigation() }
+    } message: {
+      Text("Save or discard your edits before leaving this category.")
     }
     .toolbar {
       ToolbarItem(placement: .navigation) {
@@ -221,6 +252,8 @@ struct ContentView: View {
     }
     .task {
       await CurrencyService.shared.loadFromAPI()
+    }
+    .task(id: goalRateRequestID) {
       let service = ExchangeRateService()
       do {
         let snapshots = try fetchModels(
@@ -239,7 +272,7 @@ struct ContentView: View {
     .alert(
       "Data Error",
       isPresented: .init(
-        get: { persistenceError != nil },
+        get: { persistenceError != nil && !isAppLocked },
         set: { if !$0 { persistenceError = nil } }
       )
     ) {
@@ -273,6 +306,20 @@ struct ContentView: View {
     }
     .legacySidebarBackground()
     .tint(Color.accentColor.opacity(0.9))
+  }
+
+  private var goalRateRequestID: String {
+    let display = SettingsService.shared.mainCurrency
+    let currencies = CategoryGoalAssessmentService.requiredCurrencies(
+      categories: queryCategories, displayCurrency: display
+    ).sorted().joined(separator: ",")
+    let snapshots = querySnapshots.map {
+      "\(ObjectIdentifier($0))-\($0.date.timeIntervalSince1970)"
+    }.sorted().joined(separator: ",")
+    let recordedCurrencies = Set(
+      queryAssets.map(\.currency) + queryCashFlowOperations.map(\.currency)
+    ).sorted().joined(separator: ",")
+    return "\(display)|\(currencies)|\(snapshots)|\(recordedCurrencies)"
   }
 
   private var modelQueryRevision: ModelQueryRevision {
@@ -335,6 +382,17 @@ struct ContentView: View {
       get: { selectedSection },
       set: { newSection in
         guard let newSection, newSection != selectedSection else { return }
+        if selectedSection == .categories, categoryEditingSession.editor?.hasUnsavedChanges == true
+        {
+          categoryEditingSession.requestNavigation {
+            if newSection == .bulkEntry {
+              showBulkEntrySheet = true
+            } else {
+              pushHistory(newSection)
+            }
+          }
+          return
+        }
 
         // Check if navigating away from section with unsaved changes
         if selectedSection == .importCSV,
@@ -441,7 +499,14 @@ struct ContentView: View {
         HStack(spacing: 0) {
           CategoryListView(
             modelContext: modelContext,
-            selectedCategory: $selectedCategory
+            selectedCategory: Binding(
+              get: { selectedCategory },
+              set: { category in
+                guard category !== selectedCategory else { return }
+                categoryEditingSession.requestNavigation {
+                  selectedCategory = category
+                }
+              })
           )
           .frame(width: max(250, geometry.size.width * 0.35))
 
@@ -453,6 +518,12 @@ struct ContentView: View {
               modelContext: modelContext,
               onDelete: {
                 selectedCategory = nil
+              },
+              onEditorReady: { editor in
+                guard selectedSection == .categories, editor.category === selectedCategory else {
+                  return
+                }
+                categoryEditingSession.editor = editor
               }
             )
             .id(ObjectIdentifier(category))
@@ -602,6 +673,12 @@ struct ContentView: View {
 
   private func goBack() {
     guard canGoBack else { return }
+    if selectedSection == .categories, categoryEditingSession.editor?.hasUnsavedChanges == true {
+      categoryEditingSession.requestNavigation {
+        performGoBack()
+      }
+      return
+    }
 
     // Check for unsaved changes before navigating back
     if selectedSection == .bulkEntry,
@@ -640,6 +717,13 @@ struct ContentView: View {
 
   private func goForward() {
     guard canGoForward else { return }
+    categoryEditingSession.requestNavigation {
+      performGoForward()
+    }
+  }
+
+  private func performGoForward() {
+    guard canGoForward else { return }
     isNavigatingHistory = true
     historyIndex += 1
     selectedSection = sectionHistory[historyIndex]
@@ -647,6 +731,14 @@ struct ContentView: View {
   }
 
   private func pushHistory(_ section: SidebarSection) {
+    if section != selectedSection, selectedSection == .categories,
+      categoryEditingSession.editor?.hasUnsavedChanges == true
+    {
+      categoryEditingSession.requestNavigation {
+        pushHistory(section)
+      }
+      return
+    }
     guard !isNavigatingHistory else {
       selectedSection = section
       return

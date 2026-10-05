@@ -262,52 +262,27 @@ enum CalculationService {
 
 ### RebalancingCalculator
 
-**Purpose**: Computes rebalancing adjustments for portfolio allocation.
-
 **File**: `AssetFlow/Services/RebalancingCalculator.swift`
 
 ```swift
-struct CategoryAllocation {
-    let name: String
-    let currentValue: Decimal
-    let targetPercentage: Decimal?
-}
-
-enum RebalancingActionType {
-    case buy
-    case sell
-    case noAction
-}
-
-struct RebalancingAction {
-    let categoryName: String
-    let currentValue: Decimal
-    let currentPercentage: Decimal
-    let targetPercentage: Decimal
-    let adjustmentAmount: Decimal
-    let action: RebalancingActionType
-}
-
-enum RebalancingCalculator {
-    /// Minimum adjustment threshold — adjustments under $1 are classified as `.noAction` (SPEC 11.4)
-    static let minimumThreshold: Decimal  // = 1
-
-    /// Calculate rebalancing adjustments for all categories with target allocations
-    /// - Parameters:
-    ///   - categories: Current category allocations (categories without targets are skipped)
-    ///   - totalValue: Total composite portfolio value
-    /// - Returns: Array of RebalancingAction sorted by absolute adjustment magnitude (largest first),
-    ///   or empty array if totalValue is zero
-    static func calculateAdjustments(
-        categories: [CategoryAllocation],
-        totalValue: Decimal
-    ) -> [RebalancingAction]
-}
+static func calculate(
+    categories: [CategoryGoalAllocation],
+    totalValue: Decimal,
+    uncategorizedValue: Decimal = 0
+) -> RebalancingPlan
 ```
 
-**Return Value Convention**: All calculation methods return `nil` (not throwing) when the result is N/A (insufficient data, division by zero, etc.). The ViewModel maps `nil` to the appropriate display text ("N/A", "Cannot calculate", etc.).
+`CategoryGoalAllocation` carries a stable category UUID, display name, current value, optional percentage, and optional converted minimum. `RebalancingPlan` carries status, targets, protected/available values, total minimums, and percentage sum. Targets include their input allocation, target balance, minimum-binding flag, difference, and current minimum shortfall. Invalid/infeasible outcomes contain no targets.
 
-______________________________________________________________________
+The calculator accepts finite Decimal precision loss in balance arithmetic but rejects other arithmetic errors. Percentage sums retain exact aggregation. Minimum and protected funding sums use a conservative Decimal error bound to prove which side of the budget their exact sum occupies; an ambiguous comparison leaves the plan unavailable. Combined checks use original components rather than rounded subtotals. Rounding cannot erase a mandatory requirement or make an invalid percentage sum appear to be 100%. Input totals are consistent within `arithmeticTolerance(total:)`, defined as `max(total, 1) * 1e-28`; funding and minimum comparisons do not use this tolerance. Asset totals and category assessment aggregate in stable asset UUID order, and the calculator orders categories by UUID. Monetary inputs retain their full Decimal precision.
+
+`CategoryGoalAssessmentService.assess(snapshot:categories:displayCurrency:)` resolves snapshot values by UUID, converts goal amounts, and produces independent asset/goal conversion statuses and per-category minimum states. Missing conversion prevents the dependent plan without substituting zero. `requiredCurrencies` includes goal-only currencies for rate fetching.
+
+`RebalancingHelpPresentation.monetaryValue` formats popup amounts with `Decimal.formattedCurrencyNumber`, which shares fraction defaults with the existing asset currency formatter. `Decimal.currencyDisplayUnit` derives the smallest display unit from that formatter. Tiny nonzero amounts use bounds and localized signed-change labels. ISO codes remain per row or in a shared table heading. `CategoryGoalPresentation.diagnostic` accepts an optional amount formatter so popup funding explanations follow the same policy while existing callers retain their behavior. No calculation or persisted value is rounded by these helpers.
+
+`CategoryGoalValidator` shares paired-field, range, finite-value, currency, and form parsing validation. Restore preserves syntactically valid codes absent from the current currency list; new selections use the cached supported list. `CategoryGoalPresentation` localizes domain diagnostics; pure allocation results contain no localized identifiers.
+
+The ViewModel classifies actionable differences, preserves mandatory subunit top-ups and their funding, and pairs transfers without exceeding capacities. See [BusinessLogic](BusinessLogic.md#rebalancing-engine) for equations and edge cases.
 
 ### BackupService
 
@@ -352,7 +327,7 @@ struct BackupManifest: Codable {
 
 **Export Format**: ZIP archive containing:
 
-- `manifest.json` -- format version (currently 3), export timestamp, app version
+- `manifest.json` -- format version (currently 4), export timestamp, app version
 - `categories.csv` -- all Category records (v2+ adds `displayOrder` column; v1 backups without it are supported on restore with default `displayOrder = 0`)
 - `assets.csv` -- all Asset records including `currency` column (v3+; v1/v2 backups without it restore an empty currency so display-currency inheritance remains active)
 - `snapshots.csv` -- all Snapshot records
@@ -361,7 +336,7 @@ struct BackupManifest: Codable {
 - `exchange_rates.csv` -- all ExchangeRate records (optional; absent in v2 backups). Columns: `snapshotID`, `baseCurrency`, `fetchDate`, `isFallback`, `ratesJSON` (base64-encoded JSON)
 - `settings.csv` -- user preferences with columns: `key`, `value`. Keys: `displayCurrency` (e.g., "USD"), `dateFormat` (e.g., "abbreviated"), `defaultPlatform` (e.g., "" or "Interactive Brokers")
 
-Format versions 1 through 3 contain only those three settings. Preferences not represented by the format, such as platform ordering and stale-asset visibility, remain unchanged during restore.
+Format versions 1 through 4 contain only those three settings. Preferences not represented by the format, such as platform ordering and stale-asset visibility, remain unchanged during restore.
 
 The canonical layout places these files directly at the ZIP root. Restore also accepts archives with exactly one immediate enclosing folder, which accommodates archive tools that preserve the selected source folder. It does not search recursively or accept ambiguous layouts.
 
@@ -814,3 +789,37 @@ ______________________________________________________________________
 - [BusinessLogic.md](BusinessLogic.md) - Calculation formulas
 - [DataModel.md](DataModel.md) - Entity definitions for CSV serialization
 - Specification: `SPEC.md` Sections 3.10, 4, 7, 13, 14, 15
+
+## Category Editing and Compact Goal Presentation
+
+`CategoryDetailViewModel.hasUnsavedChanges` compares all form fields with the saved draft; `revertChanges()` restores the persisted category and resets the draft baseline. Successful `save()` resets the baseline after validating all fields. `CategoryEditingSession` retains pending navigation until Save succeeds, Discard restores the draft, or Cancel clears only the navigation request. Validation failures retain both draft and pending navigation. `updateVisibleCategory(_:)` retains the editor for the identical visible Category instance and clears it and pending navigation when the category is replaced or no category is visible. Presenting a sheet does not replace the visible category.
+
+## Structured Rebalancing Help
+
+RebalancingHelpPresentation produces RebalancingHelpContent with structured sections, label/value rows, bullets, and notes for calculation, category, and minimum help. Category presentation receives the existing CategoryGoalAssessment alongside row inputs. It derives the final remaining allocation and percentage-weight total from feasible plan targets, including later minimum constraints and exact minimum ties; it never reruns allocation. Inputs preserve optional monetary values so unavailable conversion remains distinct from zero. RebalancingHelpRow carries optional formula text and an isResult presentation flag, preserved during currency compaction. RebalancingHelpView renders the presentation without reconstructing financial rules. GoalHelpButton can suppress its own heading for content with a title and can use an orange warning symbol; its lock-aware click and keyboard behavior is shared by all three rebalancing popovers.
+
+## Shared Currency Headings in Rebalancing Help
+
+Each popup table independently checks the intended currencies of its monetary rows. When they all match, the table heading shows that ISO code once and monetary values show localized numbers using the existing asset display precision without a currency prefix. A previously untitled minimum assessment table uses Assessment as its heading. Mixed-currency tables retain prefixes on every available monetary value. Percentage rows are excluded from the check; unavailable monetary rows still contribute their intended currency and remain an em dash. Amounts in explanatory sentences retain their codes. The currency-heading rule does not convert values or parse formatted strings. Numeric formatting follows the existing asset currency formatter; tiny nonzero amounts use bounds and signed changes use localized direction labels. Storage, arithmetic and minimum-status comparisons retain full Decimal precision.
+
+RebalancingHelpRow carries currency and exact numeric text separately from its complete formatted value. CategoryGoalPresentation.number shares the existing Decimal formatter with amount; the per-table compaction uses typed currency metadata rather than removing characters from a formatted value.
+
+## Aggregate Refresh Coordination
+
+`ObservedRefresh.perform(_:reload:)` tracks source reads, then executes closures queued with `publish(_:)` outside tracking. Calculate values before enqueueing publication. `request(reload:)` merges pending notifications; explicit `perform` cancels pending requests and advances a generation. Old callbacks are ignored, while fresh source changes request another load. Coordinators and ViewModel captures remain weak across asynchronous work. All aggregate ViewModels expose `requestRefresh()` for `.refreshOnStoreChanges`, driven by the app shell's six-model revision environment.
+
+`CategoryGoalAssessmentService.convertMinimum(amount:currency:snapshot:displayCurrency:)` returns a finite converted requirement or nil when the snapshot conversion is unavailable. Callers validate the configured amount/currency first. It shares the current-assessment conversion rules and supports historical overlays without valuation or allocation planning.
+
+### Rebalancing help sizing
+
+`GoalHelpButton.fitsContent` opts the three rebalancing popovers into intrinsic sizing; its default retains the existing 360-point help width for other screens. `RebalancingHelpView.maximumWidth` defaults to the active screen visible width minus padding/edge margins and is injectable for constrained render tests. A custom SwiftUI Layout measures title, section-heading and table blocks at their ideal width, then measures paragraphs within the bounded width. Text-only diagnostics retain a readable preferred width, capped by the screen. Grid rows place title/formula inline and align values on the first baseline. Result dividers overlay the table at the measured result-row bounds instead of introducing conditional empty grid rows. No financial calculation or localization key changes.
+
+### Percentage suffix presentation
+
+`RebalancingHelpRow.suffix` carries an optional localized unit symbol independently of the numeric display value. `RebalancingHelpPresentation.percentageRow` uses Foundation percent formatting at the existing two-decimal precision, suppresses the symbol through `NumberFormatter.percentSymbol`, and returns that symbol separately. Unavailable percentages have neither a numeric value nor a suffix. Approximation markers stay in the numeric cell. RebalancingHelpView adds a suffix column only when needed, preserving one right-aligned numeric column, compact spacing and first-baseline alignment. Currency compaction retains suffix metadata. No monetary precision or allocation arithmetic changes.
+
+## Minimum-first Suggested Moves
+
+`RebalancingTransferPlanner.calculate(targets:total:)` accepts targets from a feasible allocation plan and returns `RebalancingTransferPlan`: typed transfers (`sourceID`, `destinationID`, Decimal `amount`), actionable category IDs, and residual. Mandatory demand is the sum of actual minimum shortfalls. Large donors and, when necessary, supporting small donors fund those shortfalls before optional target increases. Transfer capacities never exceed the corresponding target differences. Repeated donor/recipient pairs are combined for display; only arithmetic noise is removed from unmatched residuals.
+
+`CategoryGoalPresentation.diagnostic(_:currency:formatAmount:bundle:)` defaults to the main app bundle and allows bundle injection for localization verification. Its interpolated percentage diagnostic uses the extracted `100%%` format key and displays one literal percent sign.

@@ -56,11 +56,12 @@ struct PlatformListView: View {
       }
     }
     .navigationTitle("Platforms")
+    .refreshOnStoreChanges { viewModel.requestRefresh() }
     .onAppear {
       viewModel.loadPlatforms()
     }
     .onChange(of: queryRevision) {
-      viewModel.loadPlatforms()
+      viewModel.requestRefresh()
       if let selectedPlatform,
         !viewModel.platformRows.contains(where: { $0.name == selectedPlatform })
       {

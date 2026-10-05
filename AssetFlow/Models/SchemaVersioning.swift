@@ -17,6 +17,10 @@
 
 import SwiftData
 
+enum CurrentSchema {
+  static var schema: Schema { Schema(versionedSchema: SchemaV2.self) }
+}
+
 enum SchemaV1: VersionedSchema {
   static let versionIdentifier = Schema.Version(1, 0, 0)
 
@@ -32,12 +36,22 @@ enum SchemaV1: VersionedSchema {
   }
 }
 
+enum SchemaV2: VersionedSchema {
+  static let versionIdentifier = Schema.Version(2, 0, 0)
+  static var models: [any PersistentModel.Type] {
+    [
+      Category.self, Asset.self, Snapshot.self, SnapshotAssetValue.self, CashFlowOperation.self,
+      ExchangeRate.self,
+    ]
+  }
+}
+
 enum AssetFlowMigrationPlan: SchemaMigrationPlan {
   static var schemas: [any VersionedSchema.Type] {
-    [SchemaV1.self]
+    [SchemaV1.self, SchemaV2.self]
   }
 
   static var stages: [MigrationStage] {
-    []
+    [.lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self)]
   }
 }

@@ -56,6 +56,16 @@ struct AssetDetailView: View {
     }
     .formStyle(.grouped)
     .navigationTitle(viewModel.asset.name)
+    .refreshOnStoreChanges {
+      viewModel.requestRefresh()
+      do {
+        cachedPlatforms = try viewModel.existingPlatforms()
+        cachedCategories = try viewModel.existingCategories()
+      } catch {
+        saveErrorMessage = error.localizedDescription
+        showSaveError = true
+      }
+    }
     .onAppear {
       viewModel.loadValueHistory()
       do {

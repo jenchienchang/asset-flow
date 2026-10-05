@@ -134,6 +134,8 @@ struct SnapshotConfirmationData {
 @Observable
 @MainActor
 class SnapshotListViewModel {
+  @ObservationIgnored private let refresh = ObservedRefresh()
+
   private let modelContext: ModelContext
   private let fetcher: any ModelFetching
   private let settingsService: SettingsService
@@ -153,22 +155,22 @@ class SnapshotListViewModel {
     self.settingsService = settingsService ?? .shared
   }
 
+  /// Coalesces source-observation and query notifications before refreshing.
+  func requestRefresh() {
+    refresh.request { [weak self] in self?.loadRowData() }
+  }
+
   // MARK: - Row Data Loading
 
   /// Loads row data for all snapshots with observation tracking.
   ///
-  /// Wraps the load in `withObservationTracking` so that any `@Observable`/`@Model`
+  /// Uses `ObservedRefresh` to track source reads and publish derived results. Any `@Observable`/`@Model`
   /// property change (e.g. currency, asset values) automatically triggers a reload.
   func loadRowData() {
-    loadState = .loading
-    withObservationTracking {
+    refresh.perform {
       performLoadRowData()
-    } onChange: { [weak self] in
-      Task { @MainActor [weak self] in
-        // Re-fetch the current collection instead of capturing SwiftData models
-        // in the sendable task closure.
-        self?.loadRowData()
-      }
+    } reload: { [weak self] in
+      self?.loadRowData()
     }
   }
 
@@ -176,11 +178,14 @@ class SnapshotListViewModel {
     do {
       let loadedSnapshots = try fetchAllSnapshots()
       let loadedRowData = buildAllSnapshotRowData(for: loadedSnapshots)
-      snapshots = loadedSnapshots
-      rowDataMap = loadedRowData
-      loadState = .loaded
+      refresh.publish {
+        self.snapshots = loadedSnapshots
+        self.rowDataMap = loadedRowData
+        self.loadState = .loaded
+      }
     } catch {
-      loadState = .failed(error.localizedDescription)
+      let message = error.localizedDescription
+      refresh.publish { self.loadState = .failed(message) }
     }
   }
 

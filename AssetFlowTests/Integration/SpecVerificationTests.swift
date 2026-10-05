@@ -206,28 +206,30 @@ struct SpecVerificationTests {
 
     // Verify rebalancing suggestions using the actual API
     let categoryAllocations = [
-      CategoryAllocation(
-        name: "Stocks", currentValue: Decimal(50_000), targetPercentage: Decimal(60)),
-      CategoryAllocation(
-        name: "Bonds", currentValue: Decimal(50_000), targetPercentage: Decimal(40)),
+      CategoryGoalAllocation(
+        id: stocks.id, name: "Stocks", currentValue: Decimal(50_000), percentage: Decimal(60),
+        minimum: nil),
+      CategoryGoalAllocation(
+        id: bonds.id, name: "Bonds", currentValue: Decimal(50_000), percentage: Decimal(40),
+        minimum: nil),
     ]
 
-    let actions = RebalancingCalculator.calculateAdjustments(
+    let actions = RebalancingCalculator.calculate(
       categories: categoryAllocations,
       totalValue: Decimal(100_000)
-    )
+    ).targets
 
-    let stocksAction = actions.first(where: { $0.categoryName == "Stocks" })
+    let stocksAction = actions.first(where: { $0.allocation.name == "Stocks" })
     #expect(stocksAction != nil, "Should have rebalancing action for Stocks")
     #expect(
-      stocksAction?.adjustmentAmount == Decimal(10_000),
+      stocksAction?.difference == Decimal(10_000),
       "Should suggest +10,000 to stocks (from 50% to 60%)"
     )
 
-    let bondsAction = actions.first(where: { $0.categoryName == "Bonds" })
+    let bondsAction = actions.first(where: { $0.allocation.name == "Bonds" })
     #expect(bondsAction != nil, "Should have rebalancing action for Bonds")
     #expect(
-      bondsAction?.adjustmentAmount == Decimal(-10_000),
+      bondsAction?.difference == Decimal(-10_000),
       "Should suggest -10,000 from bonds (from 50% to 40%)"
     )
   }

@@ -62,6 +62,10 @@ If you're offline or experiencing network issues:
 
     AssetFlow stores fetched exchange rates locally. Once rates are fetched for a snapshot, they don't need to be re-fetched even when offline.
 
+## Minimum balance currencies
+
+Each category minimum retains an explicit original currency. Changing display currency preserves it. Compare category holdings and minimums using each snapshot's stored rates. A goal currency may need fetching even when no asset uses it; offline or missing goal-only rates make goal comparisons/rebalancing unavailable while valid asset statistics remain visible.
+
 ## See also
 
 - [Preferences](../settings/preferences.md): Set your main display currency

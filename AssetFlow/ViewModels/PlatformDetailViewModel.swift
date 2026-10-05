@@ -36,6 +36,8 @@ struct PlatformValueHistoryEntry: Identifiable {
 @Observable
 @MainActor
 final class PlatformDetailViewModel {
+  @ObservationIgnored private let refresh = ObservedRefresh()
+
   /// The current canonical platform name (updated after successful rename).
   private(set) var platformName: String
   private let modelContext: ModelContext
@@ -55,7 +57,6 @@ final class PlatformDetailViewModel {
   var valueHistory: [PlatformValueHistoryEntry] = []
   var conversionStatus: CurrencyConversionStatus = .notNeeded
   var loadState: DataLoadState = .idle
-  private var summaries: [SnapshotSummary] = []
 
   init(
     platformName: String,
@@ -70,19 +71,22 @@ final class PlatformDetailViewModel {
     self.editedName = platformName
   }
 
+  /// Coalesces source-observation and query notifications before refreshing.
+  func requestRefresh() {
+    refresh.request { [weak self] in self?.loadData() }
+  }
+
   // MARK: - Load Data
 
   /// Fetches all snapshots and loads assets and history.
   ///
-  /// Wraps the load in `withObservationTracking` so that any `@Observable`/`@Model`
+  /// Uses `ObservedRefresh` to track source reads and publish derived results. Any `@Observable`/`@Model`
   /// property change automatically triggers a reload.
   func loadData() {
-    withObservationTracking {
+    refresh.perform {
       performLoadData()
-    } onChange: { [weak self] in
-      Task { @MainActor [weak self] in
-        self?.loadData()
-      }
+    } reload: { [weak self] in
+      self?.loadData()
     }
   }
 
@@ -94,17 +98,27 @@ final class PlatformDetailViewModel {
   private func performLoadData() {
     do {
       let allSnapshots = try SnapshotSummaryService.fetchSnapshots(using: fetcher)
-      summaries = SnapshotSummaryService.makeSummaries(
+      let summaries = SnapshotSummaryService.makeSummaries(
         for: allSnapshots,
         displayCurrency: settingsService.mainCurrency)
-      conversionStatus = CurrencyConversionStatus.merged(
+      let status = CurrencyConversionStatus.merged(
         summaries.map(\.conversionStatus))
 
-      try loadAssets(allSnapshots: allSnapshots)
-      loadHistory()
-      loadState = .loaded
+      let rows = try loadAssets(allSnapshots: allSnapshots)
+      let history = loadHistory(summaries: summaries)
+      let total =
+        status.isComplete
+        ? rows.reduce(Decimal(0)) { $0 + ($1.convertedValue ?? $1.latestValue ?? 0) } : 0
+      refresh.publish {
+        self.assets = rows
+        self.valueHistory = history
+        self.totalValue = total
+        self.conversionStatus = status
+        self.loadState = .loaded
+      }
     } catch {
-      loadState = .failed(error.localizedDescription)
+      let message = error.localizedDescription
+      refresh.publish { self.loadState = .failed(message) }
     }
   }
 
@@ -154,7 +168,7 @@ final class PlatformDetailViewModel {
   }
 
   /// Loads assets on this platform with their latest values.
-  private func loadAssets(allSnapshots: [Snapshot]) throws {
+  private func loadAssets(allSnapshots: [Snapshot]) throws -> [DetailAssetRowData] {
     // Build latest value lookup from most recent snapshot
     var latestValueLookup: [UUID: Decimal] = [:]
     if let latestSnapshot = allSnapshots.last {
@@ -171,43 +185,37 @@ final class PlatformDetailViewModel {
     let latestExchangeRate = allSnapshots.last?.exchangeRate
     let latestSnapshotDate = allSnapshots.last?.date
 
-    assets =
-      platformAssets.map { asset in
-        let value = latestValueLookup[asset.id]
-        let assetCurrency = asset.currency
-        let effectiveCurrency = assetCurrency.isEmpty ? displayCurrency : assetCurrency
-        let converted: Decimal? =
-          if let value, let snapshotDate = latestSnapshotDate,
-            effectiveCurrency != displayCurrency
-          {
-            CurrencyConversionService.convert(
-              value: value,
-              from: effectiveCurrency,
-              to: displayCurrency,
-              using: latestExchangeRate,
-              forSnapshotDate: snapshotDate)
-          } else {
-            nil
-          }
-        return DetailAssetRowData(
-          asset: asset,
-          latestValue: value,
-          convertedValue: converted
-        )
-      }
-      .sorted {
-        $0.asset.name.localizedCaseInsensitiveCompare($1.asset.name) == .orderedAscending
-      }
-    totalValue =
-      conversionStatus.isComplete
-      ? assets.reduce(Decimal(0)) { sum, row in
-        sum + (row.convertedValue ?? row.latestValue ?? 0)
-      }
-      : 0
+    return platformAssets.map { asset in
+      let value = latestValueLookup[asset.id]
+      let assetCurrency = asset.currency
+      let effectiveCurrency = assetCurrency.isEmpty ? displayCurrency : assetCurrency
+      let converted: Decimal? =
+        if let value, let snapshotDate = latestSnapshotDate,
+          effectiveCurrency != displayCurrency
+        {
+          CurrencyConversionService.convert(
+            value: value,
+            from: effectiveCurrency,
+            to: displayCurrency,
+            using: latestExchangeRate,
+            forSnapshotDate: snapshotDate)
+        } else {
+          nil
+        }
+      return DetailAssetRowData(
+        asset: asset,
+        latestValue: value,
+        convertedValue: converted
+      )
+    }
+    .sorted {
+      $0.asset.name.localizedCaseInsensitiveCompare($1.asset.name) == .orderedAscending
+    }
+
   }
 
   /// Computes value history across all snapshots for this platform.
-  private func loadHistory() {
+  private func loadHistory(summaries: [SnapshotSummary]) -> [PlatformValueHistoryEntry] {
     var entries: [PlatformValueHistoryEntry] = []
 
     for summary in summaries {
@@ -217,6 +225,6 @@ final class PlatformDetailViewModel {
           totalValue: summary.platformValues[platformName] ?? 0))
     }
 
-    valueHistory = entries
+    return entries
   }
 }

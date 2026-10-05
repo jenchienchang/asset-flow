@@ -25,6 +25,8 @@ final class Category {
   var id: UUID
   var name: String
   var targetAllocationPercentage: Decimal?
+  var minimumBalanceAmount: Decimal?
+  var minimumBalanceCurrency: String?
   var displayOrder: Int
 
   @Relationship(deleteRule: .deny, inverse: \Asset.category)

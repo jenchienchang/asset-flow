@@ -188,41 +188,45 @@ ______________________________________________________________________
 
 ## Rebalancing Engine
 
-The rebalancing calculator is **read-only** -- it computes suggested adjustments but does NOT modify stored data.
+Rebalancing is a read-only, closed-portfolio preview using the latest snapshot's directly recorded values. Missing entries do not carry forward. Convert both asset values and minimums using that snapshot's valid exchange-rate record. Missing goal rates disable the plan independently of otherwise valid asset valuations.
 
-### Inputs
+### Inputs and protected funds
 
-- Current category allocation (from latest snapshot)
-- Target allocation (from category settings)
+Use category UUIDs for identity. Let `V` be total value, `c_i` current category balance, `m_i` minimum or zero, and `u` uncategorized value.
 
-### Calculation
+1. If `sum(m_i) > V`, report globally infeasible minimums and funding shortfall `sum(m_i) - V`.
+1. For every category without a percentage, protect `q_i = max(c_i, m_i)`.
+1. Define `Q = u + sum(q_i)` and the percentage pool `A = V - Q`.
+1. Let `F` be minimums of percentage-target categories. If `Q + F > V`, report insufficient available funds and shortfall `Q + F - V`. Protected holdings can cause this even when total minimums fit within V.
+1. Require percentage targets to sum to 100% when any exist. Save is permitted before this condition is met; actions are unavailable.
 
-For each category with a target allocation:
+Per-category shortfalls `max(0, m_i - c_i)` are distinct from external funding shortfalls. With only minimum goals, current surpluses remain protected; unmet minimums require new funds or changed configuration, without an automatically chosen donor.
 
+### Constrained allocation
+
+Reserve explicit zero-percentage targets at their minimums. For positive percentages solve:
+
+```text
+target_i = max(minimum_i, lambda * percentage_i)
+sum(target_i for percentage categories) = available_pool
+adjustment_i = target_i - current_i
 ```
-target_value = total_portfolio_value * target_percentage / 100
-adjustment_amount = target_value - current_category_value
-```
 
-### Output
+Repeatedly distribute remaining funds according to remaining percentage weights, fix any below-minimum category at its minimum, and redistribute. Each iteration removes a bound category, so iteration count is bounded by category count. Minimum-only targets are q_i; no-target and uncategorized balances are unchanged. A feasible plan conserves portfolio value and never violates a minimum.
 
-A table showing:
+For V = TWD 1,000,000, reserve 10% with a TWD 300,000 minimum, equities 60%, and bonds 30%, effective targets are approximately TWD 300,000 / 466,666.67 / 233,333.33. Flexible weights retain a 60:30 ratio after the reserve minimum binds.
 
-| Category | Current Value | Current % | Target % | Difference ($) | Action       |
-| -------- | ------------- | --------- | -------- | -------------- | ------------ |
-| Equities | $75,000       | 60%       | 50%      | -$12,500       | Sell $12,500 |
-| Bonds    | $25,000       | 20%       | 30%      | +$12,500       | Buy $12,500  |
-| Cash     | $25,000       | 20%       | 20%      | $0             | No action    |
+Use checked Decimal arithmetic at full precision. Finite balance-arithmetic results with normal Decimal precision loss are accepted; overflow, underflow, division by zero and invalid numbers are rejected. Percentage aggregation remains exact. Minimum and protected funding sums that lose precision are usable only when their strict budget comparison is unambiguous: a conservative error bound of `max(requiredTotal, budget, 1) * componentCount * 1e-37` accounts for Decimal's 38 significant digits. If the rounded sum lies within that bound of the budget, the plan remains unavailable rather than erasing a requirement. Original components participate in the combined funding check, so rounded subtotals cannot conceal a deficit. This error bound never permits underfunding. Asset values are summed in stable asset UUID order, and allocation inputs in category UUID order. Independently summed portfolio and category totals may differ by at most `max(V, 1) * 1e-28`; larger inconsistencies are invalid. This tolerance applies only to arithmetic consistency and target reconciliation, never to genuine funding deficits or minimum compliance. A division/rounding remainder within that bound may be reconciled to a flexible positive-weight category that remains above its minimum; otherwise the calculation is unavailable. No financial value is converted through Double or rounded to currency display precision. Display and chart conversion do not feed back into the calculation.
 
-### Rules
+### Result and presentation
 
-- Only categories with target allocations are included in the main table
-- Categories without targets are shown separately as "No target set"
-- Uncategorized assets shown as a separate row with current value and current %, with "--" in Target % and "N/A" in Difference and Action
-- Sort order: by absolute adjustment magnitude (largest deviation first)
-- Minimum threshold: adjustments under $1 are displayed as "No action needed"
+Structured results distinguish feasible, no goals, invalid data, invalid percentage sum, globally infeasible minimums, and insufficient available funds. The assessment layer separately represents no snapshot and missing asset/goal conversion. Zero-valued snapshots can still have funding shortfalls; shares of a zero total/pool are unavailable.
 
-______________________________________________________________________
+Rows expose requested pool percentage, original minimum/currency, current balance/share of total, effective balance/share of total, difference, and binding reason. Minimum-only rows are included. Protected and uncategorized rows remain visible. Sort by absolute adjustment and then stable UUID.
+
+Mandatory minimum top-ups remain actionable below one display-currency unit. Transfer planning first funds every actual minimum shortfall, then uses remaining donor capacity for actionable percentage adjustments. Small donor reductions participate when large reductions cannot cover the total minimum shortfall; optional increases above minimums do not count toward this mandatory demand. Repeated transfers between the same pair are combined for display. Other subunit differences show “Small adjustment” with their precise value. Transfer summaries are limited by actual donor and recipient capacity. Omitted/unmatched adjustments are disclosed as a residual; invalid or infeasible plans have no actions or transfer summaries.
+
+Historical comparisons use current goal settings and each snapshot's rates, with unavailable gaps; they do not record goal history. Value charts include the converted minimum overlay. Raw pool percentages are not plotted as whole-portfolio allocation references.
 
 ## CSV Import System
 
@@ -372,11 +376,13 @@ ______________________________________________________________________
 - **Delete**: Only allowed if no assets are assigned. If assets exist, user must reassign them first. After deletion, `displayOrder` values are compacted to remove gaps.
 - **Reorder**: Categories can be reordered via drag-and-drop. The `displayOrder` property persists the user-defined order. All category lists sort by `displayOrder` first, then alphabetically by name as a tiebreaker.
 
-### Target Allocation Rules
+### Target Allocation and Minimum Balance Rules
 
-- Target allocations across all categories should sum to 100% (app warns if not, but does not block)
-- Categories without a target allocation are excluded from rebalancing calculations
-- An "Uncategorized" virtual group appears in allocation views for assets without a category
+A category may have an optional percentage target, an optional minimum balance, both, or neither. Minimums are finite nonnegative Decimal amounts with an explicit currency; amount and currency are either both present or both absent. Explicit zero is valid. Currency defaults to the single currency shared by the category's assets, or the display currency if mixed or empty. Changing display currency preserves the saved denomination. Changing the goal currency does not convert the entered amount.
+
+Percentage targets distribute the available allocation pool, after protecting uncategorized assets and categories without percentage targets. A minimum-only category protects `max(current balance, minimum)`. No-target categories protect their current balances. Percentage targets may be saved incrementally, but their sum must equal 100% before an actionable percentage plan is available. An explicit 0% targets its minimum, or zero; absence of a percentage protects the category instead.
+
+All assets still contribute to total value and actual allocation percentages. Minimums take priority over percentage preferences. Infeasible requirements can be saved and produce diagnostics rather than partial buy/sell plans. Ordinary asset/cash-flow imports do not change category goals.
 
 ______________________________________________________________________
 
@@ -681,3 +687,7 @@ ______________________________________________________________________
 - Swift `Decimal` type for precision, including exchange rates and annualized return calculations
 - Swift Charts for visualization
 - Specification: `SPEC.md` Sections 2, 4, 5, 6, 7, 8, 9, 10, 11
+
+### Category list goal assessment
+
+Current and effective percentages both use the full portfolio denominator. The list consumes the same assessment values and plan targets as rebalancing. A percentage-target category warns when its absolute deviation exceeds 5 percentage points (exactly 5 does not warn). Every strictly positive minimum shortfall warns independently, including minimum-only categories and infeasible plans. A combined indicator explains both reasons. Minimum-only effective balances protect current surpluses; they do not create a surplus deviation warning. No-goal categories have no effective target. Zero portfolio shares and unavailable/infeasible effective shares are displayed as an em dash; missing conversion never fabricates compliance or a shortfall. Financial comparisons remain at full Decimal precision.

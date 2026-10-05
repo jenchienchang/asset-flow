@@ -13,7 +13,9 @@ Asset categorization with optional target allocation percentage.
 **Key Properties:**
 
 - `name` - Display name (unique, case-insensitive)
-- `targetAllocationPercentage` - Optional target allocation (0-100, Decimal)
+- `targetAllocationPercentage` - Optional pool preference (0-100, Decimal)
+- `minimumBalanceAmount` - Optional finite nonnegative minimum (Decimal)
+- `minimumBalanceCurrency` - Explicit original currency, paired with minimum
 - `displayOrder` - Sort order for user-defined ordering (Int, default: 0)
 
 **Relationships:**
@@ -138,18 +140,18 @@ var marketValue: Double   // Never do this
 
 ### Schema Registration
 
-All models are registered via `SchemaV1` (versioned schema) in `Models/SchemaVersioning.swift`:
+All models are registered via `SchemaV2` (versioned schema) in `Models/SchemaVersioning.swift`:
 
 ```swift
-let schema = Schema(versionedSchema: SchemaV1.self)
-// SchemaV1.models includes: Category, Asset, Snapshot,
+let schema = CurrentSchema.schema
+// SchemaV2.models includes: Category, Asset, Snapshot,
 // SnapshotAssetValue, CashFlowOperation, ExchangeRate
 ```
 
 ### When Adding/Modifying Models
 
 1. Update the model file
-1. Register in `SchemaV1.models` (`Models/SchemaVersioning.swift`) if new
+1. Register in `SchemaV2.models` (`Models/SchemaVersioning.swift`) if new
 1. Update this README
 1. Update [Documentation/DataModel.md](../../Documentation/DataModel.md)
 1. Consider migration strategy if changing existing models
@@ -191,3 +193,7 @@ For detailed information on:
 - Usage examples
 
 See the comprehensive [DataModel.md](../../Documentation/DataModel.md) documentation.
+
+## Category Minimum Balances
+
+`minimumBalanceAmount: Decimal?` and `minimumBalanceCurrency: String?` must be jointly present or absent. Amounts are finite and nonnegative; zero is valid. Goals belong to categories and are independent of asset currency. Percentages can coexist with minimums. Effective targets/status are derived from current snapshot data and are not persisted. Use the frozen V1 definitions for migration and current V2 models for application work.

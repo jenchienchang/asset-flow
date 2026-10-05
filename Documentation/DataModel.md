@@ -33,10 +33,10 @@ The data model captures portfolio state through snapshots rather than transactio
 
 ### Schema Management
 
-- All models registered via `SchemaV1` (versioned schema) in `Models/SchemaVersioning.swift`
-- `SchemaV1: VersionedSchema` defines all model types with `versionIdentifier = Schema.Version(1, 0, 0)`
+- Current models registered via `SchemaV2` (versioned schema) in `Models/SchemaVersioning.swift`
+- `SchemaV2: VersionedSchema` defines current model types with `versionIdentifier = Schema.Version(2, 0, 0)`; V1 remains frozen for migration
 - `destroyExistingStore()` fallback handles dev database incompatibility
-- When adding models, update `SchemaV1.models`, this documentation, and `Models/README.md`
+- When adding models, update `SchemaV2.models`, this documentation, and `Models/README.md`
 
 ## Model Entities
 
@@ -48,12 +48,14 @@ Represents a user-defined grouping for assets (e.g., "Equities", "Bonds", "Cash"
 
 #### Properties
 
-| Property                     | Type       | Description                             | Required |
-| ---------------------------- | ---------- | --------------------------------------- | -------- |
-| `id`                         | `UUID`     | Primary key                             | Yes      |
-| `name`                       | `String`   | Display name (unique, case-insensitive) | Yes      |
-| `targetAllocationPercentage` | `Decimal?` | Target allocation (0-100), optional     | No       |
-| `displayOrder`               | `Int`      | User-defined sort order (default: 0)    | Yes      |
+| Property                     | Type       | Description                                     | Required |
+| ---------------------------- | ---------- | ----------------------------------------------- | -------- |
+| `id`                         | `UUID`     | Primary key                                     | Yes      |
+| `name`                       | `String`   | Display name (unique, case-insensitive)         | Yes      |
+| `targetAllocationPercentage` | `Decimal?` | Pool preference (0-100), optional               | No       |
+| `minimumBalanceAmount`       | `Decimal?` | Finite nonnegative minimum, optional            | No       |
+| `minimumBalanceCurrency`     | `String?`  | Explicit original currency, paired with minimum | No       |
+| `displayOrder`               | `Int`      | User-defined sort order (default: 0)            | Yes      |
 
 #### Relationships
 
@@ -462,7 +464,7 @@ ______________________________________________________________________
 
 ```swift
 var sharedModelContainer: ModelContainer = {
-    let schema = Schema(versionedSchema: SchemaV1.self)
+    let schema = CurrentSchema.schema
 
     let modelConfiguration = ModelConfiguration(
         schema: schema,
@@ -480,7 +482,7 @@ var sharedModelContainer: ModelContainer = {
 }()
 ```
 
-`SchemaV1.models` includes: `Category`, `Asset`, `Snapshot`, `SnapshotAssetValue`, `CashFlowOperation`, `ExchangeRate`.
+`SchemaV2.models` includes: `Category`, `Asset`, `Snapshot`, `SnapshotAssetValue`, `CashFlowOperation`, `ExchangeRate`.
 
 ### Adding New Models
 
@@ -488,7 +490,7 @@ When adding a new model to the schema:
 
 1. Create the model file in `AssetFlow/Models/`
 1. Add `@Model` macro to the class
-1. Register in `SchemaV1.models` (`Models/SchemaVersioning.swift`)
+1. Register in `SchemaV2.models` (`Models/SchemaVersioning.swift`)
 1. Update this documentation
 1. Update `AssetFlow/Models/README.md`
 1. Consider migration strategy if needed
@@ -579,25 +581,13 @@ ______________________________________________________________________
 
 ### Schema Versioning
 
-The app uses `VersionedSchema` for schema management:
+`SchemaV1` (1.0.0) is frozen in `SchemaV1Models.swift`, including all six legacy model definitions, uniqueness and relationships. `SchemaV2` (2.0.0) registers the current models with optional category minimum amount/currency fields. `CurrentSchema.schema` is the app's active V2 schema. `AssetFlowMigrationPlan` uses a lightweight V1-to-V2 stage; old categories receive nil minimum fields.
 
-```swift
-enum SchemaV1: VersionedSchema {
-    static let versionIdentifier = Schema.Version(1, 0, 0)
-    static var models: [any PersistentModel.Type] = [
-        Category.self, Asset.self, Snapshot.self,
-        SnapshotAssetValue.self, CashFlowOperation.self, ExchangeRate.self,
-    ]
-}
-```
-
-**File**: `AssetFlow/Models/SchemaVersioning.swift`
-
-Since the app is not yet publicly released, `SchemaV1` defines the complete schema including all currency fields and the ExchangeRate model. No `SchemaMigrationPlan` is needed yet. The `destroyExistingStore()` fallback handles dev database incompatibility. Future schema changes will add `SchemaV2` + a migration plan.
+Disk migration tests populate a disposable V1 graph, open it through the real migration plan, verify every relationship/identity, add a minimum, and reopen V2. Migration failures use the existing database-error flow; never delete or recreate a user's store to handle incompatibility. Future schema changes must preserve the frozen historical definitions.
 
 ### Migration Strategy
 
-1. **Additive Changes**: New optional properties (no migration needed)
+1. **Additive Changes**: Introduce a new versioned schema and test a lightweight migration for new optional properties
 1. **Transformations**: Property renames or type changes (migration required)
 1. **Relationship Changes**: Modify delete rules or cardinality (migration required)
 
@@ -639,3 +629,9 @@ ______________________________________________________________________
 - App Configuration: `AssetFlow/AssetFlowApp.swift`
 - Quick Reference: `AssetFlow/Models/README.md`
 - Specification: `SPEC.md` Section 7
+
+## Category Goal Fields and Backup
+
+Category adds optional `minimumBalanceAmount` (Decimal) and `minimumBalanceCurrency` (String). Validate both together before mutation. Amounts are finite/nonnegative, percentages remain optional 0–100, and original currency persists across display changes. No persisted goal mode, effective target, or goal history is introduced.
+
+Backup format v4 adds those fields after `displayOrder` in categories.csv. V1 has three category columns; v2/v3 have four; v4 has six. Restore v1–v3 with nil minimums, retain v3 currency/rate layouts in v4, validate before replacement, and preserve old data/settings on failure. Older app versions cannot read v4.

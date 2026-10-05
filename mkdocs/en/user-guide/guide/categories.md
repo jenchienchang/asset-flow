@@ -1,71 +1,54 @@
 # Categories
 
-Categories let you group your assets by type — such as Equities, Bonds, Real Estate, Cash, or any grouping that makes sense for your portfolio. Each category can have a **target allocation** to help you with rebalancing.
+Categories group related assets and can have a percentage target, a minimum balance, both, or neither. Assets keep their own currencies; a category minimum has its own currency because the category can contain several currencies.
 
-## Category List
+## Creating and editing goals
 
-The left side of the Categories view shows all your categories. You can **drag to reorder** them — the order you set here is used throughout the app.
+1. Open **Categories** and choose **+**, or select an existing category.
+1. Enter the name and optionally a percentage between 0 and 100.
+1. Enable **Minimum balance** to enter a nonnegative amount and select its currency in separate labeled rows. For existing categories, the default is the shared asset currency; mixed or empty categories default to your display currency.
+1. Choose **Create** or **Save Changes**. Invalid input leaves the saved category unchanged.
 
-Each row displays:
+Save Changes saves the name and both goals together. Return saves when the name, percentage, or minimum amount text field has focus; it is not a global Save key. You can also press ++cmd+s++. Revert restores all saved fields. Both buttons are disabled until you make edits. Leaving a category with edits offers Save, Discard, or Cancel. Information buttons explain the goal settings; the footer assesses the saved minimum at the latest snapshot, excluding unsaved edits.
 
-- Category name
-- Target allocation %
-- Current allocation %
-- Current value
-- Asset count
-- A deviation indicator (**warning icon**) that appears when the current allocation differs from the target by more than 5%
+The percentage and minimum are independent. Clear the percentage to remove it; disable the minimum to remove both its amount and currency. Changing the currency changes the denomination of the entered amount without converting it. Changing the app's display currency preserves your original goal.
 
-### Banners
+If you open New Snapshot from the sidebar while editing a category, resolve the current edits first. Cancelling the snapshot date chooser returns to the same editor; any new edits still receive the usual Save, Discard, or Cancel protection.
 
-Two informational banners may appear at the top of the list:
+![Save, Discard, and Cancel when leaving an edited category](../../../assets/images/category-unsaved-changes-en.png)
 
-- **Target Allocation Sum Warning** — shown if your total target allocations exceed 100%, or if some categories are missing targets. This helps you catch configuration issues.
-- **Significant Deviation Info** — shown when one or more categories have meaningful deviations from their targets, with a link to the [Rebalancing](rebalancing.md) tool.
+## Understanding your goals
 
-Right-click a category to delete it (only available if no assets are assigned to it).
+A minimum means **keep at least this amount**, rather than an exact balance or progress milestone. Exceeding it is healthy and does not by itself produce a sell suggestion.
 
-![Category list](../../assets/images/category-list.png)
+Percentage targets distribute the **available allocation pool** after protected balances are reserved. Categories without a percentage target keep their current balances. A minimum-only category retains its surplus or requires a top-up to its minimum. Uncategorized assets also remain protected.
 
-## Creating a Category
+Percentage targets must total 100% before percentage rebalancing suggestions are available. You can save them incrementally; minimum-only categories do not need a percentage. A specified 0% is different from leaving it blank: 0% targets the minimum, or zero if no minimum exists.
 
-Click the **+** button in the toolbar to create a new category. You'll be asked to enter:
+## Category list and details
 
-- **Category Name** — a descriptive name for the group (e.g., "Equities", "Fixed Income", "Alternatives").
-- **Target Allocation %** — optional, between 0 and 100. This is the percentage of your portfolio you'd like this category to represent.
+![Category list with minimum balances met and below minimum](../../../assets/images/category-list-minimum-en.png)
 
-## Category Detail
+![Category details with a percentage target and minimum balance](../../../assets/images/category-minimum-en.png)
 
-Select a category to see its detail view on the right side.
+Minimum amounts use the same secondary styling as other category metadata. Rows show current value, labelled Current and Effective target shares of the whole portfolio, requested pool percentage, asset count, and minimum status where applicable. A shortfall shows the amount missing in your display currency. Missing exchange rates show an unavailable status instead of zero. Empty categories can still have minimum requirements.
 
-### Properties
+The warning indicator appears for **any minimum balance shortfall**, or when Current differs from Effective target by **more than 5 percentage points**. Hover over it for the applicable reasons. Pool target describes your configured preference; Effective target shows the result after minimums and protected balances are considered.
 
-- **Name** — editable directly in the detail view.
-- **Target Allocation %** — editable, with the same 0–100 range.
+Minimum-only categories show an effective share when the plan is feasible and retain balances above their minimum. Categories without goals have no effective target. An unavailable or infeasible plan shows an em dash for effective targets; known minimum shortfalls still warn. Percentages are unavailable when the portfolio total is zero. Data changes and arriving exchange rates refresh the displays without discarding unsaved category edits.
 
-### Assets in Category
+Select a category to inspect its assets, edit goals, and view value and allocation history. Drag categories to change their order. A category can be deleted only after its assets have been reassigned.
 
-A table showing all assets assigned to this category, with each asset's name and platform.
+## History and currencies
 
-### Value History
+![Category minimum compared across three snapshots](../../../assets/images/category-minimum-history-en.png)
 
-A line chart showing the category's total value over time. Use the time range selector to focus on a specific period.
+Value history includes an orange comparison with the **current minimum**, converted using each snapshot's exchange rates. Gaps mean a rate is missing. This comparison does not claim that today's minimum applied at that time. Historical values also use current category assignments.
 
-### Allocation History
-
-A line chart showing how the category's allocation percentage has changed over time. A **target line** is overlaid for easy comparison, so you can see at a glance how closely your actual allocation has tracked your goal.
-
-![Category detail](../../assets/images/category-detail.png)
-
-## Deleting a Category
-
-Categories can only be deleted when **no assets are assigned to them**. If a category still has assets, you'll need to reassign those assets to other categories first, then come back and delete the empty category.
-
-!!! tip
-
-    Use the [Rebalancing](rebalancing.md) tool to see at a glance which categories are over or under their target allocation. It's the quickest way to decide where to invest next.
+Allocation history and the dashboard pie chart continue to show shares of the whole portfolio. A pool percentage is not a whole-portfolio chart reference. A missing goal rate does not hide otherwise valid asset values or portfolio charts.
 
 ## See also
 
-- [Rebalancing](rebalancing.md): Compare current allocations to targets
-- [Assets](assets.md): Manage individual investments
-- [Dashboard](dashboard.md): See category allocation in the pie chart
+- [Rebalancing](rebalancing.md): Calculate effective targets and understand shortfalls
+- [Assets](assets.md): Assign investments to categories
+- [Currencies](../reference/currencies.md): Snapshot conversion and missing rates

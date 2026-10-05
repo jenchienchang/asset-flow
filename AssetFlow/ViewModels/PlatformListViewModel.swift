@@ -34,6 +34,8 @@ struct PlatformRowData: Identifiable {
 @Observable
 @MainActor
 final class PlatformListViewModel {
+  @ObservationIgnored private let refresh = ObservedRefresh()
+
   private let modelContext: ModelContext
   private let fetcher: any ModelFetching
   private let settingsService: SettingsService
@@ -52,20 +54,23 @@ final class PlatformListViewModel {
     self.settingsService = settingsService ?? .shared
   }
 
+  /// Coalesces source-observation and query notifications before refreshing.
+  func requestRefresh() {
+    refresh.request { [weak self] in self?.loadPlatforms() }
+  }
+
   // MARK: - Loading
 
   /// Fetches all assets, computes platform totals from the latest snapshot,
   /// and builds sorted row data.
   ///
-  /// Wraps the load in `withObservationTracking` so that any `@Observable`/`@Model`
+  /// Uses `ObservedRefresh` to track source reads and publish derived results. Any `@Observable`/`@Model`
   /// property change automatically triggers a reload.
   func loadPlatforms() {
-    withObservationTracking {
+    refresh.perform {
       performLoadPlatforms()
-    } onChange: { [weak self] in
-      Task { @MainActor [weak self] in
-        self?.loadPlatforms()
-      }
+    } reload: { [weak self] in
+      self?.loadPlatforms()
     }
   }
 
@@ -81,7 +86,7 @@ final class PlatformListViewModel {
 
       // Build platform → total value lookup from latest snapshot
       let latestSnapshot = try SnapshotSummaryService.fetchLatestSnapshot(using: fetcher)
-      conversionStatus =
+      let status =
         latestSnapshot.map {
           CurrencyConversionService.totalValueReport(
             for: $0,
@@ -106,7 +111,7 @@ final class PlatformListViewModel {
         uniqueKeysWithValues: storedOrder.enumerated().map { ($1, $0) }
       )
 
-      platformRows = rows.sorted { lhs, rhs in
+      let loadedRows = rows.sorted { lhs, rhs in
         let lhsIndex = orderLookup[lhs.name]
         let rhsIndex = orderLookup[rhs.name]
         switch (lhsIndex, rhsIndex) {
@@ -125,18 +130,23 @@ final class PlatformListViewModel {
       }
 
       // Sync stored order: prune removed platforms, append new ones
-      let currentNames = Set(platformRows.map(\.name))
+      let currentNames = Set(loadedRows.map(\.name))
       var updatedOrder = storedOrder.filter { currentNames.contains($0) }
       let knownNames = Set(updatedOrder)
-      for row in platformRows where !knownNames.contains(row.name) {
+      for row in loadedRows where !knownNames.contains(row.name) {
         updatedOrder.append(row.name)
       }
       if updatedOrder != storedOrder {
         settingsService.platformOrder = updatedOrder
       }
-      loadState = .loaded
+      refresh.publish {
+        self.conversionStatus = status
+        self.platformRows = loadedRows
+        self.loadState = .loaded
+      }
     } catch {
-      loadState = .failed(error.localizedDescription)
+      let message = error.localizedDescription
+      refresh.publish { self.loadState = .failed(message) }
     }
   }
 

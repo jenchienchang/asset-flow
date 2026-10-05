@@ -23,13 +23,7 @@ class PreviewContainer {
   /// A shared, in-memory `ModelContainer` for SwiftUI previews.
   static let container: ModelContainer = {
     do {
-      let schema = Schema([
-        Category.self,
-        Asset.self,
-        Snapshot.self,
-        SnapshotAssetValue.self,
-        CashFlowOperation.self,
-      ])
+      let schema = CurrentSchema.schema
       let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
       let container = try ModelContainer(for: schema, configurations: [configuration])
       return container

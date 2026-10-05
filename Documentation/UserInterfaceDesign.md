@@ -212,8 +212,8 @@ ______________________________________________________________________
 **List view**:
 
 - All categories listed by user-defined display order (drag-to-reorder supported)
-- Each row: name, target allocation %, current allocation %, current value, asset count
-- Visual indicator when current allocation deviates significantly from target
+- Each row: name, requested pool percentage, current allocation %, current value, asset count, original minimum and status when set
+- Visual indicator when current allocation deviates significantly from a feasible effective target
 - Add/edit/delete category actions
 - Drag-and-drop reordering via `.onMove` modifier persists order via `displayOrder` property
 
@@ -227,10 +227,10 @@ ______________________________________________________________________
 
 **Implementation notes:**
 
-- **CategoryListView** (`AssetFlow/Views/CategoryListView.swift`): Takes `modelContext` and `selectedCategory: Binding<Category?>`. Uses `@State private var viewModel: CategoryListViewModel`. List selection drives the binding. Toolbar "+" button opens add category sheet. Target allocation sum warning banner shown at top when allocations don't sum to 100%. Deviation indicator (orange `exclamationmark.triangle.fill`) shown when `abs(current - target) > 5`. Empty state uses folder icon.
+- **CategoryListView** (`AssetFlow/Views/CategoryListView.swift`): Takes `modelContext` and `selectedCategory: Binding<Category?>`. Uses `@State private var viewModel: CategoryListViewModel`. List selection drives the binding. Toolbar "+" button opens add category sheet. Percentage sum warning shown when percentage targets do not total 100%. Rows label Current and Effective target shares of the whole portfolio. One indicator explains an allocation deviation above 5 percentage points and/or any positive minimum shortfall. Minimum-only categories show feasible effective shares while protecting surplus; no-goal categories omit the target. Empty state uses folder icon.
 - **CategoryListViewModel** (`AssetFlow/ViewModels/CategoryListViewModel.swift`): `CategoryRowData` struct bundles category, target/current allocation, value, and asset count. `loadCategories()` computes values from a bounded latest-snapshot fetch. `createCategory`/`editCategory`/`deleteCategory` with validation via `CategoryError`. `moveCategories(from:to:)` handles drag-to-reorder by updating `displayOrder` on each category. On first load, if all categories have the same `displayOrder` (migration scenario), they are normalized alphabetically. Failed reads use the retryable load-error state rather than the empty state.
-- **CategoryDetailView** (`AssetFlow/Views/CategoryDetailView.swift`): Takes `category`, `modelContext`, `onDelete`. Parent must apply `.id(category.id)` for proper state reset. Form sections: Category Details (name + target allocation), Assets in Category (`AssetTableView` with "Platform" second column), Value History (LineMark + PointMark chart), Allocation History (LineMark + PointMark chart), Danger Zone (delete button).
-- **CategoryDetailViewModel** (`AssetFlow/ViewModels/CategoryDetailViewModel.swift`): `editedName`/`editedTargetAllocation` initialized from category. `loadData()` computes the asset list with latest values plus value/allocation history across all snapshots, using `SnapshotSummaryService` for converted historical totals. Single snapshot renders as PointMark only.
+- **CategoryDetailView** (`AssetFlow/Views/CategoryDetailView.swift`): Takes `category`, `modelContext`, `onDelete`. Parent must apply `.id(category.id)` for proper state reset. Form sections: Category Settings (name, percentage, independent minimum amount/currency, Save Changes/Revert; saved minimum status in the footer), Assets in Category (`AssetTableView` with "Platform" second column), Value History (LineMark + PointMark chart), Allocation History (LineMark + PointMark chart), Danger Zone (delete button).
+- **CategoryDetailViewModel** (`AssetFlow/ViewModels/CategoryDetailViewModel.swift`): Initializes editable name, percentage, minimum amount and currency from the category. Save validates complete locale-aware input before mutation. `loadData()` computes the asset list, historical values, and current-minimum overlays using each snapshot's exchange rates; missing conversions break the overlay into separate segments. Single snapshot renders as PointMark only.
 
 **Implementation notes (Charts):**
 
@@ -284,18 +284,18 @@ ______________________________________________________________________
 
 ## Rebalancing Screen
 
-- Current allocation vs. target allocation table
-- For each category: current value, current %, target %, difference ($), action (buy/sell amount)
+- Current allocation vs. effective target table
+- For each category: current balance/share of total, requested pool percentage/minimum, effective target, difference, and action/status
 - Sort order: by absolute adjustment magnitude (largest deviation first)
 - Summary of suggested moves
 - Read-only/preview -- no data modification occurs
-- Only categories with a target allocation are included
-- Uncategorized assets shown as separate row with "--" for Target % and "N/A" for Action
+- Categories with a percentage or minimum are included; protected categories appear separately
+- Uncategorized assets are protected and displayed separately
 
 ### Implementation Notes
 
-- **RebalancingView** (`AssetFlow/Views/RebalancingView.swift`): ScrollView with Grid-based tables. Three sections: "Categories with Targets" (main suggestions), "No Target Set", and "Uncategorized". Summary section shows suggested moves. Action text color-coded: green (Buy), red (Sell), gray (No action needed). Empty state with `chart.bar.doc.horizontal` icon.
-- **RebalancingViewModel** (`AssetFlow/ViewModels/RebalancingViewModel.swift`): Loads values from a bounded latest-snapshot fetch. Groups by category, calls `RebalancingCalculator.calculateAdjustments()`, maps actions to display rows with localized action text. Adjustments under $1 display "No action needed" (SPEC 11.4).
+- **RebalancingView** (`AssetFlow/Views/RebalancingView.swift`): Native Table with one line per category and separate percentage, minimum and effective balance columns. Contextual information popovers provide detailed assessments. Three sections: "Categories with Targets" (main suggestions), "No Target Set", and "Uncategorized". Summary section shows suggested moves. Action text color-coded: green (Buy), red (Sell), gray (No action needed). Empty state with `chart.bar.doc.horizontal` icon.
+- **RebalancingViewModel** (`AssetFlow/ViewModels/RebalancingViewModel.swift`): Loads values from a bounded latest-snapshot fetch. Groups by category, uses `CategoryGoalAssessmentService` and `RebalancingCalculator.calculate()`, maps actions to display rows with localized action text. Nonmandatory subunit differences display a small-adjustment status; mandatory minimum top-ups and supporting reductions remain actionable. Infeasible/unavailable plans clear suggestions.
 
 ______________________________________________________________________
 
@@ -428,7 +428,7 @@ Read failures are not empty states: list and detail screens show an `Unable to l
 | Assets      | `tray`                     | No Assets            | No assets yet. Assets are created automatically when you import CSV data.                        | —                               |
 | Categories  | `folder`                   | No Categories        | No categories yet. Create categories to organize your assets and set target allocations.         | Create Category                 |
 | Platforms   | `building.columns`         | No Platforms         | No platforms yet. Platforms are created automatically when you import CSV data or create assets. | —                               |
-| Rebalancing | `chart.bar.doc.horizontal` | No Rebalancing Data  | Set target allocations on your categories to use the rebalancing calculator.                     | —                               |
+| Rebalancing | `chart.bar.doc.horizontal` | No Rebalancing Data  | Add a snapshot to calculate rebalancing from your category goals.                                | —                               |
 
 ______________________________________________________________________
 
@@ -524,7 +524,7 @@ ______________________________________________________________________
 
 **Number formatting**:
 
-- Monetary values: Full stored precision with thousand separators (e.g., $1,234.5, $28,000). No minimum or maximum decimal places are enforced -- values display exactly as entered or computed.
+- Monetary values: ordinary asset displays use the existing currency formatter with locale grouping and Foundation currency fraction defaults (for example, $1,234.50). Entry, storage and calculation retain full Decimal precision. Rebalancing help follows asset display precision and keeps tiny nonzero amounts visible as bounds; see Shared Currency Headings in Rebalancing Help.
 - Percentages: 2 decimal places (e.g., 45.23%)
 - Chart axes: Abbreviated for large values (K, M, B)
 
@@ -1010,3 +1010,31 @@ ______________________________________________________________________
 | ImportView                     | Implemented | Accepts ViewModel from ContentView for shared state observation                                                                                                                                                                                           |
 | BulkEntryView                  | Implemented | Full-screen bulk value entry with platform-grouped table, per-platform CSV import, inline asset/platform creation, category picker for new assets, keyboard navigation, zero-value warnings, observation boundaries for asset/cash-flow/toolbar isolation |
 | SettingsView                   | Implemented | Currency, date format, default platform; accessible via Cmd+, (Settings scene)                                                                                                                                                                            |
+
+## Minimum Balance Goals
+
+Category create/detail retain an optional percentage and add an independent minimum toggle. Minimum amount and currency always occupy separate labeled form rows, including at wide widths. Default currency uses a single shared asset currency, otherwise the display currency. Save Changes commits the entire detail form atomically; Revert resets every draft field. Return saves only from a text field; Command-S saves from Category Detail. Both buttons are disabled without edits. Category/section/history navigation with edits offers Save, Discard, or Cancel. Explanations appear in information popovers, and saved-minimum status appears in the section footer with its snapshot date. Amount-only rows emphasize the original minimum and met/shortfall/unavailable status; no minimum surplus generates a sell warning.
+
+The list labels Current and Effective target percentages together, both shares of the whole portfolio. Pool target remains secondary configured metadata. One indicator explains allocation deviation above 5 percentage points and/or any positive minimum shortfall; the help groups reasons as consecutive bullets. Minimum-only categories show feasible effective shares and protect surpluses without a deviation warning. No-goal categories omit effective targets. Infeasible/unavailable effective shares and zero-portfolio percentages show an em dash; independently determinable minimum shortfalls still warn. Uncategorized holdings contribute to the actual denominator. The value-history chart overlays current minimums converted with each snapshot's rates, breaks lines at missing rates, includes overlay values in the pinned domain, and includes them in lock-aware hover content. Allocation history shows actual share of total without a misleading pool-percentage reference line.
+
+Rebalancing uses Category, Current balance, Current %, Effective target balance, Effective target %, Change, Action, and Minimum columns. Configured percentages appear in category settings and relevant calculation inputs. Cells stay on one line and narrow windows allow horizontal scrolling. Category popovers show contextual lettered inputs and formula result rows with asset display precision. Calculation details reconciles portfolio total, protected funds, available allocation, and conditional minimum-fixed/remainder amounts, followed by compact rules; no category lists or overlapping total-minimum rows appear. Diagnostics replace actions for infeasible, invalid, or unavailable plans. Small adjustments and unmatched residuals remain visible. All help behavior remains lock-aware.
+
+## Structured Rebalancing Help
+
+Category popovers explain the selected target using lettered inputs and formula result rows in one compact table; they do not repeat the main-table balance/change fields or list other categories. Calculation details presents aggregate allocation inputs and allocation rules. Minimum assessment popovers retain their focused comparison and snapshot date. The Traditional Chinese snapshot note uses “評估依據：%@ 的快照資料。” to identify the dated data used for the assessment.
+
+## Shared Currency Headings in Rebalancing Help
+
+Each popup table independently checks the intended currencies of its monetary rows. When they all match, the table heading shows that ISO code once and monetary values show localized numbers without a currency prefix. A previously untitled minimum assessment table uses Assessment as its heading. Mixed-currency tables retain prefixes on every available monetary value. Percentage rows are excluded from the check; unavailable monetary rows still contribute their intended currency and remain an em dash. Amounts in explanatory sentences retain their codes. The currency-heading rule does not convert values or parse formatted strings. Monetary formatting separately uses the existing asset currency formatter's fraction precision, with the same trailing decimal places, locale separators and grouping; Foundation supplies the currency defaults without an app-maintained currency list. Apply this to all popup amount rows, shortfall explanations and funding diagnostics. Nonzero values below one display unit use a bound (for example, `<0.01`), with localized Increase/Decrease text for tiny signed changes; actual zero remains a formatted zero and unavailable values remain an em dash. No Full precision section is shown. Stored Decimal values, allocation arithmetic and minimum-status comparisons remain unrounded.
+
+Rebalancing pairs each current/effective balance with its share of the entire portfolio, followed by Change/Action and Minimum. Effective target % includes minimum-only categories, uses existing percentage formatting, and displays an em dash for unavailable/infeasible plans, zero totals and rows without goals. Its lock-aware cell tooltip explains the whole-portfolio denominator and minimum-only surplus protection.
+
+### Lettered rebalancing calculations
+
+Input rows use (A), (B), (C), etc.; result rows show their plain-language label, referenced formula, and value in the same grid. Formula text follows the label inline in caption styling. All row labels use secondary color and regular weight. All popup values use the standard system callout font with one bold weight and tabular digits (`.monospacedDigit()`), matching the dashboard category value trend tooltip approach. Result rows remain distinguished by dividers; no monospaced font design or per-result weight change is applied. Percentage symbols occupy a separate suffix column with a small gap, so percentage numbers share the right-aligned numeric column with monetary values. Tables without suffixes retain two columns. Unavailable shares have no suffix. Accessibility includes the suffix with the numeric value and hides the separate decorative symbol cell. Each data row is a single baseline-aligned GridRow; dividers are full-width table overlays positioned from result-row bounds, never extra conditional grid rows. Rebalancing popovers use their natural title/table width with explanatory paragraphs wrapping to that width. Available screen width bounds the content, allowing wrapping instead of clipping when necessary. Non-rebalancing help retains its existing sizing. Shared monetary currency headings and asset display precision remain in place. Results use ≈ when a displayed result or referenced input is rounded; arithmetic and funding decisions retain original Decimal precision. Category lists are omitted from aggregate and category explanations.
+
+Rebalancing Keep/Protected cells use `minus.circle.fill` before the localized text in secondary gray, matching the filled-circle Buy/Sell icons. The standard Label preserves the text for accessibility.
+
+### Draft protection while choosing a snapshot date
+
+The sidebar New Snapshot date sheet overlays Categories without replacing its editor. Save or Discard resolves the current draft before opening the sheet; cancelling the sheet retains the editor, so later edits still require Save, Discard, or Cancel before leaving. The editor is released only after the visible category is replaced or section navigation completes. Suggested Moves funds minimum shortfalls before optional percentage adjustments, with repeated category pairs combined into one move.

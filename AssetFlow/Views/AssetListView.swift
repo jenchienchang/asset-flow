@@ -83,12 +83,13 @@ struct AssetListView: View {
         .accessibilityIdentifier("Hide Stale Assets Toggle")
       }
     }
+    .refreshOnStoreChanges { viewModel.requestRefresh() }
     .onAppear {
       viewModel.loadAssets()
     }
     .onChange(of: queryRevision) {
       withAnimation(AnimationConstants.standard) {
-        viewModel.loadAssets()
+        viewModel.requestRefresh()
       }
       selectedAsset = ModelSelectionResolver.resolve(selectedAsset, among: assets, id: \.id)
     }

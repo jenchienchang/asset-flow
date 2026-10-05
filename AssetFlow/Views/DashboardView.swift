@@ -69,11 +69,12 @@ struct DashboardView: View {
       }
     }
     .navigationTitle("Dashboard")
+    .refreshOnStoreChanges { viewModel.requestRefresh() }
     .onAppear {
       viewModel.loadData()
     }
     .onChange(of: querySnapshots) {
-      viewModel.loadData()
+      viewModel.requestRefresh()
     }
   }
 

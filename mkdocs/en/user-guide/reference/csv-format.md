@@ -69,6 +69,10 @@ Emergency withdrawal,-2000,USD
 
     Export your spreadsheet as UTF-8 CSV to ensure special characters (like Chinese) are handled correctly.
 
+## Goals and CSV imports
+
+Ordinary asset/cash-flow CSV imports do not set or change category goals. The category CSV inside a ZIP backup is a separate internal format; v4 includes minimum amount and currency.
+
 ## See also
 
 - [Import CSV](../guide/import-csv.md): Step-by-step guide for importing data

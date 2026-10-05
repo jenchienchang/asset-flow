@@ -49,6 +49,10 @@ If you haven't created any snapshots yet, the Dashboard will show a friendly pro
 
 ![Empty dashboard](../../assets/images/dashboard-empty-state.png)
 
+## Category minimums and portfolio composition
+
+All assets, including protected and minimum-only categories, remain in total value and the pie chart. Percentage goals use the available allocation pool in Rebalancing; chart percentages show the whole portfolio.
+
 ## See also
 
 - [Performance Metrics](performance-metrics.md): Understand what each metric means

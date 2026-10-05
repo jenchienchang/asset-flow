@@ -46,3 +46,7 @@ Welcome to the AssetFlow User Guide. Whether you're just getting started or look
 
 - [FAQ](faq.md): Answers to common questions
 - [Troubleshooting](troubleshooting.md): Solutions to common issues
+
+## Category balance goals
+
+Set percentage targets, minimum balances, or both on [Categories](guide/categories.md), and use [Rebalancing](guide/rebalancing.md) to compare effective targets and funding shortfalls.

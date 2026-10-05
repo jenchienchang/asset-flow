@@ -34,6 +34,8 @@ struct AssetValueHistoryEntry: Identifiable {
 @Observable
 @MainActor
 final class AssetDetailViewModel {
+  @ObservationIgnored private let refresh = ObservedRefresh()
+
   let asset: Asset
   private let modelContext: ModelContext
   private let fetcher: any ModelFetching
@@ -91,19 +93,22 @@ final class AssetDetailViewModel {
     return snapshotIDs.count
   }
 
+  /// Coalesces source-observation and query notifications before refreshing.
+  func requestRefresh() {
+    refresh.request { [weak self] in self?.loadValueHistory() }
+  }
+
   // MARK: - Value History
 
   /// Loads the value history from directly recorded snapshot asset values (no carry-forward).
   ///
-  /// Wraps the load in `withObservationTracking` so that any `@Observable`/`@Model`
+  /// Uses `ObservedRefresh` to track source reads and publish derived results. Any `@Observable`/`@Model`
   /// property change automatically triggers a reload.
   func loadValueHistory() {
-    withObservationTracking {
+    refresh.perform {
       performLoadValueHistory()
-    } onChange: { [weak self] in
-      Task { @MainActor [weak self] in
-        self?.loadValueHistory()
-      }
+    } reload: { [weak self] in
+      self?.loadValueHistory()
     }
   }
 
@@ -112,9 +117,8 @@ final class AssetDetailViewModel {
     let displayCurrency = SettingsService.shared.mainCurrency
     let assetCurrency = asset.currency.isEmpty ? displayCurrency : asset.currency
     let needsConversion = assetCurrency.lowercased() != displayCurrency.lowercased()
-    isDifferentCurrency = needsConversion
 
-    valueHistory = savs.compactMap { sav in
+    let history: [AssetValueHistoryEntry] = savs.compactMap { sav in
       guard let snapshotDate = sav.snapshot?.date else { return nil }
       let converted: Decimal?
       if needsConversion,
@@ -146,6 +150,10 @@ final class AssetDetailViewModel {
       )
     }
     .sorted { $0.date < $1.date }
+    refresh.publish {
+      self.isDifferentCurrency = needsConversion
+      self.valueHistory = history
+    }
   }
 
   // MARK: - Edit Asset Value

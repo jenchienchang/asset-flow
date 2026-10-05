@@ -40,6 +40,10 @@ Assets can only be deleted when they have no values in any snapshot. First remov
 
 Not automatically. Open **Settings** (++cmd+comma++) and use **Data Management > Export Backup** to create a backup ZIP file. See [Backup & Restore](settings/backup-restore.md) for details.
 
+## Why can minimums and percentages disagree?
+
+Minimums take priority. The calculator reserves protected holdings and adjusts flexible percentage targets proportionally. If funds cannot satisfy all requirements, it shows a shortfall and no trade plan. See [Rebalancing](guide/rebalancing.md) for examples.
+
 ## See also
 
 - [Troubleshooting](troubleshooting.md): Solutions to common issues

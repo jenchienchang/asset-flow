@@ -1,6 +1,520 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Target calculation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Target calculation"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標計算"
+          }
+        }
+      }
+    },
+    "Effective target % is unavailable because the portfolio total is zero." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effective target % is unavailable because the portfolio total is zero."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "投資組合總值為零，因此無法計算調整後目標 %。"
+          }
+        }
+      }
+    },
+    "(E) Portfolio total" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(E) Portfolio total"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(E) 投資組合總值"
+          }
+        }
+      }
+    },
+    "(D) Effective target balance" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(D) Effective target balance"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(D) 調整後目標餘額"
+          }
+        }
+      }
+    },
+    "(C) Combined configured target % of remaining categories" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(C) Combined configured target % of remaining categories"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(C) 其餘類別設定的目標 % 合計"
+          }
+        }
+      }
+    },
+    "(B) Remaining allocation amount" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(B) Remaining allocation amount"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(B) 剩餘分配金額"
+          }
+        }
+      }
+    },
+    "The remaining allocation amount is shared proportionally after targets fixed at minimums have been accounted for." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remaining allocation amount is shared proportionally after targets fixed at minimums have been accounted for."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扣除以最低餘額為目標的金額後，依其餘類別設定的目標比例分配剩餘金額。"
+          }
+        }
+      }
+    },
+    "(C) Portfolio total" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(C) Portfolio total"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(C) 投資組合總值"
+          }
+        }
+      }
+    },
+    "(B) Effective target balance" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(B) Effective target balance"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(B) 調整後目標餘額"
+          }
+        }
+      }
+    },
+    "(A) Configured target %" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(A) Configured target %"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(A) 設定的目標 %"
+          }
+        }
+      }
+    },
+    "A 0% target assigns only the minimum balance, or zero when no minimum is set." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A 0% target assigns only the minimum balance, or zero when no minimum is set."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0% 目標只分配最低餘額；若未設定最低餘額，則分配零。"
+          }
+        }
+      }
+    },
+    "(B) Portfolio total" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(B) Portfolio total"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(B) 投資組合總值"
+          }
+        }
+      }
+    },
+    "(A) Minimum in display currency" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(A) Minimum in display currency"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(A) 最低餘額（顯示幣別）"
+          }
+        }
+      }
+    },
+    "(D) Portfolio total" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(D) Portfolio total"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(D) 投資組合總值"
+          }
+        }
+      }
+    },
+    "(C) Effective target balance" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(C) Effective target balance"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(C) 調整後目標餘額"
+          }
+        }
+      }
+    },
+    "(B) Minimum in display currency" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(B) Minimum in display currency"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(B) 最低餘額（顯示幣別）"
+          }
+        }
+      }
+    },
+    "(A) Current balance" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(A) Current balance"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(A) 目前餘額"
+          }
+        }
+      }
+    },
+    "Without a percentage target, retain the greater of the current balance and minimum." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without a percentage target, retain the greater of the current balance and minimum."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定比例目標時，保留目前餘額與最低餘額中較高的金額。"
+          }
+        }
+      }
+    },
+    "Effective target % = effective target balance ÷ portfolio total × 100." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effective target % = effective target balance ÷ portfolio total × 100."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調整後目標 % = 調整後目標餘額 ÷ 投資組合總值 × 100。"
+          }
+        }
+      }
+    },
+    "Fix targets that would fall below their minimums at those minimums, then redistribute the remainder proportionally. Repeat when necessary." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fix targets that would fall below their minimums at those minimums, then redistribute the remainder proportionally. Repeat when necessary."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "若分配結果低於最低餘額，將該類別的目標固定為最低餘額，再按比例重新分配剩餘金額。必要時重複此步驟。"
+          }
+        }
+      }
+    },
+    "Distribute the available amount using configured percentage weights." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distribute the available amount using configured percentage weights."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依設定的目標比例分配可用金額。"
+          }
+        }
+      }
+    },
+    "Protect uncategorized holdings and categories without percentage targets. Minimum-only categories retain the greater of their balance and minimum." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protect uncategorized holdings and categories without percentage targets. Minimum-only categories retain the greater of their balance and minimum."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留未分類資產及未設定比例目標的類別。僅設定最低餘額的類別會保留目前餘額與最低餘額中較高的金額。"
+          }
+        }
+      }
+    },
+    "(E) Remaining allocation amount" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(E) Remaining allocation amount"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(E) 剩餘分配金額"
+          }
+        }
+      }
+    },
+    "(D) Targets fixed at minimums" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(D) Targets fixed at minimums"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(D) 以最低餘額為目標的金額"
+          }
+        }
+      }
+    },
+    "(C) Available for percentage targets" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(C) Available for percentage targets"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(C) 可供比例目標分配的金額"
+          }
+        }
+      }
+    },
+    "(B) Protected amount" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(B) Protected amount"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(B) 保留金額"
+          }
+        }
+      }
+    },
+    "(A) Portfolio total" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(A) Portfolio total"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(A) 投資組合總值"
+          }
+        }
+      }
+    },
+    "Effective target balance": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "調整後目標餘額"
+          }
+        }
+      }
+    },
+    "Effective target %": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "調整後目標 %"
+          }
+        }
+      }
+    },
+    "Categories marked with ⚠ have a minimum balance shortfall or differ from their effective target by more than 5 percentage points.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標示 ⚠ 的類別有最低餘額缺口，或目前比例與調整後目標相差超過 5 個百分點。"
+          }
+        }
+      }
+    },
+    "Current: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "目前：%@"
+          }
+        }
+      }
+    },
+    "Effective target: %@": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "調整後目標：%@"
+          }
+        }
+      }
+    },
+    "Effective targets are shares of the whole portfolio. Minimum-only categories retain any balance above their minimum.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "調整後目標為占整體投資組合的比例。僅設定最低餘額的類別會保留超過最低餘額的部分。"
+          }
+        }
+      }
+    },
+    "Assessment": {
+      "comment": "Shared currency heading for one rebalancing help table. First placeholder is the localized section title; second is an ISO currency code.",
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "評估"
+          }
+        }
+      }
+    },
+    "%@ (%@)": {
+      "comment": "Shared currency heading for one rebalancing help table. First placeholder is the localized section title; second is an ISO currency code.",
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（%@）"
+          }
+        }
+      }
+    },
     "" : {
 
     },
@@ -171,6 +685,9 @@
         }
       }
     },
+    "•" : {
+
+    },
     "+%lld" : {
       "comment" : "A badge indicating that there are more platforms visible than can be shown in the list. The number inside the plus sign is the count of additional platforms.",
       "isCommentAutoGenerated" : true,
@@ -195,14 +712,12 @@
         }
       }
     },
-    "1 %@ = %lf %@" : {
-      "comment" : "A currency exchange rate displayed in a compact monospaced format.",
-      "isCommentAutoGenerated" : true,
+    "1 %@ = %@ %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "1 %1$@ = %2$lf %3$@"
+            "value" : "1 %1$@ = %2$@ %3$@"
           }
         }
       }
@@ -347,6 +862,17 @@
         }
       }
     },
+    "Add a snapshot to calculate rebalancing from your category goals." : {
+      "comment" : "Rebalancing empty state when no snapshot is available, including categories with minimum-only goals.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增快照，以依據類別目標計算再平衡。"
+          }
+        }
+      }
+    },
     "Add an asset to this snapshot" : {
       "comment" : "A help text for the button that adds an asset to a snapshot.",
       "extractionState" : "stale",
@@ -421,6 +947,7 @@
       }
     },
     "All data is stored locally on your Mac.\nExchange rates are fetched from cdn.jsdelivr.net.\nNo personal data is collected or transmitted." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
@@ -463,6 +990,17 @@
         }
       }
     },
+    "Allocation basis" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置基礎"
+          }
+        }
+      }
+    },
     "Allocation History" : {
       "comment" : "A label displayed above the user's allocation history.",
       "isCommentAutoGenerated" : true,
@@ -471,6 +1009,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "配置走勢"
+          }
+        }
+      }
+    },
+    "Allocation target (%)" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置目標 (%)"
           }
         }
       }
@@ -497,6 +1046,9 @@
         }
       }
     },
+    "Amount is zero for '%@'." : {
+
+    },
     "Are you sure you want to delete \"%@\"? This action cannot be undone." : {
       "comment" : "An alert message in the \"Delete Asset\" confirmation dialog, informing the user that deletion is irreversible.",
       "isCommentAutoGenerated" : true,
@@ -505,6 +1057,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確定要刪除「%@」嗎？此操作無法復原。"
+          }
+        }
+      }
+    },
+    "Assessed using snapshot: %@." : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評估依據：%@ 的快照資料。"
           }
         }
       }
@@ -532,6 +1095,9 @@
           }
         }
       }
+    },
+    "Asset ID '%@' was not found." : {
+
     },
     "Asset name" : {
       "localizations" : {
@@ -573,6 +1139,9 @@
           }
         }
       }
+    },
+    "Asset name is empty." : {
+
     },
     "AssetFlow" : {
       "comment" : "The title of the main application window.",
@@ -642,6 +1211,40 @@
         }
       }
     },
+    "Available allocation pool" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可配置資產總額"
+          }
+        }
+      }
+    },
+    "Available allocation pool: %@" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可配置資產總額：%@"
+          }
+        }
+      }
+    },
+    "Balances" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "餘額"
+          }
+        }
+      }
+    },
     "Based on current category assignments" : {
       "localizations" : {
         "zh-Hant" : {
@@ -677,6 +1280,24 @@
         }
       }
     },
+    "Build" : {
+      "comment" : "A label for the numeric build identifier in the app's About information.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Build"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "組建"
+          }
+        }
+      }
+    },
     "Bulk Entry" : {
       "localizations" : {
         "zh-Hant" : {
@@ -687,8 +1308,20 @@
         }
       }
     },
+    "Buy" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "買入"
+          }
+        }
+      }
+    },
     "Buy: %@" : {
       "comment" : "A label with an arrow and text indicating that a specific action should be taken, such as buying more of a particular asset. The argument is the text of the action, and the second argument is a system image",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "zh-Hant" : {
@@ -745,6 +1378,29 @@
         }
       }
     },
+    "Calculation details" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計算詳細資訊"
+          }
+        }
+      }
+    },
+    "Calculation unavailable" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法計算"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "comment" : "A button that cancels the current import and stays on the import screen.",
       "isCommentAutoGenerated" : true,
@@ -791,6 +1447,9 @@
         }
       }
     },
+    "Cannot parse '%@' as a number." : {
+
+    },
     "Carried forward" : {
       "comment" : "A description of an asset value that is carried forward from a previous snapshot.",
       "extractionState" : "stale",
@@ -815,6 +1474,9 @@
           }
         }
       }
+    },
+    "Cash Flow Totals" : {
+
     },
     "Cash Flows" : {
       "comment" : "A label for the \"Cash Flows\" segment in the import type picker.",
@@ -861,6 +1523,17 @@
         }
       }
     },
+    "Categories without percentage targets retain their balances." : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定目標比例的類別會保留其餘額。"
+          }
+        }
+      }
+    },
     "Category" : {
       "comment" : "A label describing a category in the context of this view.",
       "isCommentAutoGenerated" : true,
@@ -897,8 +1570,21 @@
         }
       }
     },
+    "Category calculation details" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "類別計算詳細資訊"
+          }
+        }
+      }
+    },
     "Category Details" : {
       "comment" : "A section header that indicates the content of the section.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "zh-Hant" : {
@@ -909,6 +1595,9 @@
         }
       }
     },
+    "Category ID '%@' was not found." : {
+
+    },
     "Category Name" : {
       "comment" : "A label for the name of a category.",
       "isCommentAutoGenerated" : true,
@@ -917,6 +1606,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "類別名稱"
+          }
+        }
+      }
+    },
+    "Category Settings" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "類別設定"
           }
         }
       }
@@ -969,6 +1669,35 @@
         }
       }
     },
+    "Changing the currency changes the meaning of the entered amount; it does not convert it." : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變更幣別會改變輸入金額的意義，不會自動換算金額。"
+          }
+        }
+      }
+    },
+    "Commit" : {
+      "comment" : "A label for the abbreviated Git commit identifier in the app's About information.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Commit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提交識別碼"
+          }
+        }
+      }
+    },
     "Configuration" : {
       "comment" : "A section header for configuration options in the import view.",
       "isCommentAutoGenerated" : true,
@@ -977,6 +1706,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
+          }
+        }
+      }
+    },
+    "Configured goals" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已設定的目標"
           }
         }
       }
@@ -1214,8 +1954,67 @@
         }
       }
     },
+    "Current balance" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前餘額"
+          }
+        }
+      }
+    },
+    "Current balance is %@ below the minimum." : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前餘額低於最低餘額 %@。"
+          }
+        }
+      }
+    },
+    "Current balance meets the minimum." : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前餘額已達最低餘額。"
+          }
+        }
+      }
+    },
+    "Current minimum" : {
+
+    },
+    "Current minimum balance, compared using each snapshot's exchange rates" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用各快照的匯率，比較目前設定的最低餘額"
+          }
+        }
+      }
+    },
+    "Current minimum: %@" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前最低餘額：%@"
+          }
+        }
+      }
+    },
     "Current Value" : {
       "comment" : "A column header in the rebalancing view that indicates the",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "zh-Hant" : {
@@ -1249,6 +2048,9 @@
           }
         }
       }
+    },
+    "Data Error" : {
+
     },
     "Data Management" : {
       "comment" : "A section header in the settings view, describing data management options.",
@@ -1389,6 +2191,9 @@
         }
       }
     },
+    "Description is empty." : {
+
+    },
     "Details available in a future update" : {
       "comment" : "A tooltip that describes the \"Growth Rate\" metric.",
       "extractionState" : "stale",
@@ -1398,6 +2203,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "詳細資訊將在未來更新中提供"
+          }
+        }
+      }
+    },
+    "Details for %@" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的詳細資訊"
           }
         }
       }
@@ -1415,6 +2231,7 @@
       }
     },
     "Difference" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
@@ -1470,6 +2287,9 @@
         }
       }
     },
+    "ditto failed: %@" : {
+
+    },
     "Drop a CSV file here or click Browse" : {
       "comment" : "A hint that instructs the user to drop a CSV file onto the screen or click \"Browse\" to select one.",
       "isCommentAutoGenerated" : true,
@@ -1481,6 +2301,47 @@
           }
         }
       }
+    },
+    "Duplicate asset '%@' (platform: '%@') — first appeared in row %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Duplicate asset '%1$@' (platform: '%2$@') — first appeared in row %3$lld."
+          }
+        }
+      }
+    },
+    "Duplicate description '%@' — first appeared in row %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Duplicate description '%1$@' — first appeared in row %2$lld."
+          }
+        }
+      }
+    },
+    "Duplicate entity ID '%@'." : {
+
+    },
+    "Duplicate normalized asset identity." : {
+
+    },
+    "Duplicate normalized cash-flow description for this snapshot." : {
+
+    },
+    "Duplicate normalized category name." : {
+
+    },
+    "Duplicate normalized snapshot date." : {
+
+    },
+    "Duplicate settings key '%@'." : {
+
+    },
+    "Duplicate snapshot and asset relationship." : {
+
     },
     "Edit" : {
       "comment" : "A context menu button that opens a sheet to edit a cash flow operation.",
@@ -1527,6 +2388,51 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編輯價值"
+          }
+        }
+      }
+    },
+    "Effective balance" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調整後餘額"
+          }
+        }
+      }
+    },
+    "Effective portfolio share" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調整後占投資組合比例"
+          }
+        }
+      }
+    },
+    "Effective share of portfolio: %@" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調整後占投資組合比例：%@"
+          }
+        }
+      }
+    },
+    "Effective target" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調整後目標"
           }
         }
       }
@@ -1597,6 +2503,46 @@
         }
       }
     },
+    "Expected 'true' or 'false'." : {
+
+    },
+    "Expected %lld fields but found %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Expected %1$lld fields but found %2$lld."
+          }
+        }
+      }
+    },
+    "Expected a decimal from 0 through 100, or an empty value." : {
+
+    },
+    "Expected a decimal value." : {
+
+    },
+    "Expected a nonnegative integer." : {
+
+    },
+    "Expected a nonnegative minimum balance with a valid currency, or two empty values." : {
+
+    },
+    "Expected a regular file." : {
+
+    },
+    "Expected a UUID." : {
+
+    },
+    "Expected a valid ISO 8601 timestamp." : {
+
+    },
+    "Expected an encoded exchange-rate dictionary." : {
+
+    },
+    "Expected an ISO 8601 date." : {
+
+    },
     "Expected columns:" : {
       "comment" : "A label displayed below the expected columns for an assets CSV.",
       "isCommentAutoGenerated" : true,
@@ -1605,6 +2551,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預期欄位："
+          }
+        }
+      }
+    },
+    "Expected UTF-8 encoded text." : {
+
+    },
+    "Expected valid base64 data." : {
+
+    },
+    "Explanation" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "說明"
           }
         }
       }
@@ -1646,6 +2609,9 @@
         }
       }
     },
+    "Failed to create ZIP: archive was not created." : {
+
+    },
     "Fetching exchange rates..." : {
       "comment" : "A message displayed while the app is fetching exchange rates.",
       "isCommentAutoGenerated" : true,
@@ -1657,6 +2623,12 @@
           }
         }
       }
+    },
+    "File contains no data rows." : {
+
+    },
+    "File is empty or contains no data." : {
+
     },
     "Fill with previous value" : {
       "comment" : "A tooltip for the button that copies the previous asset value to the new value field in bulk entry.",
@@ -1692,6 +2664,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "前進"
+          }
+        }
+      }
+    },
+    "Goals" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標"
           }
         }
       }
@@ -1762,6 +2746,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隱藏停滯資產"
+          }
+        }
+      }
+    },
+    "How allocation works" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置方式"
           }
         }
       }
@@ -1987,6 +2982,20 @@
         }
       }
     },
+    "Invalid manifest.json: %@" : {
+
+    },
+    "Keep at least this amount. The minimum takes priority over percentage targets." : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "至少保留此金額。最低餘額優先於目標比例。"
+          }
+        }
+      }
+    },
     "Latest" : {
       "comment" : "A label for the latest snapshot date in the picker.",
       "isCommentAutoGenerated" : true,
@@ -2022,6 +3031,9 @@
         }
       }
     },
+    "Loading CSV…" : {
+
+    },
     "Main Currency" : {
       "comment" : "A label for the currency picker in the settings view.",
       "isCommentAutoGenerated" : true,
@@ -2034,6 +3046,12 @@
         }
       }
     },
+    "Malformed CSV quoting." : {
+
+    },
+    "Mapping missing required columns." : {
+
+    },
     "Market Value" : {
       "comment" : "A label displayed next to the market value column in the asset preview table.",
       "isCommentAutoGenerated" : true,
@@ -2045,6 +3063,127 @@
           }
         }
       }
+    },
+    "Market value is negative for '%@'." : {
+
+    },
+    "Market value is zero for '%@'." : {
+
+    },
+    "Minimum" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額"
+          }
+        }
+      }
+    },
+    "Minimum balance" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額"
+          }
+        }
+      }
+    },
+    "Minimum balance amount" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額金額"
+          }
+        }
+      }
+    },
+    "Minimum balance currency" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額幣別"
+          }
+        }
+      }
+    },
+    "Minimum balance status" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額狀態"
+          }
+        }
+      }
+    },
+    "Minimum in display currency" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以顯示幣別換算的最低餘額"
+          }
+        }
+      }
+    },
+    "Minimum requirements take priority over percentage preferences." : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額需求優先於目標比例偏好。"
+          }
+        }
+      }
+    },
+    "Minimum takes priority" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額優先"
+          }
+        }
+      }
+    },
+    "Minimum: %@" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額：%@"
+          }
+        }
+      }
+    },
+    "Missing required column: Amount" : {
+
+    },
+    "Missing required column: Asset Name" : {
+
+    },
+    "Missing required column: Description" : {
+
+    },
+    "Missing required column: Market Value" : {
+
+    },
+    "Missing required settings key '%@'." : {
+
     },
     "Mode" : {
       "comment" : "A label for the segmented control in the add asset sheet.",
@@ -2060,6 +3199,7 @@
     },
     "N/A" : {
       "comment" : "A placeholder text indicating that a value is not applicable.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "zh-Hant" : {
@@ -2246,6 +3386,17 @@
         }
       }
     },
+    "No action" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無需調整"
+          }
+        }
+      }
+    },
     "No allocation history" : {
       "comment" : "A message displayed when a category has no allocation history.",
       "isCommentAutoGenerated" : true,
@@ -2395,6 +3546,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "所選期間無資料"
+          }
+        }
+      }
+    },
+    "No percentage target is set; the current balance is retained." : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定目標比例，因此保留目前餘額。"
           }
         }
       }
@@ -2571,6 +3733,9 @@
         }
       }
     },
+    "Only one exchange-rate record is allowed per snapshot." : {
+
+    },
     "Optional. Enter a value between 0 and 100." : {
       "comment" : "A description below the target allocation text field, explaining that it's optional and that the value should be between 0 and 100.",
       "isCommentAutoGenerated" : true,
@@ -2601,6 +3766,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "概覽"
+          }
+        }
+      }
+    },
+    "Percentage targets apply to the available allocation pool after protected balances are reserved." : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標比例適用於扣除保留餘額後的可配置資產總額。"
+          }
+        }
+      }
+    },
+    "Percentage targets distribute the available pool. Minimum balances take priority; categories without percentage targets retain their balances." : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標比例用於分配可配置資產總額。最低餘額優先；未設定目標比例的類別會保留其餘額。"
+          }
+        }
+      }
+    },
+    "Percentage targets distribute the remaining pool." : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標比例用於分配剩餘的可配置資產總額。"
           }
         }
       }
@@ -2693,6 +3892,39 @@
         }
       }
     },
+    "Pool target" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置目標"
+          }
+        }
+      }
+    },
+    "Pool target %" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置目標 %"
+          }
+        }
+      }
+    },
+    "Pool target: %@" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可配置資產目標比例：%@"
+          }
+        }
+      }
+    },
     "Portfolio" : {
       "comment" : "A section header for the \"Portfolio\" category in the sidebar.",
       "isCommentAutoGenerated" : true,
@@ -2728,6 +3960,9 @@
           }
         }
       }
+    },
+    "Portfolio Values" : {
+
     },
     "Pre-fills the platform field when importing CSV files. Leave empty for no default." : {
       "comment" : "A footer for the \"Import Defaults\" section, explaining that the field is used when importing CSV files, and that it can be left empty for no default.",
@@ -2771,6 +4006,71 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隱私"
+          }
+        }
+      }
+    },
+    "Processing backup…" : {
+
+    },
+    "Protected" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留"
+          }
+        }
+      }
+    },
+    "Protected balance" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留餘額"
+          }
+        }
+      }
+    },
+    "Protected balance: %@" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留餘額：%@"
+          }
+        }
+      }
+    },
+    "Protected balances" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留餘額"
+          }
+        }
+      }
+    },
+    "Rate Date" : {
+
+    },
+    "Rates must be a nonempty dictionary of positive finite values." : {
+
+    },
+    "Reaching the minimum requires a top-up." : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "達到最低餘額需要補足資金。"
           }
         }
       }
@@ -2878,6 +4178,17 @@
         }
       }
     },
+    "Required minimum" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額需求"
+          }
+        }
+      }
+    },
     "Restore" : {
       "comment" : "The text on a button that triggers the restoration of data from a backup.",
       "isCommentAutoGenerated" : true,
@@ -2951,18 +4262,6 @@
         }
       }
     },
-    "Unable to load data" : {
-      "comment" : "Title shown when a SwiftData read fails.",
-      "isCommentAutoGenerated" : true,
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法載入資料"
-          }
-        }
-      }
-    },
     "Return Rate" : {
       "comment" : "A label displayed above the return rate card in the dashboard.",
       "isCommentAutoGenerated" : true,
@@ -3000,6 +4299,17 @@
         }
       }
     },
+    "Revert" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還原"
+          }
+        }
+      }
+    },
     "Row %lld" : {
       "comment" : "A label showing the row number associated with a validation error. The argument is the 1-based row index.",
       "isCommentAutoGenerated" : true,
@@ -3024,6 +4334,28 @@
         }
       }
     },
+    "Save category changes?" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要儲存類別變更嗎？"
+          }
+        }
+      }
+    },
+    "Save Changes" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存變更"
+          }
+        }
+      }
+    },
     "Save Error" : {
       "comment" : "A title for an alert that shows when saving an asset fails.",
       "isCommentAutoGenerated" : true,
@@ -3032,6 +4364,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存錯誤"
+          }
+        }
+      }
+    },
+    "Save Goals" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存目標"
+          }
+        }
+      }
+    },
+    "Save or discard your edits before leaving this category." : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "離開此類別前，請儲存或捨棄編輯內容。"
           }
         }
       }
@@ -3057,6 +4412,17 @@
         }
       }
     },
+    "Saved minimum · Snapshot: %@" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已儲存的最低餘額 · 快照：%@"
+          }
+        }
+      }
+    },
     "Security" : {
       "localizations" : {
         "zh-Hant" : {
@@ -3066,6 +4432,9 @@
           }
         }
       }
+    },
+    "Segment" : {
+
     },
     "Select a category" : {
       "localizations" : {
@@ -3119,8 +4488,20 @@
         }
       }
     },
+    "Sell" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "賣出"
+          }
+        }
+      }
+    },
     "Sell: %@" : {
       "comment" : "A label for an action to sell an asset. The text inside the label is replaced with the actual action text.",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "zh-Hant" : {
@@ -3132,6 +4513,7 @@
       }
     },
     "Set target allocations on your categories to use the rebalancing calculator." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
@@ -3149,6 +4531,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
+          }
+        }
+      }
+    },
+    "Shortfall" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺口"
           }
         }
       }
@@ -3178,6 +4571,28 @@
         }
       }
     },
+    "Small adjustment" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小額調整"
+          }
+        }
+      }
+    },
+    "Small or unmatched adjustments remain: %@" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩餘小額或尚未配對的調整：%@"
+          }
+        }
+      }
+    },
     "Snapshot" : {
       "comment" : "A label for the picker that selects a snapshot date.",
       "isCommentAutoGenerated" : true,
@@ -3202,6 +4617,20 @@
         }
       }
     },
+    "Snapshot ID '%@' was not found." : {
+
+    },
+    "Snapshot: %@" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快照：%@"
+          }
+        }
+      }
+    },
     "Snapshots" : {
       "comment" : "Label for the \"Snapshots\" sidebar navigation section.",
       "isCommentAutoGenerated" : true,
@@ -3210,6 +4639,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快照"
+          }
+        }
+      }
+    },
+    "Some historical minimum comparisons are unavailable because exchange rates are missing." : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分歷史最低餘額比較因缺少匯率而無法顯示。"
           }
         }
       }
@@ -3268,6 +4708,7 @@
     },
     "Target %" : {
       "comment" : "A column header for the \"Target %\" column in the rebalancing",
+      "extractionState" : "stale",
       "isCommentAutoGenerated" : true,
       "localizations" : {
         "zh-Hant" : {
@@ -3279,6 +4720,7 @@
       }
     },
     "Target Allocation (e.g. 40)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
@@ -3300,6 +4742,21 @@
         }
       }
     },
+    "The app version must not be empty." : {
+
+    },
+    "The base currency must not be empty." : {
+
+    },
+    "The CSV file is missing a column." : {
+
+    },
+    "The CSV row is out of bounds." : {
+
+    },
+    "The CSV value could not be parsed." : {
+
+    },
     "The currency used to display total portfolio values across the app." : {
       "comment" : "A description of the currency setting in the settings view.",
       "isCommentAutoGenerated" : true,
@@ -3312,6 +4769,12 @@
         }
       }
     },
+    "The description must not be empty." : {
+
+    },
+    "The display currency must not be empty." : {
+
+    },
     "The entered values have not been saved yet." : {
       "localizations" : {
         "zh-Hant" : {
@@ -3321,6 +4784,23 @@
           }
         }
       }
+    },
+    "The file exceeds the supported size limit." : {
+
+    },
+    "The minimum determines the effective target." : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額決定了調整後目標。"
+          }
+        }
+      }
+    },
+    "The name must not be empty." : {
+
     },
     "The selected file has not been imported yet." : {
       "comment" : "A message displayed when the user attempts to dismiss an alert without having made any changes.",
@@ -3333,6 +4813,9 @@
           }
         }
       }
+    },
+    "This file is not supported by backup format version %lld." : {
+
     },
     "Time Range" : {
       "comment" : "A label for the time range selector in the chart view.",
@@ -3366,6 +4849,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工具"
+          }
+        }
+      }
+    },
+    "Total minimum requirements" : {
+      "comment" : "Structured rebalancing help. Amount/date/name placeholders are formatted before insertion; missing values use an em dash.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額需求合計"
+          }
+        }
+      }
+    },
+    "Total minimums" : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額合計"
+          }
+        }
+      }
+    },
+    "Total minimums: %@" : {
+      "comment" : "Category goals: minimum is a mandatory lower bound; pool percentage differs from share of total portfolio. Amount placeholders are already formatted with currency.",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低餘額合計：%@"
           }
         }
       }
@@ -3406,6 +4924,24 @@
         }
       }
     },
+    "Unable to load data" : {
+      "comment" : "Title shown when a SwiftData read fails.",
+      "isCommentAutoGenerated" : true,
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法載入資料"
+          }
+        }
+      }
+    },
+    "Unable to read CSV data." : {
+
+    },
+    "Unavailable" : {
+
+    },
     "Uncategorized" : {
       "comment" : "A label displayed above the \"Uncategorized\" section.",
       "isCommentAutoGenerated" : true,
@@ -3418,12 +4954,32 @@
         }
       }
     },
+    "Unknown date format '%@'." : {
+
+    },
+    "Unknown ditto error" : {
+
+    },
+    "Unknown settings key '%@'." : {
+
+    },
     "Unlock" : {
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖"
+          }
+        }
+      }
+    },
+    "Unsaved changes are not included in this assessment." : {
+      "comment" : "Category editing and compact rebalancing UI. Monetary and date placeholders are already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此評估不包含尚未儲存的變更。"
           }
         }
       }
@@ -3451,6 +5007,21 @@
           }
         }
       }
+    },
+    "Validated asset ID was not available during value insertion." : {
+
+    },
+    "Validated category ID was not available during insertion." : {
+
+    },
+    "Validated snapshot ID was not available during cash-flow insertion." : {
+
+    },
+    "Validated snapshot ID was not available during exchange-rate insertion." : {
+
+    },
+    "Validated snapshot ID was not available during value insertion." : {
+
     },
     "Value" : {
       "comment" : "Label for the y-axis in the sparkline chart that shows the market value of the asset.",
@@ -3484,42 +5055,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "市值走勢"
-          }
-        }
-      }
-    },
-    "Build" : {
-      "comment" : "A label for the numeric build identifier in the app's About information.",
-      "isCommentAutoGenerated" : true,
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Build"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "組建"
-          }
-        }
-      }
-    },
-    "Commit" : {
-      "comment" : "A label for the abbreviated Git commit identifier in the app's About information.",
-      "isCommentAutoGenerated" : true,
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Commit"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "提交識別碼"
           }
         }
       }

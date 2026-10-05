@@ -1,6 +1,26 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "— Skip —" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "— 略過 —"
+          }
+        }
+      }
+    },
+    "%lld of %lld required columns mapped." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已對應 %1$lld / %2$lld 個必填欄位。"
+          }
+        }
+      }
+    },
     "Amount is zero for '%@'." : {
       "localizations" : {
         "zh-Hant" : {
@@ -27,12 +47,54 @@
         }
       }
     },
+    "Asset name is empty." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資產名稱為空。"
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
+      }
+    },
+    "Cannot parse '%@' as a number." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法將「%@」解析為數字。"
+          }
+        }
+      }
+    },
     "Cash flow '%@' already exists in the snapshot for this date." : {
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "現金流「%@」已存在於此日期的快照中。"
+          }
+        }
+      }
+    },
+    "Confirm" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認"
           }
         }
       }
@@ -47,147 +109,8 @@
         }
       }
     },
-    "Dropped CSV" : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "拖放的 CSV"
-          }
-        }
-      }
-    },
-    "Expected %lld fields but found %lld." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預期有 %1$lld 個欄位，但實際有 %2$lld 個。"
-          }
-        }
-      }
-    },
-    "Expected UTF-8 encoded text." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "預期為 UTF-8 編碼文字。"
-          }
-        }
-      }
-    },
-    "Malformed CSV quoting." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSV 檔案包含無效的引號格式。"
-          }
-        }
-      }
-    },
-    "The CSV file is missing a column." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSV 檔案缺少欄位。"
-          }
-        }
-      }
-    },
-    "The CSV row is out of bounds." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CSV 列超出範圍。"
-          }
-        }
-      }
-    },
-    "The CSV value could not be parsed." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法剖析 CSV 值。"
-          }
-        }
-      }
-    },
-    "Unable to read CSV data." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法讀取 CSV 資料。"
-          }
-        }
-      }
-    },
-    "Missing required column: Asset Name" : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "缺少必要欄位：Asset Name"
-          }
-        }
-      }
-    },
-    "Missing required column: Market Value" : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "缺少必要欄位：Market Value"
-          }
-        }
-      }
-    },
-    "Missing required column: Description" : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "缺少必要欄位：Description"
-          }
-        }
-      }
-    },
-    "Missing required column: Amount" : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "缺少必要欄位：Amount"
-          }
-        }
-      }
-    },
-    "Asset name is empty." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "資產名稱為空。"
-          }
-        }
-      }
-    },
-    "Cannot parse '%@' as a number." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法將「%@」解析為數字。"
-          }
-        }
-      }
-    },
     "Description is empty." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
@@ -197,52 +120,12 @@
         }
       }
     },
-    "File is empty or contains no data." : {
+    "Dropped CSV" : {
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "檔案為空或不包含任何資料。"
-          }
-        }
-      }
-    },
-    "File contains no data rows." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檔案不包含任何資料列。"
-          }
-        }
-      }
-    },
-    "Mapping missing required columns." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "欄位對應缺少必要欄位。"
-          }
-        }
-      }
-    },
-    "Duplicate asset '%@' (platform: '%@') — first appeared in row %lld." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重複的資產「%1$@」（平台：%2$@）— 首次出現於第 %3$lld 列。"
-          }
-        }
-      }
-    },
-    "Duplicate description '%@' — first appeared in row %lld." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重複的描述「%1$@」— 首次出現於第 %2$lld 列。"
+            "value" : "拖放的 CSV"
           }
         }
       }
@@ -263,6 +146,17 @@
         }
       }
     },
+    "Duplicate asset '%@' (platform: '%@') — first appeared in row %lld." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重複的資產「%1$@」（平台：%2$@）— 首次出現於第 %3$lld 列。"
+          }
+        }
+      }
+    },
     "Duplicate description '%@' — first appeared as '%@'." : {
       "localizations" : {
         "en" : {
@@ -279,13 +173,89 @@
         }
       }
     },
-    "None" : {
-      "comment" : "Label used when an asset has no platform assigned.",
+    "Duplicate description '%@' — first appeared in row %lld." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無"
+            "value" : "重複的描述「%1$@」— 首次出現於第 %2$lld 列。"
+          }
+        }
+      }
+    },
+    "Expected %lld fields but found %lld." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期有 %1$lld 個欄位，但實際有 %2$lld 個。"
+          }
+        }
+      }
+    },
+    "Expected UTF-8 encoded text." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預期為 UTF-8 編碼文字。"
+          }
+        }
+      }
+    },
+    "File contains no data rows." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案不包含任何資料列。"
+          }
+        }
+      }
+    },
+    "File is empty or contains no data." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案為空或不包含任何資料。"
+          }
+        }
+      }
+    },
+    "Malformed CSV quoting." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV 檔案包含無效的引號格式。"
+          }
+        }
+      }
+    },
+    "Map CSV Columns" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對應 CSV 欄位"
+          }
+        }
+      }
+    },
+    "Mapping missing required columns." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "欄位對應缺少必要欄位。"
           }
         }
       }
@@ -310,12 +280,100 @@
         }
       }
     },
+    "Missing required column: Amount" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少必要欄位：Amount"
+          }
+        }
+      }
+    },
+    "Missing required column: Asset Name" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少必要欄位：Asset Name"
+          }
+        }
+      }
+    },
+    "Missing required column: Description" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少必要欄位：Description"
+          }
+        }
+      }
+    },
+    "Missing required column: Market Value" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少必要欄位：Market Value"
+          }
+        }
+      }
+    },
+    "None" : {
+      "comment" : "Label used when an asset has no platform assigned.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無"
+          }
+        }
+      }
+    },
     "Snapshot date cannot be in the future." : {
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "快照日期不能是未來的日期。"
+          }
+        }
+      }
+    },
+    "The CSV file is missing a column." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV 檔案缺少欄位。"
+          }
+        }
+      }
+    },
+    "The CSV row is out of bounds." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSV 列超出範圍。"
+          }
+        }
+      }
+    },
+    "The CSV value could not be parsed." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法剖析 CSV 值。"
           }
         }
       }
@@ -348,6 +406,27 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此資產的幣別目前為「%1$@」。匯入後將變更為「%2$@」。"
+          }
+        }
+      }
+    },
+    "Two or more columns are mapped to the same field." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有兩個以上的欄位被指定為相同的欄位。"
+          }
+        }
+      }
+    },
+    "Unable to read CSV data." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取 CSV 資料。"
           }
         }
       }
@@ -395,72 +474,12 @@
         }
       }
     },
-    "Map CSV Columns" : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "對應 CSV 欄位"
-          }
-        }
-      }
-    },
     "Use the dropdowns above each column to assign it to the corresponding field." : {
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用每個欄位上方的下拉選單，將其指定為對應的欄位。"
-          }
-        }
-      }
-    },
-    "Cancel" : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "取消"
-          }
-        }
-      }
-    },
-    "Confirm" : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "確認"
-          }
-        }
-      }
-    },
-    "— Skip —" : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "— 略過 —"
-          }
-        }
-      }
-    },
-    "Two or more columns are mapped to the same field." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "有兩個以上的欄位被指定為相同的欄位。"
-          }
-        }
-      }
-    },
-    "%lld of %lld required columns mapped." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已對應 %1$lld / %2$lld 個必填欄位。"
           }
         }
       }

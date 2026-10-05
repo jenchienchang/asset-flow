@@ -157,6 +157,38 @@ struct ExchangeRateServiceTests {
     return false
   }
 
+  @Test("Goal-only currency triggers fetching even with no foreign-currency assets")
+  func goalOnlyCurrencyFetch() async throws {
+    let session = createMockSession()
+    defer {
+      session.invalidateAndCancel()
+      MockURLProtocol.requestHandler = nil
+    }
+    MockURLProtocol.requestHandler = { request in
+      let json =
+        "{\"date\": \"\(requestedAPIResponseDate(from: request))\", \"usd\": {\"twd\": 30}}"
+      return (
+        HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+        Data(json.utf8)
+      )
+    }
+    let container = TestDataManager.createInMemoryContainer()
+    let category = AssetFlow.Category(name: "Reserve")
+    category.minimumBalanceAmount = 300000
+    category.minimumBalanceCurrency = "TWD"
+    let snapshot = Snapshot(date: Date(timeIntervalSince1970: 1_700_000_000))
+    container.mainContext.insert(category)
+    container.mainContext.insert(snapshot)
+    let result = await ExchangeRateService(session: session).fetchMissingRates(
+      snapshots: [snapshot], displayCurrency: "USD", modelContext: container.mainContext)
+    #expect(result.count == 1)
+    #expect(snapshot.exchangeRate?.rates["twd"] == 30)
+    #expect(
+      CategoryGoalAssessmentService.assess(
+        snapshot: snapshot, categories: [category], displayCurrency: "USD"
+      ).goalConversion.isComplete)
+  }
+
   // MARK: - Fetch Rates Tests
 
   @Test("Fetch rates returns valid parsed rates")

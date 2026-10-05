@@ -41,34 +41,84 @@ struct CategoryAllocationHistoryEntry: Identifiable {
 @Observable
 @MainActor
 final class CategoryDetailViewModel {
+  @ObservationIgnored private let refresh = ObservedRefresh()
+
   let category: Category
   private let modelContext: ModelContext
   private let fetcher: any ModelFetching
   private let settingsService: SettingsService
 
-  var editedName: String
-  var editedTargetAllocation: Decimal?
+  var minimumEnabled = false
+  var minimumBalanceText = ""
+  var editedMinimumCurrency = "USD"
+  var goalAssessment = CategoryGoalAssessment()
 
-  /// Text binding for the target allocation text field.
-  /// Parses the text into `editedTargetAllocation` on change.
-  var targetAllocationText: String {
-    didSet {
-      guard targetAllocationText != oldValue else { return }
-      let trimmed = targetAllocationText.trimmingCharacters(in: .whitespaces)
-      if trimmed.isEmpty {
-        editedTargetAllocation = nil
-      } else if let value = Decimal.parse(trimmed) {
-        editedTargetAllocation = value
-      }
-    }
+  var editedName: String
+  var editedTargetAllocation: Decimal? {
+    get { try? CategoryGoalValidator.parse(targetAllocationText) }
+    set { targetAllocationText = newValue.map { Self.formText($0) } ?? "" }
   }
+  var targetAllocationText: String
+
+  private struct Draft: Equatable {
+    var name = ""
+    var percentage = ""
+    var minimumEnabled = false
+    var amount = ""
+    var currency = ""
+  }
+  private var savedDraft = Draft()
+  private var draft: Draft {
+    Draft(
+      name: editedName, percentage: targetAllocationText, minimumEnabled: minimumEnabled,
+      amount: minimumBalanceText, currency: editedMinimumCurrency)
+  }
+  var hasUnsavedChanges: Bool { draft != savedDraft }
+
+  func revertChanges() {
+    applySavedDraft(savedFields())
+  }
+
+  private func savedFields() -> Draft {
+    Draft(
+      name: category.name,
+      percentage: category.targetAllocationPercentage.map(Self.formText) ?? "",
+      minimumEnabled: category.minimumBalanceAmount != nil,
+      amount: category.minimumBalanceAmount.map(Self.formText) ?? "",
+      currency: category.minimumBalanceCurrency
+        ?? CategoryGoalValidator.defaultCurrency(
+          assetCurrencies: (category.assets ?? []).map(\.currency),
+          displayCurrency: settingsService.mainCurrency))
+  }
+
+  private func applySavedDraft(_ value: Draft) {
+    editedName = value.name
+    targetAllocationText = value.percentage
+    minimumEnabled = value.minimumEnabled
+    minimumBalanceText = value.amount
+    editedMinimumCurrency = value.currency
+    savedDraft = value
+  }
+
+  private static func formText(_ value: Decimal) -> String {
+    NSDecimalNumber(decimal: value).stringValue.replacingOccurrences(
+      of: ".", with: Locale.current.decimalSeparator ?? ".")
+  }
+
+  struct MinimumHistoryEntry: Identifiable, ChartFilterable {
+    let date: Date
+    let amount: Decimal
+    let segment: Int
+    var id: Date { date }
+    var chartDate: Date { date }
+  }
+  var minimumHistory: [MinimumHistoryEntry] = []
 
   var assets: [DetailAssetRowData] = []
   var valueHistory: [CategoryValueHistoryEntry] = []
   var allocationHistory: [CategoryAllocationHistoryEntry] = []
   var conversionStatus: CurrencyConversionStatus = .notNeeded
   var loadState: DataLoadState = .idle
-  private var summaries: [SnapshotSummary] = []
 
   init(
     category: Category,
@@ -81,12 +131,19 @@ final class CategoryDetailViewModel {
     self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     self.settingsService = settingsService ?? .shared
     self.editedName = category.name
-    self.editedTargetAllocation = category.targetAllocationPercentage
+    self.minimumEnabled = category.minimumBalanceAmount != nil
+    self.minimumBalanceText = category.minimumBalanceAmount.map { Self.formText($0) } ?? ""
+    self.editedMinimumCurrency =
+      category.minimumBalanceCurrency
+      ?? CategoryGoalValidator.defaultCurrency(
+        assetCurrencies: (category.assets ?? []).map(\.currency),
+        displayCurrency: (settingsService ?? .shared).mainCurrency)
     if let target = category.targetAllocationPercentage {
-      self.targetAllocationText = NSDecimalNumber(decimal: target).stringValue
+      self.targetAllocationText = Self.formText(target)
     } else {
       self.targetAllocationText = ""
     }
+    self.savedDraft = draft
   }
 
   // MARK: - Computed Properties
@@ -103,36 +160,70 @@ final class CategoryDetailViewModel {
     return CategoryError.cannotDelete(assetCount: assetCount).errorDescription
   }
 
+  /// Coalesces source-observation and query notifications before refreshing.
+  func requestRefresh() {
+    refresh.request { [weak self] in self?.loadData() }
+  }
+
   // MARK: - Load Data
 
   /// Loads assets, value history, and allocation history for this category.
   ///
-  /// Wraps the load in `withObservationTracking` so that any `@Observable`/`@Model`
+  /// Uses `ObservedRefresh` to track source reads and publish derived results. Any `@Observable`/`@Model`
   /// property change automatically triggers a reload.
   func loadData() {
-    withObservationTracking {
+    refresh.perform {
       performLoadData()
-    } onChange: { [weak self] in
-      Task { @MainActor [weak self] in
-        self?.loadData()
-      }
+    } reload: { [weak self] in
+      self?.loadData()
     }
   }
 
   private func performLoadData() {
+    let committedDraft = savedFields()
     do {
       let allSnapshots = try SnapshotSummaryService.fetchSnapshots(using: fetcher)
-      summaries = SnapshotSummaryService.makeSummaries(
-        for: allSnapshots,
-        displayCurrency: settingsService.mainCurrency)
-      conversionStatus = CurrencyConversionStatus.merged(
-        summaries.map(\.conversionStatus))
-
-      loadAssets(allSnapshots: allSnapshots)
-      loadHistory()
-      loadState = .loaded
+      let display = settingsService.mainCurrency
+      let loadedSummaries = SnapshotSummaryService.makeSummaries(
+        for: allSnapshots, displayCurrency: display)
+      let status = CurrencyConversionStatus.merged(loadedSummaries.map(\.conversionStatus))
+      let allCategories = try fetchModels(
+        FetchDescriptor<Category>(), from: fetcher, operation: "load category goals")
+      let assessment = CategoryGoalAssessmentService.assess(
+        snapshot: allSnapshots.last, categories: allCategories, displayCurrency: display)
+      var history: [MinimumHistoryEntry] = []
+      if let amount = category.minimumBalanceAmount, let currency = category.minimumBalanceCurrency,
+        (try? CategoryGoalValidator.validate(
+          percentage: category.targetAllocationPercentage, minimum: amount, currency: currency))
+          != nil
+      {
+        var segment = 0
+        for snapshot in allSnapshots {
+          if let minimum = CategoryGoalAssessmentService.convertMinimum(
+            amount: amount, currency: currency, snapshot: snapshot, displayCurrency: display)
+          {
+            history.append(
+              MinimumHistoryEntry(date: snapshot.date, amount: minimum, segment: segment))
+          } else {
+            segment += 1
+          }
+        }
+      }
+      let loadedAssets = loadAssets(allSnapshots: allSnapshots)
+      let histories = loadHistory(summaries: loadedSummaries)
+      refresh.publish {
+        if !self.hasUnsavedChanges { self.applySavedDraft(committedDraft) }
+        self.goalAssessment = assessment
+        self.conversionStatus = status
+        self.minimumHistory = history
+        self.assets = loadedAssets
+        self.valueHistory = histories.0
+        self.allocationHistory = histories.1
+        self.loadState = .loaded
+      }
     } catch {
-      loadState = .failed(error.localizedDescription)
+      let message = error.localizedDescription
+      refresh.publish { self.loadState = .failed(message) }
     }
   }
 
@@ -147,9 +238,19 @@ final class CategoryDetailViewModel {
     let trimmed = editedName.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty else { throw CategoryError.emptyName }
 
-    if let target = editedTargetAllocation {
-      guard target >= 0 && target <= 100 else { throw CategoryError.invalidTargetAllocation }
-    }
+    let percentage = try CategoryGoalValidator.parse(targetAllocationText)
+    let minimum = minimumEnabled ? try CategoryGoalValidator.parse(minimumBalanceText) : nil
+    if minimumEnabled && minimum == nil { throw CategoryGoalValidationError.minimum }
+    let currency =
+      minimumEnabled
+      ? editedMinimumCurrency.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() : nil
+    var supported = Set(CurrencyService.shared.currencies.map { $0.code.uppercased() })
+    if let previous = category.minimumBalanceCurrency { supported.insert(previous) }
+    do {
+      try CategoryGoalValidator.validate(
+        percentage: percentage, minimum: minimum, currency: currency, supportedCurrencies: supported
+      )
+    } catch CategoryGoalValidationError.percentage { throw CategoryError.invalidTargetAllocation }
 
     // Check for conflicts with other categories (exclude self)
     let descriptor = FetchDescriptor<Category>()
@@ -168,7 +269,11 @@ final class CategoryDetailViewModel {
     }
 
     category.name = trimmed
-    category.targetAllocationPercentage = editedTargetAllocation
+    category.targetAllocationPercentage = percentage
+    category.minimumBalanceAmount = minimum
+    category.minimumBalanceCurrency = currency
+    revertChanges()
+    loadData()
   }
 
   // MARK: - Delete
@@ -182,7 +287,7 @@ final class CategoryDetailViewModel {
   // MARK: - Private Helpers
 
   /// Loads assets in this category with their latest values.
-  private func loadAssets(allSnapshots: [Snapshot]) {
+  private func loadAssets(allSnapshots: [Snapshot]) -> [DetailAssetRowData] {
     let categoryAssets = category.assets ?? []
     let displayCurrency = settingsService.mainCurrency
     let latestExchangeRate = allSnapshots.last?.exchangeRate
@@ -197,33 +302,32 @@ final class CategoryDetailViewModel {
       }
     }
 
-    assets =
-      categoryAssets.map { asset in
-        let value = latestValueLookup[asset.id]
-        let assetCurrency = asset.currency
-        let effectiveCurrency = assetCurrency.isEmpty ? displayCurrency : assetCurrency
-        let converted: Decimal? =
-          if let value, let snapshotDate = latestSnapshotDate,
-            effectiveCurrency != displayCurrency
-          {
-            CurrencyConversionService.convert(
-              value: value,
-              from: effectiveCurrency,
-              to: displayCurrency,
-              using: latestExchangeRate,
-              forSnapshotDate: snapshotDate)
-          } else {
-            nil
-          }
-        return DetailAssetRowData(
-          asset: asset,
-          latestValue: value,
-          convertedValue: converted
-        )
-      }
-      .sorted {
-        $0.asset.name.localizedCaseInsensitiveCompare($1.asset.name) == .orderedAscending
-      }
+    return categoryAssets.map { asset in
+      let value = latestValueLookup[asset.id]
+      let assetCurrency = asset.currency
+      let effectiveCurrency = assetCurrency.isEmpty ? displayCurrency : assetCurrency
+      let converted: Decimal? =
+        if let value, let snapshotDate = latestSnapshotDate,
+          effectiveCurrency != displayCurrency
+        {
+          CurrencyConversionService.convert(
+            value: value,
+            from: effectiveCurrency,
+            to: displayCurrency,
+            using: latestExchangeRate,
+            forSnapshotDate: snapshotDate)
+        } else {
+          nil
+        }
+      return DetailAssetRowData(
+        asset: asset,
+        latestValue: value,
+        convertedValue: converted
+      )
+    }
+    .sorted {
+      $0.asset.name.localizedCaseInsensitiveCompare($1.asset.name) == .orderedAscending
+    }
   }
 
   /// Computes value and allocation history across all snapshots.
@@ -231,7 +335,9 @@ final class CategoryDetailViewModel {
   /// **Note:** Values reflect **current** category membership applied retroactively.
   /// The data model does not track historical category assignments, so an asset
   /// moved between categories will appear in its current category for all past snapshots.
-  private func loadHistory() {
+  private func loadHistory(summaries: [SnapshotSummary]) -> (
+    [CategoryValueHistoryEntry], [CategoryAllocationHistoryEntry]
+  ) {
     var valueEntries: [CategoryValueHistoryEntry] = []
     var allocationEntries: [CategoryAllocationHistoryEntry] = []
 
@@ -246,7 +352,41 @@ final class CategoryDetailViewModel {
         CategoryAllocationHistoryEntry(date: summary.date, allocationPercentage: allocation))
     }
 
-    valueHistory = valueEntries
-    allocationHistory = allocationEntries
+    return (valueEntries, allocationEntries)
+  }
+}
+
+/// Retains a category draft while navigation awaits Save, Discard, or Cancel.
+@Observable
+@MainActor
+final class CategoryEditingSession {
+  var editor: CategoryDetailViewModel?
+  var pendingNavigation: (() -> Void)?
+  var needsConfirmation: Bool { pendingNavigation != nil }
+
+  func requestNavigation(_ action: @escaping () -> Void) {
+    guard !needsConfirmation else { return }
+    if editor?.hasUnsavedChanges == true { pendingNavigation = action } else { action() }
+  }
+  /// Release an editor only after its category is no longer visible.
+  func updateVisibleCategory(_ category: Category?) {
+    guard editor?.category !== category else { return }
+    editor = nil
+    pendingNavigation = nil
+  }
+
+  func cancelNavigation() { pendingNavigation = nil }
+  func saveAndNavigate() throws {
+    try editor?.save()
+    finishNavigation()
+  }
+  func discardAndNavigate() {
+    editor?.revertChanges()
+    finishNavigation()
+  }
+  private func finishNavigation() {
+    let action = pendingNavigation
+    pendingNavigation = nil
+    action?()
   }
 }

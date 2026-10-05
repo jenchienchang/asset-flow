@@ -230,7 +230,7 @@ struct BackupServiceTests {
       settingsService: tc.settingsService)
 
     let manifest = try await BackupService.validateBackup(at: zipURL)
-    #expect(manifest.formatVersion == 3)
+    #expect(manifest.formatVersion == 4)
     #expect(manifest.appVersion == Constants.AppInfo.version)
     // Verify ISO 8601 timestamp is parseable
     let formatter = ISO8601DateFormatter()
@@ -254,7 +254,10 @@ struct BackupServiceTests {
       zipURL: zipURL, fileName: BackupCSV.Categories.fileName)
     let lines = content.components(separatedBy: "\n")
       .filter { !$0.isEmpty }
-    #expect(lines[0] == "id,name,targetAllocationPercentage,displayOrder")
+    #expect(
+      lines[0]
+        == "id,name,targetAllocationPercentage,displayOrder,minimumBalanceAmount,minimumBalanceCurrency"
+    )
     #expect(lines.count == 3)  // header + 2 categories
   }
 
@@ -315,7 +318,7 @@ struct BackupServiceTests {
 
     // Should be valid
     let manifest = try await BackupService.validateBackup(at: zipURL)
-    #expect(manifest.formatVersion == 3)
+    #expect(manifest.formatVersion == 4)
 
     // Categories CSV should have only header
     let catContent = try extractFileContent(
@@ -407,7 +410,7 @@ struct BackupServiceTests {
       settingsService: tc.settingsService)
 
     let manifest = try await BackupService.validateBackup(at: zipURL)
-    #expect(manifest.formatVersion == 3)
+    #expect(manifest.formatVersion == 4)
   }
 
   @Test("Validate accepts backup with one enclosing folder")
@@ -558,7 +561,7 @@ struct BackupServiceTests {
 
     // Should not throw
     let manifest = try await BackupService.validateBackup(at: zipURL)
-    #expect(manifest.formatVersion == 3)
+    #expect(manifest.formatVersion == 4)
   }
 
   @Test("Validate rejects orphan snapshotID in snapshot_asset_values")
@@ -1235,7 +1238,7 @@ struct BackupServiceTests {
       settingsService: tc.settingsService)
     try tamperAndRezip(zipURL: zipURL) { dir in
       try
-        "id,name,targetAllocationPercentage,displayOrder\ninvalid-id,Stocks,1.2junk,also-invalid\n"
+        "id,name,targetAllocationPercentage,displayOrder,minimumBalanceAmount,minimumBalanceCurrency\ninvalid-id,Stocks,1.2junk,also-invalid,,\n"
         .write(
           to: dir.appending(path: BackupCSV.Categories.fileName),
           atomically: true, encoding: .utf8)
@@ -1555,13 +1558,16 @@ struct BackupServiceTests {
       zipURL: zipURL, fileName: BackupCSV.Categories.fileName)
     let lines = content.components(separatedBy: "\n")
       .filter { !$0.isEmpty }
-    #expect(lines[0] == "id,name,targetAllocationPercentage,displayOrder")
+    #expect(
+      lines[0]
+        == "id,name,targetAllocationPercentage,displayOrder,minimumBalanceAmount,minimumBalanceCurrency"
+    )
     #expect(lines.count == 3)
-    // Verify displayOrder is the last field in each data row
+    // V4 appends goal fields after displayOrder; it remains at index 3.
     for line in lines.dropFirst() {
       let fields = line.components(separatedBy: ",")
-      let lastField = fields.last?.trimmingCharacters(in: .whitespaces) ?? ""
-      #expect(Int(lastField) != nil, "Last field should be displayOrder integer, got: \(lastField)")
+      let lastField = fields[3].trimmingCharacters(in: .whitespaces)
+      #expect(Int(lastField) != nil, "Field 3 should be displayOrder integer, got: \(lastField)")
     }
   }
 

@@ -26,20 +26,50 @@ extension Decimal {
 
   @MainActor private static var currencyFormatters: [String: NumberFormatter] = [:]
 
+  @MainActor private static func currencyFormatter(currency: String, locale: Locale)
+    -> NumberFormatter
+  {
+    let key = "\(currency)-\(locale.identifier)"
+    if let cached = Self.currencyFormatters[key] { return cached }
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .currency
+    formatter.currencyCode = currency
+    formatter.locale = locale
+    Self.currencyFormatters[key] = formatter
+    return formatter
+  }
+
   func formatted(currency: String = "USD", locale: Locale = .current) -> String {
+    let formatter = Self.currencyFormatter(currency: currency, locale: locale)
+    return formatter.string(from: NSDecimalNumber(decimal: self)) ?? "\(self)"
+  }
+
+  @MainActor private static var currencyNumberFormatters: [String: NumberFormatter] = [:]
+
+  /// Numeric cell text with the same fraction precision as asset currency displays.
+  /// Currency is supplied by the surrounding row or table heading.
+  func formattedCurrencyNumber(currency: String, locale: Locale = .current) -> String {
     let key = "\(currency)-\(locale.identifier)"
     let formatter: NumberFormatter
-    if let cached = Self.currencyFormatters[key] {
+    if let cached = Self.currencyNumberFormatters[key] {
       formatter = cached
     } else {
-      let f = NumberFormatter()
-      f.numberStyle = .currency
-      f.currencyCode = currency
-      f.locale = locale
-      Self.currencyFormatters[key] = f
-      formatter = f
+      let assetFormatter = Self.currencyFormatter(currency: currency, locale: locale)
+      let numberFormatter = NumberFormatter()
+      numberFormatter.locale = locale
+      numberFormatter.numberStyle = .decimal
+      numberFormatter.minimumFractionDigits = assetFormatter.minimumFractionDigits
+      numberFormatter.maximumFractionDigits = assetFormatter.maximumFractionDigits
+      Self.currencyNumberFormatters[key] = numberFormatter
+      formatter = numberFormatter
     }
     return formatter.string(from: NSDecimalNumber(decimal: self)) ?? "\(self)"
+  }
+
+  @MainActor static func currencyDisplayUnit(currency: String, locale: Locale = .current) -> Decimal
+  {
+    let digits = Self.currencyFormatter(currency: currency, locale: locale).maximumFractionDigits
+    return Decimal(sign: .plus, exponent: -digits, significand: 1)
   }
 
   @MainActor private static var fullPrecisionFormatters: [String: NumberFormatter] = [:]

@@ -82,11 +82,12 @@ struct SnapshotListView: View {
         .accessibilityIdentifier("New Snapshot Button")
       }
     }
+    .refreshOnStoreChanges { viewModel.requestRefresh() }
     .onAppear {
       viewModel.loadRowData()
     }
     .onChange(of: querySnapshots) {
-      viewModel.loadRowData()
+      viewModel.requestRefresh()
       selectedSnapshot = ModelSelectionResolver.resolve(
         selectedSnapshot, among: querySnapshots, id: \.id)
     }

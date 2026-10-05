@@ -396,3 +396,11 @@ ______________________________________________________________________
 
 - [OWASP Mobile Security](https://owasp.org/www-project-mobile-security/)
 - [Apple Privacy Guidelines](https://developer.apple.com/app-store/user-privacy-and-data-use/)
+
+## Category Minimum Requirements
+
+Minimum amounts/currencies are local financial data stored in SwiftData and included in v4 backups. Rebalancing is read-only and sends no portfolio balances or goals over the network. Exchange-rate requests can include a minimum's currency even when no holding uses it, following the existing CDN-only fetching policy. Keep goal charts, status help, and hover details behind the existing lock-aware modifiers. Missing rates produce unavailable states rather than guessed balances.
+
+## Category Editing and Compact Goal Presentation
+
+Category goal and calculation help popovers are disabled while locked and dismiss when the app locks. Their content is also gated by the lock environment. Save/Revert and submit handlers reject locked interaction; pending navigation confirmation is hidden while locked.

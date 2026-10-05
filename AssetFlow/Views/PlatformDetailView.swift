@@ -58,6 +58,7 @@ struct PlatformDetailView: View {
     }
     .formStyle(.grouped)
     .navigationTitle(viewModel.platformName)
+    .refreshOnStoreChanges { viewModel.requestRefresh() }
     .onAppear {
       viewModel.loadData()
     }
@@ -65,7 +66,7 @@ struct PlatformDetailView: View {
       viewModel.reloadAfterStoreChange()
     }
     .onChange(of: querySnapshots) {
-      viewModel.loadData()
+      viewModel.requestRefresh()
     }
     .alert("Save Error", isPresented: $showSaveError) {
       Button("OK") {}

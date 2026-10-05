@@ -55,6 +55,8 @@ extension BackupService {
         targetAllocationPercentage: record.targetAllocationPercentage)
       category.id = record.id
       category.displayOrder = record.displayOrder
+      category.minimumBalanceAmount = record.minimumBalanceAmount
+      category.minimumBalanceCurrency = record.minimumBalanceCurrency
       modelContext.insert(category)
       idMap[record.id] = category
     }
