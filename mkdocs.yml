@@ -45,6 +45,9 @@ theme:
     - content.code.copy
     - content.tabs.link
 
+extra_css:
+  - assets/stylesheets/extra.css
+
 plugins:
   - search:
       lang:

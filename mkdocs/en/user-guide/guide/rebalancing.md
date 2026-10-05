@@ -54,9 +54,13 @@ A target fixed at a minimum shows that minimum as the target. A minimum-only cat
 
 #### Minimum assessment: one currency
 
+Click the status icon beside a category’s minimum to compare its requirement with the current balance and shortfall. When all amounts use the same currency, the popup shows the currency once in the table heading.
+
 ![Minimum assessment using a shared currency heading](../../../assets/images/rebalancing-minimum-help-context-en.png)
 
 #### Minimum assessment: different currencies
+
+When the minimum and display currencies differ, the popup shows the original requirement and its converted amount using the snapshot’s exchange rates. Currency codes beside each amount help you distinguish them.
 
 ![Minimum assessment with original and display currencies](../../../assets/images/rebalancing-minimum-help-mixed-context-en.png)
 

@@ -53,7 +53,9 @@ mkdocs/                         # docs_dir (content source)
 │       └── changelog.md
 ├── zh-TW/                      # Chinese (Taiwanese), mirrors en/ structure
 ├── assets/
-│   └── images/                 # Screenshots shared across languages (Git LFS)
+│   ├── images/                 # Screenshots shared across languages (Git LFS)
+│   └── stylesheets/
+│       └── extra.css           # Shared screenshot layout
 └── README.md                   # This file
 
 overrides/                      # Material theme overrides (custom_dir, at repo root)
@@ -64,6 +66,12 @@ overrides/                      # Material theme overrides (custom_dir, at repo 
 ## Adding or Updating Screenshots
 
 Screenshots in `assets/images/` are tracked by Git LFS. Simply add or replace `.png` files as usual. Git LFS handles the rest transparently.
+
+### Screenshot layout
+
+`assets/stylesheets/extra.css`, registered through `extra_css` in `mkdocs.yml`, centers standalone screenshots within the text column in both languages. Images retain their natural size and scale down to fit narrower screens. The rule targets image-only paragraphs containing screenshots from `assets/images/`, excluding explicitly aligned images; theme icons and the navigation logo are unaffected.
+
+Introduce each screenshot with text explaining what to look for. Separate screenshots of different views with relevant explanations or subsections rather than placing them back-to-back. Keep the structure consistent in English and Traditional Chinese.
 
 ### Screenshot review (2026-10-04)
 

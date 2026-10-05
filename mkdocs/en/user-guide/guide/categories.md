@@ -27,23 +27,29 @@ Percentage targets must total 100% before percentage rebalancing suggestions are
 
 ## Category list and details
 
-![Category list with minimum balances met and below minimum](../../../assets/images/category-list-minimum-en.png)
-
-![Category details with a percentage target and minimum balance](../../../assets/images/category-minimum-en.png)
+### Reading the category list
 
 Minimum amounts use the same secondary styling as other category metadata. Rows show current value, labelled Current and Effective target shares of the whole portfolio, requested pool percentage, asset count, and minimum status where applicable. A shortfall shows the amount missing in your display currency. Missing exchange rates show an unavailable status instead of zero. Empty categories can still have minimum requirements.
+
+![Category list with minimum balances met and below minimum](../../../assets/images/category-list-minimum-en.png)
 
 The warning indicator appears for **any minimum balance shortfall**, or when Current differs from Effective target by **more than 5 percentage points**. Hover over it for the applicable reasons. Pool target describes your configured preference; Effective target shows the result after minimums and protected balances are considered.
 
 Minimum-only categories show an effective share when the plan is feasible and retain balances above their minimum. Categories without goals have no effective target. An unavailable or infeasible plan shows an em dash for effective targets; known minimum shortfalls still warn. Percentages are unavailable when the portfolio total is zero. Data changes and arriving exchange rates refresh the displays without discarding unsaved category edits.
 
-Select a category to inspect its assets, edit goals, and view value and allocation history. Drag categories to change their order. A category can be deleted only after its assets have been reassigned.
+Drag categories to change their order. A category can be deleted only after its assets have been reassigned.
+
+### Viewing category details
+
+Select a category to inspect its assets, edit its percentage target and minimum balance, and view value and allocation history. The goal settings appear above the asset list.
+
+![Category details with a percentage target and minimum balance](../../../assets/images/category-minimum-en.png)
 
 ## History and currencies
 
-![Category minimum compared across three snapshots](../../../assets/images/category-minimum-history-en.png)
-
 Value history includes an orange comparison with the **current minimum**, converted using each snapshot's exchange rates. Gaps mean a rate is missing. This comparison does not claim that today's minimum applied at that time. Historical values also use current category assignments.
+
+![Category minimum compared across three snapshots](../../../assets/images/category-minimum-history-en.png)
 
 Allocation history and the dashboard pie chart continue to show shares of the whole portfolio. A pool percentage is not a whole-portfolio chart reference. A missing goal rate does not hide otherwise valid asset values or portfolio charts.
 

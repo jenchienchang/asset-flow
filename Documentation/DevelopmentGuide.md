@@ -485,6 +485,8 @@ ______________________________________________________________________
 
 The user guide is built with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/). Source files live in `mkdocs/` and the configuration is in `mkdocs.yml`.
 
+Screenshots use shared styling in `mkdocs/assets/stylesheets/extra.css`, registered through `extra_css` in `mkdocs.yml`. Standalone screenshots are centered within the text column and scale down to fit. Introduce each image with relevant explanatory text, and separate images of different views into distinct explanations or subsections in both language versions.
+
 ### Local Development
 
 ```bash
