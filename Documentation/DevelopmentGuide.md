@@ -68,6 +68,7 @@ Before you begin development, ensure you have the following installed:
 ### App Version Metadata
 
 - `version.txt` is the release-please source for the marketing version. Release Please's manifest-mode config and current-version manifest are in `.github/release-please/`. Its generic extra-file updater also updates the app target's Xcode `MARKETING_VERSION` entries, which generate `CFBundleShortVersionString`; the build script does not override that value.
+- Release Please enables `bump-minor-pre-major`: breaking changes increment the minor version while the current version is below `1.0.0` (for example, `0.7.1` → `0.8.0`). At `1.0.0` and later, breaking changes increment the major version. Feature and fix commits retain their usual minor and patch bumps.
 - Local builds use the numeric `CURRENT_PROJECT_VERSION` configured in Xcode. Release archives set it to GitHub Actions' `GITHUB_RUN_NUMBER`, so distributed build numbers increase across workflow runs and may have gaps between releases.
 - Pull requests run the archive check and unit tests through `.github/workflows/archive-check.yml` and `.github/workflows/unit-tests.yml`. These PR workflows and the release workflow call `.github/workflows/xcode-build.yml`, sharing the `xcode-27` runner and Xcode 27.0 selection. The archive check stops after archiving, unit tests run the documented `xcodebuild test` command, and packaging and workflow artifact upload run only for releases.
 - The release workflow downloads the packaged app artifact and attaches it to the GitHub release.
