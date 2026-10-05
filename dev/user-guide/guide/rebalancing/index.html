@@ -57,6 +57,8 @@
       
     
     
+      <link rel="stylesheet" href="../../../assets/stylesheets/extra.css">
+    
     <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -1805,8 +1807,10 @@
 <p>The category table labels inputs (A), (B), (C), and so on. Result rows show formulas that reference those inputs. For Equities in this example, (A) is 60%, (B) is 700,000, and (C) is the combined remaining percentage weight of 90%. Its target balance is (B) × (A) ÷ (C), or approximately 466,666.67. Dividing that balance by the whole portfolio gives 46.67%.</p>
 <p>A target fixed at a minimum shows that minimum as the target. A minimum-only category shows the greater of its current balance and minimum. A 0% target receives only its minimum, or zero if none is set. Rounded results or inputs are indicated with <strong>≈</strong>; calculations retain their original Decimal precision. Unavailable plans show their reason without calculation rows, and zero-total portfolios show no percentage division.</p>
 <h4 id="minimum-assessment-one-currency">Minimum assessment: one currency<a class="headerlink" href="#minimum-assessment-one-currency" title="Permanent link">&para;</a></h4>
+<p>Click the status icon beside a category’s minimum to compare its requirement with the current balance and shortfall. When all amounts use the same currency, the popup shows the currency once in the table heading.</p>
 <p><img alt="Minimum assessment using a shared currency heading" src="../../../assets/images/rebalancing-minimum-help-context-en.png" /></p>
 <h4 id="minimum-assessment-different-currencies">Minimum assessment: different currencies<a class="headerlink" href="#minimum-assessment-different-currencies" title="Permanent link">&para;</a></h4>
+<p>When the minimum and display currencies differ, the popup shows the original requirement and its converted amount using the snapshot’s exchange rates. Currency codes beside each amount help you distinguish them.</p>
 <p><img alt="Minimum assessment with original and display currencies" src="../../../assets/images/rebalancing-minimum-help-mixed-context-en.png" /></p>
 <h2 id="when-a-plan-cannot-be-calculated">When a plan cannot be calculated<a class="headerlink" href="#when-a-plan-cannot-be-calculated" title="Permanent link">&para;</a></h2>
 <p><img alt="Rebalancing blocked when total minimums exceed portfolio value" src="../../../assets/images/rebalancing-insufficient-funds-en.png" /></p>
@@ -1846,7 +1850,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 5, 2026 10:09:44 UTC">October 5, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 5, 2026 19:12:04 UTC">October 5, 2026</span>
   </span>
 
     

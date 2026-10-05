@@ -57,6 +57,8 @@
       
     
     
+      <link rel="stylesheet" href="../../../../assets/stylesheets/extra.css">
+    
     <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -1805,8 +1807,10 @@
 <p>類別計算表格以 (A)、(B)、(C) 等字母標示輸入，結果列則顯示引用這些輸入的公式。以上例的股票而言，(A) 為 60%、(B) 為 700,000、(C) 為其餘類別目標比例合計 90%。目標餘額為 (B) × (A) ÷ (C)，約 466,666.67；再除以整體投資組合總值，即為 46.67%。</p>
 <p>最低餘額決定目標時，表格直接顯示該最低餘額。僅設定最低餘額的類別會比較目前餘額與最低餘額，取較高者；0% 目標僅分配最低餘額，未設定時則為零。輸入或結果經過顯示捨入時，結果以 <strong>≈</strong> 標示；實際計算保留原始 Decimal 精度。計畫無法計算時僅顯示原因；總值為零時不顯示比例除法。</p>
 <h4 id="%E6%9C%80%E4%BD%8E%E9%A4%98%E9%A1%8D%E8%A9%95%E4%BC%B0%E5%96%AE%E4%B8%80%E5%B9%A3%E5%88%A5">最低餘額評估：單一幣別<a class="headerlink" href="#%E6%9C%80%E4%BD%8E%E9%A4%98%E9%A1%8D%E8%A9%95%E4%BC%B0%E5%96%AE%E4%B8%80%E5%B9%A3%E5%88%A5" title="Permanent link">&para;</a></h4>
+<p>按類別最低餘額旁的狀態圖示，可比較最低餘額需求、目前餘額及缺口。所有金額使用相同幣別時，彈出視窗會在表格標題標示一次幣別。</p>
 <p><img alt="使用共同幣別標題的最低餘額評估" src="../../../../assets/images/rebalancing-minimum-help-context-zh.png" /></p>
 <h4 id="%E6%9C%80%E4%BD%8E%E9%A4%98%E9%A1%8D%E8%A9%95%E4%BC%B0%E4%B8%8D%E5%90%8C%E5%B9%A3%E5%88%A5">最低餘額評估：不同幣別<a class="headerlink" href="#%E6%9C%80%E4%BD%8E%E9%A4%98%E9%A1%8D%E8%A9%95%E4%BC%B0%E4%B8%8D%E5%90%8C%E5%B9%A3%E5%88%A5" title="Permanent link">&para;</a></h4>
+<p>最低餘額與顯示幣別不同時，彈出視窗會顯示原始需求，以及使用快照匯率換算後的金額。各金額旁的幣別代碼可協助您區分兩者。</p>
 <p><img alt="最低餘額評估中的原始幣別與顯示幣別" src="../../../../assets/images/rebalancing-minimum-help-mixed-context-zh.png" /></p>
 <h2 id="%E7%84%A1%E6%B3%95%E8%A8%88%E7%AE%97%E8%A8%88%E7%95%AB%E6%99%82">無法計算計畫時<a class="headerlink" href="#%E7%84%A1%E6%B3%95%E8%A8%88%E7%AE%97%E8%A8%88%E7%95%AB%E6%99%82" title="Permanent link">&para;</a></h2>
 <p><img alt="最低餘額需求合計超過投資組合總值時無法計算再平衡" src="../../../../assets/images/rebalancing-insufficient-funds-zh.png" /></p>
@@ -1846,7 +1850,7 @@
     <span class="md-icon" title="最後更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年10月5日 10:09:44 UTC">2026年10月5日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年10月5日 19:12:04 UTC">2026年10月5日</span>
   </span>
 
     

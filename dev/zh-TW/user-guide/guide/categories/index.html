@@ -57,6 +57,8 @@
       
     
     
+      <link rel="stylesheet" href="../../../../assets/stylesheets/extra.css">
+    
     <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -894,6 +896,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="類別清單與詳細資訊">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#%E9%96%B1%E8%AE%80%E9%A1%9E%E5%88%A5%E6%B8%85%E5%96%AE" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        閱讀類別清單
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#%E6%AA%A2%E8%A6%96%E9%A1%9E%E5%88%A5%E8%A9%B3%E7%B4%B0%E8%B3%87%E8%A8%8A" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        檢視類別詳細資訊
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1509,6 +1539,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="類別清單與詳細資訊">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#%E9%96%B1%E8%AE%80%E9%A1%9E%E5%88%A5%E6%B8%85%E5%96%AE" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        閱讀類別清單
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#%E6%AA%A2%E8%A6%96%E9%A1%9E%E5%88%A5%E8%A9%B3%E7%B4%B0%E8%B3%87%E8%A8%8A" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        檢視類別詳細資訊
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1637,15 +1695,18 @@
 <p>目標比例用於分配扣除保留餘額後的 <strong>可配置資產總額</strong>。未設定目標比例的類別會保留目前餘額；只設定最低餘額的類別會保留多餘資金，或需要補足至最低餘額。未分類資產也會保留。</p>
 <p>目標比例合計必須為 100%，才能產生比例再平衡建議。您可以逐步儲存設定；只設定最低餘額的類別不需要比例。明確設定 0% 與留空不同：0% 的調整後目標為最低餘額，未設定最低餘額時則為零。</p>
 <h2 id="%E9%A1%9E%E5%88%A5%E6%B8%85%E5%96%AE%E8%88%87%E8%A9%B3%E7%B4%B0%E8%B3%87%E8%A8%8A">類別清單與詳細資訊<a class="headerlink" href="#%E9%A1%9E%E5%88%A5%E6%B8%85%E5%96%AE%E8%88%87%E8%A9%B3%E7%B4%B0%E8%B3%87%E8%A8%8A" title="Permanent link">&para;</a></h2>
-<p><img alt="類別清單中的已達最低餘額與最低餘額缺口" src="../../../../assets/images/category-list-minimum-zh.png" /></p>
-<p><img alt="包含目標比例及最低餘額的類別詳細資訊" src="../../../../assets/images/category-minimum-zh.png" /></p>
+<h3 id="%E9%96%B1%E8%AE%80%E9%A1%9E%E5%88%A5%E6%B8%85%E5%96%AE">閱讀類別清單<a class="headerlink" href="#%E9%96%B1%E8%AE%80%E9%A1%9E%E5%88%A5%E6%B8%85%E5%96%AE" title="Permanent link">&para;</a></h3>
 <p>最低餘額金額與其他類別附加資訊採用一致的次要文字樣式。各列顯示目前價值、標示為「目前」及「調整後目標」的整體投資組合比例、可配置資產目標比例、資產數量，以及最低餘額狀態。缺口以顯示幣別呈現；缺少匯率時會顯示無法評估，而不是零。沒有資產的類別也可以有最低餘額需求。</p>
+<p><img alt="類別清單中的已達最低餘額與最低餘額缺口" src="../../../../assets/images/category-list-minimum-zh.png" /></p>
 <p>有<strong>任何最低餘額缺口</strong>，或目前比例與調整後目標相差<strong>超過 5 個百分點</strong>時，會顯示警示圖示。將游標移至圖示可查看適用原因。可配置資產目標是您設定的偏好；調整後目標則是考量最低餘額與受保護餘額後的結果。</p>
 <p>僅設定最低餘額的類別會在計畫可行時顯示調整後比例，並保留超過最低餘額的部分。沒有目標的類別不顯示調整後目標。計畫無法計算或不可行時，調整後目標會顯示破折號；可確認的最低餘額缺口仍會顯示警示。投資組合總值為零時，比例無法計算。資料變更或匯率更新會自動更新畫面，不會丟棄尚未儲存的類別編輯。</p>
-<p>選取類別可檢視資產、編輯目標，以及查看價值與比例歷史。拖曳類別可調整順序。必須先重新指派所有資產，才能刪除類別。</p>
+<p>拖曳類別可調整順序。必須先重新指派所有資產，才能刪除類別。</p>
+<h3 id="%E6%AA%A2%E8%A6%96%E9%A1%9E%E5%88%A5%E8%A9%B3%E7%B4%B0%E8%B3%87%E8%A8%8A">檢視類別詳細資訊<a class="headerlink" href="#%E6%AA%A2%E8%A6%96%E9%A1%9E%E5%88%A5%E8%A9%B3%E7%B4%B0%E8%B3%87%E8%A8%8A" title="Permanent link">&para;</a></h3>
+<p>選取類別可檢視資產、編輯目標比例及最低餘額，以及查看價值與比例歷史。目標設定顯示於資產清單上方。</p>
+<p><img alt="包含目標比例及最低餘額的類別詳細資訊" src="../../../../assets/images/category-minimum-zh.png" /></p>
 <h2 id="%E6%AD%B7%E5%8F%B2%E8%88%87%E5%B9%A3%E5%88%A5">歷史與幣別<a class="headerlink" href="#%E6%AD%B7%E5%8F%B2%E8%88%87%E5%B9%A3%E5%88%A5" title="Permanent link">&para;</a></h2>
-<p><img alt="三個快照中的類別餘額與目前最低餘額比較" src="../../../../assets/images/category-minimum-history-zh.png" /></p>
 <p>價值歷史中的橘色線會使用各快照匯率，比較 <strong>目前設定的最低餘額</strong>。缺少匯率時比較線會中斷。這不代表目前的最低餘額在當時已經生效。歷史價值也依目前的類別指派計算。</p>
+<p><img alt="三個快照中的類別餘額與目前最低餘額比較" src="../../../../assets/images/category-minimum-history-zh.png" /></p>
 <p>比例歷史和儀表板圓餅圖仍顯示占整體投資組合的比例；可配置資產目標比例不會直接作為整體比例的參考線。缺少目標幣別匯率不會隱藏其他可正常計算的資產價值或投資組合圖表。</p>
 <h2 id="%E5%8F%A6%E8%AB%8B%E5%8F%83%E9%96%B1">另請參閱<a class="headerlink" href="#%E5%8F%A6%E8%AB%8B%E5%8F%83%E9%96%B1" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1675,7 +1736,7 @@
     <span class="md-icon" title="最後更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年10月5日 10:09:44 UTC">2026年10月5日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年10月5日 19:12:04 UTC">2026年10月5日</span>
   </span>
 
     
