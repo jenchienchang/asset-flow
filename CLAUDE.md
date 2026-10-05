@@ -38,6 +38,8 @@ All models registered in `SchemaV2` (`Models/SchemaVersioning.swift`). When addi
 
 ## Documentation
 
+Do not modify `CHANGELOG.md`; Release Please generates and maintains it.
+
 Source of truth: `Documentation/SPEC.md`. Design docs in `Documentation/`: Architecture, DataModel, DevelopmentGuide, CodeStyle, TestingStrategy, UserInterfaceDesign, BusinessLogic, SecurityAndPrivacy, APIDesign.
 
 Before completing any task, review and update affected docs. Key mappings:
