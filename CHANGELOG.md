@@ -2,19 +2,17 @@
 
 ## [0.8.0](https://github.com/jenchienchang/asset-flow/compare/v0.7.1...v0.8.0) (2026-10-09)
 
-
 ### ⚠ BREAKING CHANGES
 
-* **goals:** Percentage goals apply to funds remaining after protected balances. New v4 backups require this version or later.
+- **goals:** Percentage goals apply to funds remaining after protected balances. New v4 backups require this version or later.
 
 ### Features
 
-* **goals:** add minimum balances and constrained rebalancing ([e3191c0](https://github.com/jenchienchang/asset-flow/commit/e3191c001b1b4430c09d1676174ca2666b0fbf3b))
-
+- **goals:** add minimum balances and constrained rebalancing ([e3191c0](https://github.com/jenchienchang/asset-flow/commit/e3191c001b1b4430c09d1676174ca2666b0fbf3b))
 
 ### Bug Fixes
 
-* **release:** synchronize and verify xcode marketing versions ([69b66f8](https://github.com/jenchienchang/asset-flow/commit/69b66f801eb11418ea76241ff4fa1a14a374a1fd))
+- **release:** synchronize and verify xcode marketing versions ([69b66f8](https://github.com/jenchienchang/asset-flow/commit/69b66f801eb11418ea76241ff4fa1a14a374a1fd))
 
 ## [0.7.1](https://github.com/jenchienchang/asset-flow/compare/v0.7.0...v0.7.1) (2026-10-02)
 
