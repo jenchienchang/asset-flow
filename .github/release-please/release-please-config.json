@@ -3,13 +3,7 @@
   "packages": {
     ".": {
       "release-type": "simple",
-      "bump-minor-pre-major": true,
-      "extra-files": [
-        {
-          "type": "generic",
-          "path": "AssetFlow.xcodeproj/project.pbxproj"
-        }
-      ]
+      "bump-minor-pre-major": true
     }
   }
 }

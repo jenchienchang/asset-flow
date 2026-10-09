@@ -744,7 +744,8 @@ ______________________________________________________________________
 
 ## App Version and Build Metadata
 
-- `version.txt` is the release-please source for the marketing version. The generic extra-file updater keeps the app target's Xcode `MARKETING_VERSION` settings in sync. Xcode generates `CFBundleShortVersionString` from that setting, and the build script does not override it.
+- `version.txt` is authoritative. Release PR automation runs `scripts/release_version.py sync` and commits the app target's `MARKETING_VERSION` settings. The script resolves configurations through macOS `plutil`, preserves project formatting and verifies that only the selected settings changed before writing. It rejects malformed versions, ambiguous targets, missing required configurations and conditional version overrides. Xcode generates `CFBundleShortVersionString` normally; commit metadata injection does not override it.
+- The script's `check` command verifies all app configurations; `archive PATH` reads `Products/Applications/AssetFlow.app/Contents/Info.plist` and rejects a missing or mismatched version without modifying the archive. CI checks the finished app before packaging, detecting incorrect effective build-setting overrides. `version` prints the validated artifact filename version. See [DevelopmentGuide.md](DevelopmentGuide.md#app-version-metadata) for workflow and local usage.
 - Local builds use the numeric `CURRENT_PROJECT_VERSION` set in Xcode. The release archive workflow overrides it with `GITHUB_RUN_NUMBER`, so distributed build numbers increase across workflow runs and may have gaps between releases. Xcode generates `CFBundleVersion` from this setting.
 - The **"Inject Commit Metadata"** `PBXShellScriptBuildPhase` runs after the Resources phase on every build (not deploy-only). It writes the first eight characters of the Git revision to the built product's `Info.plist` under the custom `AppCommit` key:
 

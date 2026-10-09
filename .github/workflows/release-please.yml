@@ -31,8 +31,42 @@ jobs:
           config-file: .github/release-please/release-please-config.json
           manifest-file: .github/release-please/.release-please-manifest.json
 
-  format-release-pr:
+  synchronize-release-pr:
     needs: release-please
+    if: ${{ needs.release-please.outputs.prs_created == 'true' }}
+    runs-on: xcode-27
+    permissions:
+      contents: write
+    env:
+      RELEASE_PR_BRANCH: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+    steps:
+      - name: Checkout release PR
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ env.RELEASE_PR_BRANCH }}
+
+      - name: Synchronize Xcode versions
+        run: python3 scripts/release_version.py sync
+
+      - name: Commit synchronized versions
+        run: |
+          if ! git diff --quiet -- AssetFlow.xcodeproj/project.pbxproj; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add AssetFlow.xcodeproj/project.pbxproj
+            git commit \
+              -m "chore(release): synchronize Xcode marketing versions" \
+              -m "Derive app target versions from version.txt without project markers."
+            git push origin "HEAD:$RELEASE_PR_BRANCH"
+          fi
+
+      - name: Verify project versions
+        run: python3 scripts/release_version.py check
+
+  format-release-pr:
+    needs:
+      - release-please
+      - synchronize-release-pr
     if: ${{ needs.release-please.outputs.prs_created == 'true' }}
     runs-on: ubuntu-24.04
     steps:
@@ -143,6 +177,9 @@ jobs:
             git commit -m "style: format release files with pre-commit"
             git push
           fi
+
+      - name: Verify pre-commit checks
+        run: pre-commit run --all-files
 
   deploy-docs:
     needs: release-please
