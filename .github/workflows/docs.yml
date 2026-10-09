@@ -22,12 +22,18 @@ jobs:
           fetch-depth: 0
           lfs: true
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          cache-dependency-glob: uv.lock
 
       - name: Install dependencies
-        run: uv sync --only-group docs
+        run: uv sync --locked --only-group docs
 
       - name: Configure Git user
         run: |
@@ -35,5 +41,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Deploy dev docs
-        run: uv run mike deploy --push --update-aliases dev
+        run: uv run --locked --only-group docs mike deploy --push --update-aliases dev
 

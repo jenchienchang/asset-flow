@@ -45,6 +45,11 @@ jobs:
         with:
           ref: ${{ env.RELEASE_PR_BRANCH }}
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
       - name: Synchronize Xcode versions
         run: python3 scripts/release_version.py sync
 
@@ -73,6 +78,11 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
 
       - name: Resolve SwiftLint release
         id: swiftlint
@@ -156,15 +166,17 @@ jobs:
       - name: Add tools to PATH
         run: echo "$HOME/lint-tools" >> $GITHUB_PATH
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install development dependencies
+        run: uv sync --locked --only-group dev
 
       - name: Run pre-commit auto-fix
-        run: |
-          pip install pre-commit
-          pre-commit run --all-files || true
+        run: uv run --locked --group dev pre-commit run --all-files || true
 
       - name: Commit formatting fixes
         run: |
@@ -179,7 +191,7 @@ jobs:
           fi
 
       - name: Verify pre-commit checks
-        run: pre-commit run --all-files
+        run: uv run --locked --group dev pre-commit run --all-files
 
   deploy-docs:
     needs: release-please
@@ -193,12 +205,18 @@ jobs:
           fetch-depth: 0
           lfs: true
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          cache-dependency-glob: uv.lock
 
       - name: Install dependencies
-        run: uv sync --only-group docs
+        run: uv sync --locked --only-group docs
 
       - name: Configure Git user
         run: |
@@ -207,8 +225,8 @@ jobs:
 
       - name: Deploy versioned docs
         run: |
-          uv run mike deploy --push --update-aliases ${{ needs.release-please.outputs.tag_name }} latest
-          uv run mike set-default --push latest
+          uv run --locked --only-group docs mike deploy --push --update-aliases ${{ needs.release-please.outputs.tag_name }} latest
+          uv run --locked --only-group docs mike set-default --push latest
 
   build-and-upload:
     needs: release-please

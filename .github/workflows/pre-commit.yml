@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v7.0.1
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: .python-version
     - name: Resolve SwiftLint release
       id: swiftlint
       env:
@@ -90,4 +94,17 @@ jobs:
         chmod +x ~/lint-tools/swift-format
     - name: Add tools to PATH
       run: echo "$HOME/lint-tools" >> $GITHUB_PATH
-    - uses: pre-commit/action@v3.0.1
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+        cache-dependency-glob: uv.lock
+    - name: Install development dependencies
+      run: uv sync --locked --only-group dev
+    - name: Cache pre-commit environments
+      uses: actions/cache@v6.1.0
+      with:
+        path: ~/.cache/pre-commit
+        key: pre-commit-${{ runner.os }}-${{ hashFiles('.python-version', '.pre-commit-config.yaml', 'uv.lock') }}
+    - name: Run pre-commit checks
+      run: uv run --locked --group dev pre-commit run --all-files

@@ -10,6 +10,7 @@ Code style is enforced through:
 
 - **`swift-format`**: Automated code formatting. Configuration in `.swift-format`.
 - **`SwiftLint`**: Static analysis for stylistic and convention-based rules. Configuration in `.swiftlint.yml`.
+- **Python type checking**: Pyright resolves dependencies from the repo-local `.venv`, configured by `venvPath = "."` and `venv = ".venv"` in `pyproject.toml`. Pre-commit hook environments are separate from this dependency environment.
 - **EditorConfig**: Editor settings (`.editorconfig`)
 - **Pre-commit hooks**: Automated checks before commits (`.pre-commit-config.yaml`)
 

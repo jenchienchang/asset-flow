@@ -65,6 +65,12 @@ Before you begin development, ensure you have the following installed:
    - Debug builds produce `AssetFlow-Debug.app`; Release builds produce `AssetFlow.app`, allowing both builds to coexist in separate locations.
    - To review the dashboard with disposable sample assets and snapshots, add `--preview-data` under the Run scheme's **Arguments Passed On Launch**. This Debug-only mode uses an in-memory store and does not modify saved portfolio data.
 
+### Python Runtime and Environment
+
+The root `.python-version` pins Python 3.12 for local uv commands and every GitHub Actions job that runs Python. Workflows use `actions/setup-python` with `python-version-file: .python-version`, including jobs that call `python3` directly. uv creates the repo-local `.venv` using the same pin.
+
+CI installs development or documentation dependencies with `uv sync --locked --only-group dev` or `uv sync --locked --only-group docs`, then runs tools through `uv run --locked` with the matching group. All uv workflow steps enable dependency caching keyed by `uv.lock`; pre-commit hook environments are cached separately with keys that also include `.python-version` and `.pre-commit-config.yaml`.
+
 ### App Version Metadata
 
 - `version.txt` is the authoritative marketing version, using three numeric components (for example, `0.7.1`). Release Please's config and release-bookkeeping manifest are in `.github/release-please/`. Automation first synchronizes and commits all app target `MARKETING_VERSION` settings from `version.txt`, without replacement comments. Release PR formatting then runs on the synchronized branch, commits any fixes, and runs pre-commit again; remaining failures fail the job. Xcode generates `CFBundleShortVersionString` normally for Debug, Release and Testing.
@@ -169,6 +175,8 @@ uv run pre-commit run mdformat --all-files
 ### 3. Pre-Commit Checks
 
 Pre-commit hooks are configured in `.pre-commit-config.yaml` and run automatically on `git commit`:
+
+Run local checks through `uv run pre-commit run --all-files`. Although pre-commit itself runs in the repo-local `.venv`, its hooks use isolated environments. Pyright is configured to resolve project dependencies from `.venv`. Both the Pre-commit Checks workflow and release PR formatting job install the locked uv `dev` group before running checks, with uv caching keyed by `uv.lock`.
 
 **Automated Checks**:
 
