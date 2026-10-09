@@ -321,12 +321,15 @@ struct CategoryGoalViewModelTests {
     let end = try #require(
       source.range(of: "// MARK: - Detail Pane", range: start.upperBound..<source.endIndex))
     let sidebar = String(source[start.lowerBound..<end.lowerBound])
-    #expect(!sidebar.contains("categoryEditingSession.editor = nil"))
-    #expect(source.contains(".onChange(of: selectedSection)"))
-    #expect(source.contains(".onChange(of: selectedCategory.map(ObjectIdentifier.init))"))
+    // Source contracts should survive formatter changes to indentation and line wrapping.
+    let normalizedSource = source.filter { !$0.isWhitespace }
+    let normalizedSidebar = sidebar.filter { !$0.isWhitespace }
+    #expect(!normalizedSidebar.contains("categoryEditingSession.editor=nil"))
+    #expect(normalizedSource.contains(".onChange(of:selectedSection)"))
+    #expect(normalizedSource.contains(".onChange(of:selectedCategory.map(ObjectIdentifier.init))"))
     #expect(
-      source.contains(
-        "categoryEditingSession.updateVisibleCategory(selectedSection == .categories ? selectedCategory : nil)"
+      normalizedSource.contains(
+        "categoryEditingSession.updateVisibleCategory(selectedSection==.categories?selectedCategory:nil)"
       ))
   }
 
