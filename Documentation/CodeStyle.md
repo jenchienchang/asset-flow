@@ -10,6 +10,7 @@ Code style is enforced through:
 
 - **`swift-format`**: Automated code formatting. Configuration in `.swift-format`.
 - **`SwiftLint`**: Static analysis for stylistic and convention-based rules. Configuration in `.swiftlint.yml`.
+- **Python formatting**: Pre-commit runs isort before Black. isort uses `profile = "black"` in `pyproject.toml` to match Black's default 88-character line length and import wrapping, preventing conflicting formatting changes.
 - **Python type checking**: Pyright resolves dependencies from the repo-local `.venv`, configured by `venvPath = "."` and `venv = ".venv"` in `pyproject.toml`. Pre-commit hook environments are separate from this dependency environment.
 - **EditorConfig**: Editor settings (`.editorconfig`)
 - **Pre-commit hooks**: Automated checks before commits (`.pre-commit-config.yaml`)
