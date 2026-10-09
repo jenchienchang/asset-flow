@@ -175,6 +175,12 @@ jobs:
       - name: Install development dependencies
         run: uv sync --locked --only-group dev
 
+      - name: Cache pre-commit environments
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.python-version', '.pre-commit-config.yaml', 'uv.lock') }}
+
       - name: Run pre-commit auto-fix
         run: uv run --locked --group dev pre-commit run --all-files || true
 

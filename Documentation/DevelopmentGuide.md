@@ -193,6 +193,8 @@ Pre-commit hooks are configured in `.pre-commit-config.yaml` and run automatical
 
 Run local checks through `uv run pre-commit run --all-files`. Although pre-commit itself runs in the repo-local `.venv`, its hooks use isolated environments. Pyright is configured to resolve project dependencies from `.venv`. Both the Pre-commit Checks workflow and release PR formatting job install the locked uv `dev` group before running checks, with uv caching keyed by `uv.lock`.
 
+Both jobs restore `~/.cache/pre-commit` before running hooks, using the same cache key based on the runner OS, `.python-version`, `.pre-commit-config.yaml` and `uv.lock`. On a cache miss, pre-commit installs the hook environments and `actions/cache` saves them after a successful job. Release PR auto-fix and final verification reuse those environments within the job.
+
 **Automated Checks**:
 
 - **Swift formatting**: Formats Swift code with swift-format
