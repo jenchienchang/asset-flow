@@ -4,15 +4,23 @@
 
 This document outlines the testing strategy for AssetFlow, which prioritizes **unit and ViewModel testing** to ensure logical correctness and maintain a fast, reliable test suite.
 
-The project uses the **Swift Testing** framework (`import Testing`) for all tests, with `@Suite`, `@Test`, `#expect()`, and `#require()` macros. XCTest is NOT used.
+The app uses the **Swift Testing** framework (`import Testing`) for its tests, with `@Suite`, `@Test`, `#expect()`, and `#require()` macros. XCTest is NOT used. Repository Python scripts use pytest.
 
 The app and test targets use the Swift 6 language mode with complete concurrency checking. A successful test run requires both compilation without Swift concurrency diagnostics and passing Swift Testing assertions; tests are run on macOS because SwiftData and the application target are macOS-only.
 
-GitHub Actions runs the unit test suite on every pull request through `.github/workflows/unit-tests.yml`. The workflow uses the shared Xcode build workflow and runs `xcodebuild test -project AssetFlow.xcodeproj -scheme AssetFlow -destination 'platform=macOS'`.
+GitHub Actions runs the unit test suites on every pull request through `.github/workflows/unit-tests.yml`. The Swift job uses the shared Xcode build workflow and runs `xcodebuild test -project AssetFlow.xcodeproj -scheme AssetFlow -destination 'platform=macOS'`. A separate macOS job runs Python script tests using the repo-local uv venv and a dependency cache keyed by `uv.lock`.
 
 Currency conversion tests cover both numeric correctness and availability semantics. Exchange-rate fetch tests use a mock `URLSession` to verify fixed Gregorian API dates, rejection of empty, invalid, and wrong-date responses, complete currency coverage before caching, replacement of malformed and wrong-date cached data, request coalescing, prompt cancellation of an individual coalesced waiter while another continues, and protection against cache mutation after cancellation. Conversion tests also verify that wrong-date records and missing rates produce native-currency totals plus an explicit unavailable status rather than a mixed-currency display total. Dashboard ViewModel tests verify that a historical pie-chart selection reports the selected snapshot's availability even when the latest snapshot is complete. Persistence failure tests inject a `ModelFetching` double and verify that fetch errors propagate, list ViewModels expose `DataLoadState.failed`, the snapshot list does not trust an empty query result, and snapshot creation performs no mutation after a required read fails.
 
 After careful consideration, the project has opted to **forgo UI testing**. A comprehensive suite of tests at the ViewModel and Service layers provides sufficient confidence in application behavior while avoiding the brittleness and maintenance overhead of UI tests.
+
+### Python Script Tests
+
+Run `uv run pytest` from the repository root. Pytest belongs to the default uv `dev` group, and root configuration discovers `scripts/tests/` and makes modules in `scripts/` importable. Name suites `test_<script>.py`, use independent tests and pytest temporary-directory fixtures, and parameterize related input cases. Use `sys.executable` for CLI subprocesses so they use the same uv venv as pytest.
+
+`scripts/tests/test_release_version.py` exercises `scripts/release_version.py` through its CLI. It covers marker-free synchronization with remapped app configuration IDs, preservation of unrelated project data, no-op updates, missing/quoted settings, invalid versions, conditional overrides, missing targets/configurations and malformed project data. Archive fixtures cover XML/binary plists and rejection of missing, malformed or mismatched version data without modifying archives. Tests require macOS for `plutil`; the release-version suite skips on other platforms.
+
+These tests validate script behavior. Build workflows separately run `release_version.py check` against the actual project and `release_version.py archive` against the finished app. Pytest is part of the Unit Tests workflow, independent of archive and release jobs. Fixture tests do not establish hosted workflow execution or signing behavior.
 
 ### Query-Driven Data Refresh
 

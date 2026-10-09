@@ -11,7 +11,7 @@ Before you begin development, ensure you have the following installed:
 - **Git** (for version control)
 - **[Git LFS](https://git-lfs.com/)** (for documentation screenshot images)
 - **Homebrew** (recommended for tool installation)
-- **[uv](https://docs.astral.sh/uv/)** (Python package manager for pre-commit and docs dependencies)
+- **[uv](https://docs.astral.sh/uv/)** (Python package manager for pre-commit, pytest and docs dependencies)
 
 ### Required Tools
 
@@ -19,6 +19,7 @@ Before you begin development, ensure you have the following installed:
 - **SwiftLint** - Code style enforcement
 - **uv** - Python virtual environment and package manager
 - **pre-commit** - Git hooks for automation (installed via uv venv)
+- **pytest** - Python script tests (installed via uv `dev` group)
 - **[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/)** - Documentation site (installed via uv `docs` group)
 
 ### Initial Setup
@@ -48,7 +49,7 @@ Before you begin development, ensure you have the following installed:
    git lfs install
    git lfs pull
 
-   # Set up pre-commit in a project-local uv virtual environment
+   # Set up development tools in a project-local uv virtual environment
    uv sync
    uv run pre-commit install
    ```
@@ -171,6 +172,20 @@ swiftlint --fix
 # Format markdown only
 uv run pre-commit run mdformat --all-files
 ```
+
+### Python Script Tests
+
+From the repository root on macOS, run:
+
+```bash
+uv run pytest
+```
+
+Pytest is part of the default uv `dev` group. uv synchronizes the project-local `.venv` automatically, and pytest discovers tests in `scripts/tests/` using the root `pyproject.toml`. To run only the release-version suite, use `uv run pytest scripts/tests/test_release_version.py`.
+
+The release-version tests require macOS because they exercise `/usr/bin/plutil`. They use temporary project and archive fixtures, leaving the real project untouched. See [TestingStrategy.md](TestingStrategy.md#python-script-tests) for coverage and conventions.
+
+The Unit Tests workflow runs Python tests in a separate macOS job alongside Swift tests. `astral-sh/setup-uv` enables dependency caching keyed by `uv.lock`; each job creates its own `.venv` with `uv sync --locked --only-group dev` and runs `uv run --locked --group dev python -m pytest`. The cache stores uv downloads, rather than the virtual environment.
 
 ### 3. Pre-Commit Checks
 

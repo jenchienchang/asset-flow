@@ -145,6 +145,11 @@ buildServer.json
 # Python virtual environment (uv)
 .venv/
 
+# Python test and bytecode caches
+.pytest_cache/
+__pycache__/
+*.py[cod]
+
 # Custom additions for AssetFlow
 *.swp
 *.swo
