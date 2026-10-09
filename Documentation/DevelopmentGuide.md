@@ -68,9 +68,15 @@ Before you begin development, ensure you have the following installed:
 
 ### Python Runtime and Environment
 
-The root `.python-version` pins Python 3.12 for local uv commands and every GitHub Actions job that runs Python. Workflows use `actions/setup-python` with `python-version-file: .python-version`, including jobs that call `python3` directly. uv creates the repo-local `.venv` using the same pin.
+The root `.python-version` specifies the required Python version for local uv commands and every GitHub Actions job that runs Python. Workflows use `actions/setup-python` with `python-version-file: .python-version`, including jobs that call `python3` directly. uv creates the repo-local `.venv` using the same pin.
 
 CI installs development or documentation dependencies with `uv sync --locked --only-group dev` or `uv sync --locked --only-group docs`, then runs tools through `uv run --locked` with the matching group. All uv workflow steps enable dependency caching keyed by `uv.lock`; pre-commit hook environments are cached separately with keys that also include `.python-version` and `.pre-commit-config.yaml`.
+
+### GitHub Workflow Maintenance
+
+Read `.github/workflows/AGENTS.md` before editing workflows. Action references in the workflow files are the version source of truth; all occurrences of an action must use the same reference and be upgraded together.
+
+`.github/dependabot.yml` configures weekly `github-actions` version updates for the repository. Updates use a conventional `ci` commit prefix with dependency scope and remain separate by dependency. Review compatibility, action-reference consistency and CI results before merging. Dependabot starts managing updates after the configuration reaches the default branch. It does not enforce consistency after manual edits; check all workflow references during review.
 
 ### App Version Metadata
 

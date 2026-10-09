@@ -62,7 +62,8 @@ Before completing any task, review and update affected docs. Key mappings:
 - `swift-format` (config: `.swift-format`) and `SwiftLint` (config: `.swiftlint.yml`)
 - **Python dependencies**: Use `uv add --group <group> <package>` to add dependencies (never edit dependency declarations in `pyproject.toml` directly). Groups: `dev` (pre-commit/pytest), `docs` (mkdocs/mike)
 - Pre-commit runs from a project-local uv venv (`.venv/`). Setup: `uv sync && uv run pre-commit install`
-- Python uses the shared `.python-version` pin (3.12) for the repo-local uv venv and every GitHub Actions job that runs Python. CI uses locked uv dependency groups with caching keyed by `uv.lock`.
+- Python uses the shared `.python-version` pin for the repo-local uv venv and every GitHub Actions job that runs Python. CI uses locked uv dependency groups with caching keyed by `uv.lock`.
+- Before editing GitHub workflows, read `.github/workflows/AGENTS.md`. Action versions are maintained in workflow references and updated through `.github/dependabot.yml`.
 - Pre-commit hooks run both automatically. Manual: `uv run pre-commit run --all-files`
 - Fix all compilation warnings before committing — treat warnings as errors
 
