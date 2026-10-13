@@ -1,637 +1,176 @@
-# Data Model Documentation
+# Data Model
 
-## Overview
+AssetFlow stores portfolio state as dated snapshots, not as a transaction ledger. This document defines the six SwiftData entities, their relationships, and the integrity and migration rules for the stored graph. [SPEC.md](SPEC.md) defines intended product behavior, [BusinessLogic.md](BusinessLogic.md) owns calculations and allocation policy, and [APIDesign.md](APIDesign.md) owns backup and CSV formats.
 
-AssetFlow uses SwiftData for type-safe, modern data persistence on macOS 15.0+. The data model is designed around a **snapshot-based portfolio tracking** approach, where portfolio state is captured at discrete points in time rather than derived from transaction history.
+## Persistence Boundaries
 
-This document provides comprehensive documentation for all data models, including property definitions, relationships, uniqueness constraints, SwiftData configuration, validation rules, and usage examples.
+| Data                                                                           | Storage                                                              | Boundary                                                                                             |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Categories, assets, snapshots, recorded values, cash flows, exchange rates     | SwiftData, using `CurrentSchema.schema`                              | The six versioned models below form the persistent portfolio graph.                                  |
+| Display preferences, platform order, stale-asset visibility, app-lock settings | `UserDefaults` through `SettingsService` and `AuthenticationService` | These are not SwiftData models. The backup format includes only some preferences.                    |
+| Downloaded currency list                                                       | `UserDefaults` through `CurrencyService`                             | A reusable currency-list cache, separate from snapshot exchange-rate records.                        |
+| Decoded exchange-rate dictionary                                               | `ExchangeRate._cachedRates`, marked `@Transient`                     | An in-memory cache rebuilt from persisted `ratesJSON` and cleared on rate updates.                   |
+| Backup manifest and records                                                    | ZIP transfer data produced by `BackupService`                        | A serialized copy of selected data, not a second live model store; see [APIDesign.md](APIDesign.md). |
 
-## Core Principles
+Money amounts, percentage targets, and exchange rates use `Decimal`; no model stores monetary values as `Float` or `Double`. A target percentage is stored on the 0–100 scale, while a minimum amount is denominated in its paired currency. Asset and cash-flow currencies are strings; an empty string means that conversion uses the current display currency. This inherited currency is distinct from a missing exchange rate. See [BusinessLogic.md](BusinessLogic.md) for conversion and result-availability rules.
 
-### Snapshot-Based Design
+`UUID` properties identify Category, Asset, Snapshot, and CashFlowOperation records in application and backup data. `SnapshotAssetValue` and `ExchangeRate` use relationships for their identity in the graph. SwiftData also gives persistent models its own `persistentModelID`; the `#Unique` declarations below identify the actual model-level uniqueness keys. Portfolio totals, converted values, net cash flow, category assessments, and rebalancing targets are derived rather than stored.
 
-The data model captures portfolio state through snapshots rather than transactions:
-
-- **Snapshots** represent the best-known portfolio state at a specific date
-- **SnapshotAssetValues** record market values of assets within a snapshot
-- **CashFlowOperations** record external money flows for return calculations
-
-### Financial Data Precision
-
-- **Always use `Decimal`** for monetary values (never `Float` or `Double`)
-- Prevents floating-point rounding errors in financial calculations
-- Per-asset native currency tracking with automatic exchange rate conversion
-- Currency-aware formatting via extensions
-- `Decimal` is natively supported by SwiftData (via Foundation's `NSDecimalNumber` bridging) -- no explicit `@Attribute(.transformable)` annotation is needed
-
-### Relationship Design
-
-- Clear parent-child relationships
-- Cascade delete rules for snapshot data integrity
-- SwiftData relationships for entity references
-- Uniqueness constraints enforced at the model level
-
-### Schema Management
-
-- Current models registered via `SchemaV2` (versioned schema) in `Models/SchemaVersioning.swift`
-- `SchemaV2: VersionedSchema` defines current model types with `versionIdentifier = Schema.Version(2, 0, 0)`; V1 remains frozen for migration
-- `destroyExistingStore()` fallback handles dev database incompatibility
-- When adding models, update `SchemaV2.models`, this documentation, and `Models/README.md`
-
-## Model Entities
+## Entities
 
 ### Category
 
-Represents a user-defined grouping for assets (e.g., "Equities", "Bonds", "Cash") with an optional target allocation percentage for rebalancing.
+A Category groups assets and retains the user's display order. A category may have a percentage target, a currency-denominated minimum, both, or neither. See [Category.swift](../AssetFlow/Models/Category.swift).
 
-**File**: `AssetFlow/Models/Category.swift`
+| Property                     | Type       | Stored meaning                             | Initial value                       |
+| ---------------------------- | ---------- | ------------------------------------------ | ----------------------------------- |
+| `id`                         | `UUID`     | Application identifier                     | New UUID                            |
+| `name`                       | `String`   | Display name                               | Required initializer argument       |
+| `targetAllocationPercentage` | `Decimal?` | Percentage target, 0–100 when present      | `nil`                               |
+| `minimumBalanceAmount`       | `Decimal?` | Minimum amount in `minimumBalanceCurrency` | `nil`                               |
+| `minimumBalanceCurrency`     | `String?`  | Original currency of the minimum           | `nil`                               |
+| `displayOrder`               | `Int`      | User-defined category order                | `0`                                 |
+| `assets`                     | `[Asset]?` | Inverse of `Asset.category`                | Empty collection in the initializer |
 
-#### Properties
+Application validation requires a nonempty name, checks name conflicts without case, and validates a present percentage as finite and within 0–100. Minimum amount and currency must be present together or both absent. A present minimum must be finite and nonnegative; zero is valid. The category editing path stores the selected currency in uppercase and preserves that denomination when display currency changes. These are application-enforced invariants, not guarantees implied by the optional Swift properties alone. See [CategoryGoalValidator.swift](../AssetFlow/Services/CategoryGoalValidator.swift).
 
-| Property                     | Type       | Description                                     | Required |
-| ---------------------------- | ---------- | ----------------------------------------------- | -------- |
-| `id`                         | `UUID`     | Primary key                                     | Yes      |
-| `name`                       | `String`   | Display name (unique, case-insensitive)         | Yes      |
-| `targetAllocationPercentage` | `Decimal?` | Pool preference (0-100), optional               | No       |
-| `minimumBalanceAmount`       | `Decimal?` | Finite nonnegative minimum, optional            | No       |
-| `minimumBalanceCurrency`     | `String?`  | Explicit original currency, paired with minimum | No       |
-| `displayOrder`               | `Int`      | User-defined sort order (default: 0)            | Yes      |
-
-#### Relationships
-
-```swift
-@Relationship(deleteRule: .deny, inverse: \Asset.category)
-var assets: [Asset]?
-```
-
-- **Assets**: Assets assigned to this category (`.deny` on delete -- category cannot be deleted if assets are assigned)
-
-#### Uniqueness Constraints
-
-```swift
-#Unique<Category>([\.name])
-```
-
-- `name` must be unique (case-insensitive comparison)
-- **Note**: The `#Unique` macro enforces uniqueness at the SwiftData level, but case-insensitive uniqueness must be handled in business logic (ViewModel validation).
-
-#### Validation Rules
-
-- `name` must not be empty
-- `targetAllocationPercentage`, if provided, must be between 0 and 100
-- Target allocations across all categories should sum to 100% (warning if not, but not blocked)
-- Categories without a target allocation are excluded from rebalancing calculations
-
-#### Usage Example
-
-```swift
-let category = Category(
-    name: "Equities",
-    targetAllocationPercentage: 60.0
-)
-```
-
-______________________________________________________________________
+A category with a minimum and no percentage still participates in goal assessment. An absent percentage protects its current balance or minimum during allocation; it does not simply remove the category from the calculation. No goal mode, effective target, or goal history is stored. [BusinessLogic.md](BusinessLogic.md#rebalancing-engine) owns the allocation rules.
 
 ### Asset
 
-Represents an individual investment identified by the tuple (name, platform). Assets persist across snapshots and are created during import if they don't already exist.
+An Asset persists across snapshots and is identified for import matching by its name and platform. See [Asset.swift](../AssetFlow/Models/Asset.swift).
 
-**File**: `AssetFlow/Models/Asset.swift`
+| Property              | Type                    | Stored meaning                                                  | Initial value                       |
+| --------------------- | ----------------------- | --------------------------------------------------------------- | ----------------------------------- |
+| `id`                  | `UUID`                  | Application identifier                                          | New UUID                            |
+| `name`                | `String`                | Asset name                                                      | Required initializer argument       |
+| `platform`            | `String`                | Platform or brokerage; empty means none                         | `""`                                |
+| `currency`            | `String`                | Native currency; empty inherits display currency for conversion | `""`                                |
+| `category`            | `Category?`             | Optional category assignment                                    | `nil`                               |
+| `snapshotAssetValues` | `[SnapshotAssetValue]?` | Recorded values across snapshots                                | Empty collection in the initializer |
 
-#### Properties
+Application matching uses `normalizedForIdentity` on both name and platform: it trims outer whitespace, collapses internal whitespace, and lowercases the result. The model's `#Unique` key uses the stored name and platform properties; it does not itself express this normalization. [BusinessLogic.md](BusinessLogic.md#asset-identity-and-matching) owns matching and rename behavior.
 
-| Property   | Type     | Description                                                                                              | Required           |
-| ---------- | -------- | -------------------------------------------------------------------------------------------------------- | ------------------ |
-| `id`       | `UUID`   | Primary key                                                                                              | Yes                |
-| `name`     | `String` | Asset name (e.g., "AAPL", "Bitcoin", "Savings Account")                                                  | Yes                |
-| `platform` | `String` | Platform/brokerage name. Always present as `String`, but may be an empty string to indicate no platform. | Yes (may be empty) |
-| `currency` | `String` | Native currency code (e.g., "USD", "TWD"). Empty string if unset.                                        | Yes (may be empty) |
-
-#### Relationships
-
-```swift
-@Relationship(deleteRule: .nullify)
-var category: Category?
-
-@Relationship(deleteRule: .deny, inverse: \SnapshotAssetValue.asset)
-var snapshotAssetValues: [SnapshotAssetValue]?
-```
-
-- **Category**: Optional assignment (`.nullify` -- if the category is deleted, this becomes nil)
-- **SnapshotAssetValues**: All value records across snapshots (`.deny` -- asset cannot be deleted while it has snapshot values)
-
-**Note on SwiftData relationships vs. SPEC field names**: The SPEC defines `categoryID: UUID?` as a field on Asset. In SwiftData, this is modeled using a direct relationship property (`category: Category?`) rather than a manual UUID foreign key. SwiftData manages the underlying foreign key automatically. Access the category's UUID via `asset.category?.id` when needed (e.g., for backup serialization).
-
-#### Uniqueness Constraints
+The initializer accepts `name` and `platform`; currency can be assigned afterward in a main-actor model operation:
 
 ```swift
-#Unique<Asset>([\.name, \.platform])
+@MainActor
+func makeAsset() -> Asset {
+  let asset = Asset(name: "AAPL", platform: "Brokerage")
+  asset.currency = "USD"
+  return asset
+}
 ```
-
-- `(name, platform)` must be unique (case-insensitive, using normalized identity comparison)
-- **Note**: The `#Unique` macro enforces uniqueness at the SwiftData level, but case-insensitive uniqueness cannot be enforced by the macro alone and must be handled in business logic (ViewModel validation).
-
-#### Identity Matching
-
-During import or manual operations, assets are matched using **normalized identity comparison**:
-
-1. Trim leading and trailing whitespace
-1. Collapse multiple consecutive spaces to a single space
-1. Case-insensitive comparison (Unicode-aware, using `caseInsensitiveCompare` or equivalent)
-
-#### Deletion Rules
-
-An asset can only be deleted when it has **no SnapshotAssetValue records** in any snapshot. When associations exist, the delete action is disabled with explanatory text: "This asset cannot be deleted because it has values in [N] snapshot(s). Remove the asset from all snapshots first."
-
-#### Usage Example
-
-```swift
-let asset = Asset(
-    name: "AAPL",
-    platform: "Interactive Brokers",
-    currency: "USD"
-)
-asset.category = equitiesCategory
-```
-
-______________________________________________________________________
 
 ### Snapshot
 
-Represents the best-known portfolio state at a specific date. A snapshot is uniquely identified by its date. Multiple imports on the same date add SnapshotAssetValues to the existing snapshot.
+A Snapshot represents the portfolio state recorded for one calendar date. See [Snapshot.swift](../AssetFlow/Models/Snapshot.swift).
 
-**File**: `AssetFlow/Models/Snapshot.swift`
+| Property             | Type                    | Stored meaning                                                                      | Initial value                       |
+| -------------------- | ----------------------- | ----------------------------------------------------------------------------------- | ----------------------------------- |
+| `id`                 | `UUID`                  | Application identifier                                                              | New UUID                            |
+| `date`               | `Date`                  | Snapshot date, normalized by the initializer to `Calendar.current.startOfDay(for:)` | Required initializer argument       |
+| `createdAt`          | `Date`                  | Creation timestamp                                                                  | `Date()`                            |
+| `assetValues`        | `[SnapshotAssetValue]?` | Direct asset records at this date                                                   | Empty collection in the initializer |
+| `cashFlowOperations` | `[CashFlowOperation]?`  | External flows assigned to this date                                                | Empty collection in the initializer |
+| `exchangeRate`       | `ExchangeRate?`         | Optional rate record for this date                                                  | `nil`                               |
 
-#### Properties
-
-| Property    | Type   | Description                                                                                | Required |
-| ----------- | ------ | ------------------------------------------------------------------------------------------ | -------- |
-| `id`        | `UUID` | Primary key                                                                                | Yes      |
-| `date`      | `Date` | Calendar date (normalized to local midnight, no time component). Must be today or earlier. | Yes      |
-| `createdAt` | `Date` | Auto-set creation timestamp                                                                | Yes      |
-
-#### Relationships
-
-```swift
-@Relationship(deleteRule: .cascade, inverse: \SnapshotAssetValue.snapshot)
-var assetValues: [SnapshotAssetValue]?
-
-@Relationship(deleteRule: .cascade, inverse: \CashFlowOperation.snapshot)
-var cashFlowOperations: [CashFlowOperation]?
-
-@Relationship(deleteRule: .cascade, inverse: \ExchangeRate.snapshot)
-var exchangeRate: ExchangeRate?
-```
-
-- **SnapshotAssetValues**: Asset values recorded in this snapshot (`.cascade` on delete)
-- **CashFlowOperations**: Cash flow events associated with this snapshot (`.cascade` on delete)
-- **ExchangeRate**: Exchange rate data for currency conversion (`.cascade` on delete, optional 1:1)
-
-#### Uniqueness Constraints
-
-- Only one Snapshot may exist per `date`
-
-#### Important Notes
-
-- `totalPortfolioValue` is **not stored** -- it is always derived by summing SnapshotAssetValues
-- Future dates are not allowed
-- The `date` field stores only the calendar date (no time component), normalized to local midnight
-
-#### Usage Example
-
-```swift
-let snapshot = Snapshot(
-    date: Calendar.current.startOfDay(for: Date())
-)
-```
-
-______________________________________________________________________
+`date` remains a `Date` value representing local start of day, not a date-only storage type. `#Unique<Snapshot>([\.date])` allows at most one snapshot for that stored date. The creation and import flows reject future dates; that restriction is application validation, not a property type constraint. Multiple permitted imports can add records to an existing date. A snapshot can omit an asset altogether or contain an explicit zero-valued `SnapshotAssetValue`; those states differ. See [SPEC.md](SPEC.md#8-snapshot-lifecycle) for lifecycle behavior.
 
 ### SnapshotAssetValue
 
-Records the market value of a specific asset within a specific snapshot. This is the core join entity connecting snapshots to assets with their values.
+A SnapshotAssetValue records one asset's market value in one snapshot, forming the join between Asset and Snapshot. See [SnapshotAssetValue.swift](../AssetFlow/Models/SnapshotAssetValue.swift).
 
-**File**: `AssetFlow/Models/SnapshotAssetValue.swift`
+| Property      | Type        | Stored meaning                                                                    | Initial value                 |
+| ------------- | ----------- | --------------------------------------------------------------------------------- | ----------------------------- |
+| `marketValue` | `Decimal`   | Value in the linked asset's currency, or display currency when that code is empty | Required initializer argument |
+| `snapshot`    | `Snapshot?` | Parent snapshot                                                                   | `nil` until linked            |
+| `asset`       | `Asset?`    | Valued asset                                                                      | `nil` until linked            |
 
-#### Properties
-
-| Property      | Type      | Description               | Required |
-| ------------- | --------- | ------------------------- | -------- |
-| `marketValue` | `Decimal` | Market value of the asset | Yes      |
-
-**Note on SPEC field names**: The SPEC defines `snapshotID` and `assetID` as UUID foreign keys. In SwiftData, these are modeled as relationship properties (`snapshot` and `asset`) rather than manual UUID fields. SwiftData manages the underlying foreign keys automatically. Access UUIDs via `snapshot?.id` and `asset?.id` when needed (e.g., for backup serialization). Do not store both a relationship property and a manual UUID field for the same reference.
-
-#### Relationships
-
-```swift
-var snapshot: Snapshot?  // Inverse of Snapshot.assetValues
-var asset: Asset?        // Inverse of Asset.snapshotAssetValues
-```
-
-- **Snapshot**: Parent snapshot. Deletion is governed by the parent's delete rule (Snapshot -> assetValues uses `.cascade`, so deleting a Snapshot cascades to its SnapshotAssetValues).
-- **Asset**: The asset being valued. Deletion is governed by the parent's delete rule (Asset -> snapshotAssetValues uses `.deny`, so the asset cannot be deleted while SnapshotAssetValues reference it).
-
-**Note**: The child-side delete rule is not meaningful in SwiftData -- deletion behavior is controlled by the parent-side rule. The inverse relationships here exist to satisfy SwiftData's relationship modeling requirements.
-
-#### Uniqueness Constraints
-
-```swift
-#Unique<SnapshotAssetValue>([\.snapshot, \.asset])
-```
-
-- `(snapshot, asset)` must be unique (one value per asset per snapshot). Enforced at the SwiftData level via `#Unique` macro, and also validated in business logic.
-
-#### Notes
-
-- Negative market values are allowed (for liabilities or short positions)
-- Zero market values are allowed (with a warning during import)
-
-#### Usage Example
-
-```swift
-let value = SnapshotAssetValue(marketValue: 15000)
-value.snapshot = snapshot
-value.asset = asset
-context.insert(value)
-```
-
-______________________________________________________________________
+The model declares `#Unique<SnapshotAssetValue>([\.snapshot, \.asset])`: a valid saved graph has at most one value for an asset in a snapshot. The Swift properties are optional so an object may be unlinked while it is being constructed; application flows and backup graph validation require both links for a meaningful recorded value. Zero is a stored value, not absence. Negative values are allowed for liabilities or short positions. Import handling of zero placeholders is defined in [SPEC.md](SPEC.md#46-duplicate-detection).
 
 ### CashFlowOperation
 
-Records an external money flow (deposit or withdrawal) associated with a snapshot. Cash flows are needed for accurate Modified Dietz return calculations.
+A CashFlowOperation records an external contribution or withdrawal at a snapshot date. See [CashFlowOperation.swift](../AssetFlow/Models/CashFlowOperation.swift).
 
-**File**: `AssetFlow/Models/CashFlowOperation.swift`
+| Property              | Type        | Stored meaning                                                  | Initial value                 |
+| --------------------- | ----------- | --------------------------------------------------------------- | ----------------------------- |
+| `id`                  | `UUID`      | Application identifier                                          | New UUID                      |
+| `cashFlowDescription` | `String`    | Description within its snapshot                                 | Required initializer argument |
+| `amount`              | `Decimal`   | Positive contribution; negative withdrawal                      | Required initializer argument |
+| `currency`            | `String`    | Native currency; empty inherits display currency for conversion | `""`                          |
+| `snapshot`            | `Snapshot?` | Parent snapshot                                                 | `nil` until linked            |
 
-#### Properties
-
-| Property              | Type      | Description                                                       | Required           |
-| --------------------- | --------- | ----------------------------------------------------------------- | ------------------ |
-| `id`                  | `UUID`    | Primary key                                                       | Yes                |
-| `cashFlowDescription` | `String`  | Description of the cash flow (e.g., "Salary deposit")             | Yes                |
-| `amount`              | `Decimal` | Positive = inflow, negative = outflow                             | Yes                |
-| `currency`            | `String`  | Native currency code (e.g., "USD", "TWD"). Empty string if unset. | Yes (may be empty) |
-
-**Note on property naming**: The property is named `cashFlowDescription` (not `description`) to avoid conflict with Swift's built-in `CustomStringConvertible` protocol requirement. This is an implementation detail — the SPEC uses "description" in CSV columns and documentation.
-
-**Note on SPEC field names**: The SPEC defines `snapshotID` as a UUID foreign key. In SwiftData, this is modeled as a relationship property (`snapshot`) rather than a manual UUID field. Access the snapshot UUID via `snapshot?.id` when needed (e.g., for backup serialization).
-
-#### Relationships
-
-```swift
-var snapshot: Snapshot?  // Inverse of Snapshot.cashFlowOperations
-```
-
-- **Snapshot**: Parent snapshot. Deletion governed by Snapshot -> cashFlowOperations `.cascade` rule.
-
-#### Uniqueness Constraints
-
-```swift
-#Unique<CashFlowOperation>([\.snapshot, \.cashFlowDescription])
-```
-
-- `(snapshot, cashFlowDescription)` must be unique (case-insensitive comparison on cashFlowDescription)
-
-#### Notes
-
-- The net cash flow for a snapshot is always derived: `netCashFlow = sum(CashFlowOperation.amount)` for all operations associated with that snapshot
-- If a snapshot has no cash flow operations, net cash flow = 0 (assumes all value changes are due to investment returns)
-- All cash flow operations within a snapshot are assumed to occur at the snapshot date for Modified Dietz time-weighting purposes
-- Portfolio-level only in v1 (category-level cash flow tracking deferred)
-
-#### Usage Example
-
-```swift
-let cashFlow = CashFlowOperation(
-    cashFlowDescription: "Salary deposit",
-    amount: 50000
-)
-cashFlow.snapshot = snapshot
-context.insert(cashFlow)
-```
-
-______________________________________________________________________
+The property is named `cashFlowDescription` in Swift; backup transfer data uses `description`. `#Unique<CashFlowOperation>([\.snapshot, \.cashFlowDescription])` declares the stored-property key. Application paths also check duplicate descriptions without case; the macro alone does not specify that comparison. A valid saved operation is linked to one snapshot, although its Swift property is optional during construction. Net cash flow is derived from operations with currency conversion where needed; [BusinessLogic.md](BusinessLogic.md#net-cash-flow) defines its timing and calculation.
 
 ### ExchangeRate
 
-Records exchange rate data for currency conversion at a specific snapshot date. Fetched from the `@fawazahmed0/currency-api` CDN when a snapshot contains multi-currency assets.
+An ExchangeRate stores rates applicable to a snapshot date. See [ExchangeRate.swift](../AssetFlow/Models/ExchangeRate.swift).
 
-**File**: `AssetFlow/Models/ExchangeRate.swift`
+| Property       | Type        | Stored meaning                                                 | Initial value                 |
+| -------------- | ----------- | -------------------------------------------------------------- | ----------------------------- |
+| `baseCurrency` | `String`    | Base currency code, stored lowercase by the current fetch path | Required initializer argument |
+| `ratesJSON`    | `Data`      | JSON-encoded `[String: Decimal]` rates                         | Required initializer argument |
+| `fetchDate`    | `Date`      | Date to which the rates apply                                  | Required initializer argument |
+| `isFallback`   | `Bool`      | Stored fallback flag retained in model and backup data         | `false`                       |
+| `snapshot`     | `Snapshot?` | Parent snapshot                                                | `nil` until linked            |
 
-#### Properties
+Each rate represents units of that currency per one base-currency unit; the base currency has an implicit rate of one. `rates` decodes `ratesJSON` into a lowercased dictionary and caches it in the `@Transient` `_cachedRates` property; a decode failure yields an empty dictionary.
 
-| Property       | Type     | Description                                                      | Required |
-| -------------- | -------- | ---------------------------------------------------------------- | -------- |
-| `baseCurrency` | `String` | Base currency code (lowercase, e.g., "usd")                      | Yes      |
-| `ratesJSON`    | `Data`   | JSON-encoded `[String: Decimal]` mapping currency codes to rates | Yes      |
-| `fetchDate`    | `Date`   | Date these rates apply to                                        | Yes      |
-| `isFallback`   | `Bool`   | Whether rates came from a fallback source                        | Yes      |
+`updateRates(baseCurrency:ratesJSON:fetchDate:)` updates the stored fields, clears that cache, and sets `isFallback` to `false`. The current fetch path creates or refreshes records with the flag false; a restored backup can retain its stored value. The flag does not establish an active stale-rate fallback path.
 
-#### Relationships
+The model's `convert(value:from:to:)` uses positive finite cross-rates and returns `nil` when a required rate is unusable. `matchesDate(_:timeZone:)` compares Gregorian calendar days, and `supportsAll(_:)` checks currency coverage. The service additionally requires the appropriate base currency, snapshot date, and coverage before reusing a record or presenting a converted aggregate. A wrong-date or incomplete record is unavailable for that purpose; see [CurrencyConversionService.swift](../AssetFlow/Services/CurrencyConversionService.swift) and [ExchangeRateService.swift](../AssetFlow/Services/ExchangeRateService.swift).
 
-```swift
-var snapshot: Snapshot?  // Inverse of Snapshot.exchangeRate
+## Relationships and Integrity
+
+### Entity Relationship Diagram
+
+```text
+Category ←── optional category ── Asset
+Asset ←── one asset ── SnapshotAssetValue ── one snapshot ──→ Snapshot
+Snapshot ── zero or more ──→ CashFlowOperation
+Snapshot ── zero or one ───→ ExchangeRate
 ```
 
-- **Snapshot**: Parent snapshot (1:1). Deletion governed by Snapshot -> exchangeRate `.cascade` rule.
+Each SnapshotAssetValue connects one Asset to one Snapshot in a valid saved graph, so Asset and Snapshot have a many-to-many relationship through that entity. The parent links on SnapshotAssetValue, CashFlowOperation, and ExchangeRate are declared optional to allow construction before linking; the cardinalities above describe valid application data, not nonoptional Swift types.
 
-#### Transient Cache
+| Declared relationship                                        | Cardinality in valid application data        | Configured delete rule                                       |
+| ------------------------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------ |
+| `Category.assets` ↔ `Asset.category`                         | Category: 0–many assets; Asset: 0–1 category | `.deny` on `Category.assets`; `.nullify` on `Asset.category` |
+| `Asset.snapshotAssetValues` ↔ `SnapshotAssetValue.asset`     | Asset: 0–many values; value: one asset       | `.deny` on `Asset.snapshotAssetValues`                       |
+| `Snapshot.assetValues` ↔ `SnapshotAssetValue.snapshot`       | Snapshot: 0–many values; value: one snapshot | `.cascade` on `Snapshot.assetValues`                         |
+| `Snapshot.cashFlowOperations` ↔ `CashFlowOperation.snapshot` | Snapshot: 0–many flows; flow: one snapshot   | `.cascade` on `Snapshot.cashFlowOperations`                  |
+| `Snapshot.exchangeRate` ↔ `ExchangeRate.snapshot`            | Snapshot: 0–1 rate; rate: one snapshot       | `.cascade` on `Snapshot.exchangeRate`                        |
 
-```swift
-@Transient
-private var _cachedRates: [String: Decimal]?
-```
+The rule is configured on a particular relationship; it applies when deleting a model that contains references through that relationship. Inverse-side rules cannot be dismissed as universally meaningless. [Apple's SwiftData delete-rule reference](https://developer.apple.com/documentation/swiftdata/schema/relationship/deleterule-swift.enum) defines the rule directions. Snapshot declares `.cascade` for its values, cash flows, and rate record. [SwiftDataRelationshipTests.swift](../AssetFlowTests/Integration/SwiftDataRelationshipTests.swift) asserts value and cash-flow cascades and that deleting one snapshot preserves its Assets and other snapshots' values.
 
-- `_cachedRates` is a `@Transient` property that caches the decoded `rates` dictionary after first access. It is not persisted by SwiftData. The cache is cleared whenever `updateRates(baseCurrency:ratesJSON:fetchDate:)` is called.
+Application deletion paths also guard `.deny` relationships: [CategoryListViewModel.swift](../AssetFlow/ViewModels/CategoryListViewModel.swift) refuses to delete a category with assigned assets, and [AssetListViewModel.swift](../AssetFlow/ViewModels/AssetListViewModel.swift) refuses to delete an asset with snapshot values. Those guards enforce the app's deletion rules and provide user-facing errors. Restore deletes related records in dependency order; see [BackupService+Restore.swift](../AssetFlow/Services/BackupService+Restore.swift).
 
-#### Computed Properties and Methods
+### Uniqueness and Valid-Graph Rules
 
-- `rates: [String: Decimal]` — Decodes `ratesJSON` to a lowercased dictionary (cached after first access via `_cachedRates`). Returns empty dict on decode failure.
-- `missingCurrencies(_:) -> [String]` — Returns requested currencies that are absent or have non-positive/non-finite rates.
-- `supportsAll(_:) -> Bool` — Returns whether the record has usable rates for every requested currency.
-- `matchesDate(_:timeZone:) -> Bool` — Verifies that `fetchDate` and the snapshot date have the same Gregorian calendar day in the supplied timezone, preventing a complete rate record from being reused for the wrong historical snapshot.
-- `func convert(value: Decimal, from: String, to: String) -> Decimal?` — Converts a value between currencies using cross-rates. Returns `nil` if either currency is missing from rates.
-- `func updateRates(baseCurrency:ratesJSON:fetchDate:)` — Updates rate data in-place (sets `baseCurrency`, `ratesJSON`, `fetchDate`, clears `isFallback` to `false`) and invalidates the decoded cache (`_cachedRates = nil`). Use this method to refresh exchange rate data without replacing the model object.
+| Model              | Declared `#Unique` key            | Additional application rule                                                    |
+| ------------------ | --------------------------------- | ------------------------------------------------------------------------------ |
+| Category           | `name`                            | Nonempty; case-insensitive name conflict check                                 |
+| Asset              | `name`, `platform`                | Match and reject conflicts using normalized identity                           |
+| Snapshot           | `date`                            | Normalize to local start of day; reject future creation dates                  |
+| SnapshotAssetValue | `snapshot`, `asset`               | Link both parents; one direct value per asset and snapshot                     |
+| CashFlowOperation  | `snapshot`, `cashFlowDescription` | Link a snapshot; check descriptions without case                               |
+| ExchangeRate       | No `#Unique` declaration          | At most one rate through the snapshot's to-one relationship; link its snapshot |
 
-#### Usage Example
+These declared keys are not substitutes for validation before mutation. In particular, a `#Unique` declaration does not encode the application's text normalization. The graph rules describe app-created and validated backup data; the optional relationship properties do not alone prohibit an unlinked object from existing during construction. See [BackupService+GraphValidation.swift](../AssetFlow/Services/BackupService+GraphValidation.swift) for restore-time reference checks.
 
-```swift
-let exchangeRate = ExchangeRate(
-    baseCurrency: "usd",
-    ratesJSON: try JSONEncoder().encode([
-        "twd": Decimal(string: "31.5")!,
-        "eur": Decimal(string: "0.92")!,
-    ]),
-    fetchDate: Date(),
-    isFallback: false
-)
-exchangeRate.snapshot = snapshot
-context.insert(exchangeRate)
+## Schema, Migration, and Preservation
 
-// Convert 100 USD to TWD
-let twdValue = exchangeRate.convert(value: 100, from: "usd", to: "twd")
-// → 3150
-```
+[SchemaVersioning.swift](../AssetFlow/Models/SchemaVersioning.swift) defines `SchemaV1` (1.0.0), `SchemaV2` (2.0.0), `CurrentSchema`, and `AssetFlowMigrationPlan`. V1's six historical model definitions live in the frozen [SchemaV1Models.swift](../AssetFlow/Models/SchemaV1Models.swift). V2 registers the six current models and adds optional Category minimum amount and currency fields. The plan contains a lightweight V1→V2 stage; migrated categories have no minimum until one is set.
 
-______________________________________________________________________
+[AssetFlowApp.swift](../AssetFlow/AssetFlowApp.swift) creates the normal disk-backed `ModelContainer` with `CurrentSchema.schema` and `AssetFlowMigrationPlan.self`. A Debug `--preview-data` launch uses an in-memory configuration for disposable sample data. Tests likewise use isolated memory containers or disposable disk stores; these are separate from the user's persistent store. If the app cannot open its database, it shows a database error and exits after dismissal. It does not delete or recreate that store as a compatibility fallback.
 
-## Entity Relationships
+[CategoryGoalMigrationTests.swift](../AssetFlowTests/Integration/CategoryGoalMigrationTests.swift) creates disposable V1 disk graphs, opens them through the migration plan, checks identities and relationships, and reopens a V2 graph after adding a minimum. This supports the documented V1→V2 path; it does not prove that every possible future schema change will migrate automatically. Future released-schema changes require an explicit versioning and migration assessment while preserving historical definitions. [DevelopmentGuide.md](DevelopmentGuide.md#working-with-swiftdata) owns the contributor procedure for model changes.
 
-### Relationship Diagram
+Current queries fetch snapshots by normalized date and read value history through `Asset.snapshotAssetValues`; the models declare no indexes. See [SnapshotListViewModel.swift](../AssetFlow/ViewModels/SnapshotListViewModel.swift) and [AssetDetailViewModel.swift](../AssetFlow/ViewModels/AssetDetailViewModel.swift). Query and context usage procedures belong in [DevelopmentGuide.md](DevelopmentGuide.md#working-with-swiftdata).
 
-```
-+-----------+
-| Category  |
-+-----+-----+
-      | 1:Many
-      v
-+-----------+   1:Many   +--------------------+
-|   Asset   +----------->| SnapshotAssetValue |
-+-----------+            +----------+---------+
-                                    |
-                                    | Many:1
-                                    v
-                              +-----------+   1:Many   +--------------------+
-                              |  Snapshot  +----------->| CashFlowOperation |
-                              +-----+-----+            +--------------------+
-                                    |
-                                    | 1:1 (optional)
-                                    v
-                              +--------------+
-                              | ExchangeRate |
-                              +--------------+
-```
+## Backup Mapping
 
-### Delete Rules
+Backup transfer records carry entity UUIDs and relationship references rather than persisting duplicate foreign-key properties on the SwiftData models. For example, `Asset.category` maps to a category UUID, and a cash flow's Swift `cashFlowDescription` maps to a transfer field named `description`. Snapshot and rate dates serialize as ISO 8601 timestamps, not date-only strings. The current backup format is v4, distinct from SwiftData SchemaV2; it includes Category minimum amount and currency. Restore of v1–v3 backups leaves those minimums absent, while v4 retains the currency and exchange-rate data introduced in v3.
 
-| Relationship                    | Delete Rule | Behavior                                       |
-| ------------------------------- | ----------- | ---------------------------------------------- |
-| Category -> Assets              | `.deny`     | Cannot delete category if assets are assigned  |
-| Asset -> SnapshotAssetValues    | `.deny`     | Cannot delete asset if snapshot values exist   |
-| Snapshot -> SnapshotAssetValues | `.cascade`  | Deleting snapshot removes all its asset values |
-| Snapshot -> CashFlowOperations  | `.cascade`  | Deleting snapshot removes all its cash flows   |
-| Snapshot -> ExchangeRate        | `.cascade`  | Deleting snapshot removes its exchange rate    |
-
-**Note**: Delete behavior is controlled by the parent-side rule. Child-side inverse relationships do not independently define delete behavior in SwiftData.
-
-**Important: Category Deletion Protection**
-
-SwiftData's `.deny` delete rule has known bugs and may not work reliably. **Business logic MUST enforce deletion prevention** by checking whether the category has any assigned assets before allowing deletion:
-
-```swift
-func deleteCategory(_ category: Category) throws {
-    guard category.assets?.isEmpty ?? true else {
-        throw CategoryError.cannotDeleteWithAssignedAssets
-    }
-    modelContext.delete(category)
-}
-```
-
-**Important: Asset Deletion Protection**
-
-Asset deletion is blocked at the SwiftData level via the `.deny` delete rule. Additionally, business logic MUST enforce deletion prevention and provide a clear error message:
-
-```swift
-func deleteAsset(_ asset: Asset) throws {
-    guard asset.snapshotAssetValues?.isEmpty ?? true else {
-        throw AssetError.cannotDeleteWithSnapshotValues(
-            count: asset.snapshotAssetValues?.count ?? 0
-        )
-    }
-    modelContext.delete(asset)
-}
-```
-
-### Relationship Constraints
-
-- An Asset can belong to **0 or 1** Category
-- A Category can contain **0 to many** Assets
-- A Snapshot can have **0 to many** SnapshotAssetValues
-- A Snapshot can have **0 to many** CashFlowOperations
-- An Asset can have **0 to many** SnapshotAssetValues (across different snapshots)
-- A SnapshotAssetValue belongs to exactly **1** Snapshot and **1** Asset
-- A Snapshot can have **0 or 1** ExchangeRate (optional 1:1)
-- An ExchangeRate belongs to exactly **1** Snapshot
-
-______________________________________________________________________
-
-## SwiftData Configuration
-
-### Model Container Setup
-
-**Location**: `AssetFlowApp.swift`
-
-```swift
-var sharedModelContainer: ModelContainer = {
-    let schema = CurrentSchema.schema
-
-    let modelConfiguration = ModelConfiguration(
-        schema: schema,
-        isStoredInMemoryOnly: false
-    )
-
-    do {
-        return try ModelContainer(
-            for: schema,
-            configurations: [modelConfiguration]
-        )
-    } catch {
-        fatalError("Could not create ModelContainer: \(error)")
-    }
-}()
-```
-
-`SchemaV2.models` includes: `Category`, `Asset`, `Snapshot`, `SnapshotAssetValue`, `CashFlowOperation`, `ExchangeRate`.
-
-### Adding New Models
-
-When adding a new model to the schema:
-
-1. Create the model file in `AssetFlow/Models/`
-1. Add `@Model` macro to the class
-1. Register in `SchemaV2.models` (`Models/SchemaVersioning.swift`)
-1. Update this documentation
-1. Update `AssetFlow/Models/README.md`
-1. Consider migration strategy if needed
-
-### Querying Data
-
-Using SwiftUI's `@Query`:
-
-```swift
-@Query(sort: \Snapshot.date, order: .reverse)
-private var snapshots: [Snapshot]
-
-@Query(sort: \Asset.name)
-private var assets: [Asset]
-
-@Query(sort: \Category.name)
-private var categories: [Category]
-```
-
-### Manual Context Access
-
-```swift
-@Environment(\.modelContext) private var modelContext
-
-// Insert
-modelContext.insert(newSnapshot)
-
-// Delete
-modelContext.delete(snapshot)
-
-// Save (usually automatic)
-try? modelContext.save()
-```
-
-______________________________________________________________________
-
-## Data Validation
-
-### Model-Level Validation
-
-Validation logic resides in ViewModels (not models):
-
-```swift
-// In ImportViewModel
-func validateAssetCSV(_ rows: [CSVRow]) -> [ValidationError] {
-    var errors: [ValidationError] = []
-
-    for (index, row) in rows.enumerated() {
-        if row.assetName.trimmingCharacters(in: .whitespaces).isEmpty {
-            errors.append(.emptyAssetName(row: index + 1))
-        }
-        if Decimal(string: row.marketValue) == nil {
-            errors.append(.invalidMarketValue(row: index + 1))
-        }
-    }
-
-    return errors
-}
-```
-
-### Business Rules
-
-1. **Market Values**: Use `Decimal` for all monetary values
-1. **Dates**: Snapshot dates cannot be in the future; normalized to local midnight
-1. **Uniqueness**: (Asset name, Platform) must be unique; Snapshot date must be unique; (Snapshot, Asset) must be unique per SnapshotAssetValue; (Snapshot, Description) must be unique for cash flows
-1. **Category Deletion**: Only allowed if no assets are assigned
-1. **Asset Deletion**: Only allowed if no SnapshotAssetValue records exist
-1. **Snapshot Deletion**: Always allowed (with confirmation dialog); cascades to all asset values and cash flow operations
-
-______________________________________________________________________
-
-## Backup Data Format
-
-When exporting a backup, each entity is serialized to CSV with the following rules:
-
-- Column headers match field names from this data model
-- UUID fields serialized as standard UUID strings
-- Decimal fields serialized at full precision
-- Date fields use ISO 8601 format (YYYY-MM-DD)
-- Optional/nullable fields use an empty string for null values
-- A `manifest.json` file includes format version, export timestamp, and app version
-
-See [APIDesign.md](APIDesign.md) for detailed backup format specification.
-
-______________________________________________________________________
-
-## Data Migration
-
-### Schema Versioning
-
-`SchemaV1` (1.0.0) is frozen in `SchemaV1Models.swift`, including all six legacy model definitions, uniqueness and relationships. `SchemaV2` (2.0.0) registers the current models with optional category minimum amount/currency fields. `CurrentSchema.schema` is the app's active V2 schema. `AssetFlowMigrationPlan` uses a lightweight V1-to-V2 stage; old categories receive nil minimum fields.
-
-Disk migration tests populate a disposable V1 graph, open it through the real migration plan, verify every relationship/identity, add a minimum, and reopen V2. Migration failures use the existing database-error flow; never delete or recreate a user's store to handle incompatibility. Future schema changes must preserve the frozen historical definitions.
-
-### Migration Strategy
-
-1. **Additive Changes**: Introduce a new versioned schema and test a lightweight migration for new optional properties
-1. **Transformations**: Property renames or type changes (migration required)
-1. **Relationship Changes**: Modify delete rules or cardinality (migration required)
-
-The data model is designed to minimize future breaking changes by:
-
-- Using UUID primary keys
-- Keeping relationships simple
-- Avoiding complex computed stored properties
-
-______________________________________________________________________
-
-## Performance Considerations
-
-### Efficient Historical Queries
-
-The data model must support efficient queries for:
-
-- Fetching all snapshots (ordered by date)
-- Fetching asset values across multiple snapshots (for charts)
-
-### Indexing
-
-Consider adding indices for frequently queried properties:
-
-```swift
-@Attribute(.index)
-var date: Date  // On Snapshot
-
-@Attribute(.index)
-var name: String  // On Asset
-```
-
-______________________________________________________________________
-
-## References
-
-- Source: `AssetFlow/Models/`
-- Extensions: `AssetFlow/Utilities/Extensions.swift`
-- App Configuration: `AssetFlow/AssetFlowApp.swift`
-- Quick Reference: `AssetFlow/Models/README.md`
-- Specification: `SPEC.md` Section 7
-
-## Category Goal Fields and Backup
-
-Category adds optional `minimumBalanceAmount` (Decimal) and `minimumBalanceCurrency` (String). Validate both together before mutation. Amounts are finite/nonnegative, percentages remain optional 0–100, and original currency persists across display changes. No persisted goal mode, effective target, or goal history is introduced.
-
-Backup format v4 adds those fields after `displayOrder` in categories.csv. V1 has three category columns; v2/v3 have four; v4 has six. Restore v1–v3 with nil minimums, retain v3 currency/rate layouts in v4, validate before replacement, and preserve old data/settings on failure. Older app versions cannot read v4.
+The format transfers only the documented settings subset; other UserDefaults preferences and the currency-list cache are outside the model graph. [APIDesign.md](APIDesign.md#backupservice) owns exact headers, field order, null representation, archive layout, and restore compatibility. [BackupTypes.swift](../AssetFlow/Services/BackupTypes.swift) and [BackupService+Export.swift](../AssetFlow/Services/BackupService+Export.swift) define the current transfer records and writer.
