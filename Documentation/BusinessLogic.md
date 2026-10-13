@@ -1,693 +1,239 @@
 # Business Logic and Calculation Design
 
-## Preface
-
-**Purpose of this Document**
-
-This document describes the **business rules, calculations, workflows, and execution logic** that power AssetFlow's functionality. It focuses on the "what" and "how" of the application's behavior -- what the system does with user data and how financial calculations, validations, and business processes are executed.
-
-**What This Document Covers**
-
-- **Core Concept**: Snapshot-based portfolio model
-- **Calculation Logic**: Portfolio value, category allocation, growth rate, Modified Dietz return, TWR, CAGR
-- **Rebalancing Engine**: Target vs. current allocation with suggested adjustments
-- **CSV Import**: Parsing, validation, duplicate detection, and import execution
-- **Data Management**: Category, asset, snapshot, and cash flow lifecycle
-- **Edge Cases**: Boundary conditions, error scenarios, and N/A handling
-
-**What This Document Does NOT Cover**
-
-- User interface design (see [UserInterfaceDesign.md](UserInterfaceDesign.md))
-- Data model structure (see [DataModel.md](DataModel.md))
-- System architecture (see [Architecture.md](Architecture.md))
-- Testing strategies (see [TestingStrategy.md](TestingStrategy.md))
-
-**Related Documentation**
-
-- [DataModel.md](DataModel.md) - Data structures and relationships
-- [Architecture.md](Architecture.md) - MVVM layer responsibilities
-- [APIDesign.md](APIDesign.md) - CSV parsing and backup/restore service interfaces
-
-______________________________________________________________________
+AssetFlow derives portfolio values, performance, and allocation plans from dated snapshots. This document defines the domain rules, financial units, boundary cases, and validation decisions. [SPEC.md](SPEC.md) owns product requirements, [DataModel.md](DataModel.md) owns stored fields and relationships, [APIDesign.md](APIDesign.md) owns CSV and service contracts, and [UserInterfaceDesign.md](UserInterfaceDesign.md) owns presentation and interaction.
 
 ## Core Concept: Snapshot-Based Portfolio Model
 
-### Overview
-
-AssetFlow tracks portfolio state through **snapshots** -- discrete records of portfolio holdings at specific dates. This differs from transaction-based systems that derive state from a history of buy/sell operations.
-
-**Key Rules**:
-
-1. Snapshots are append-only -- a new import never silently overwrites an existing snapshot
-1. A snapshot contains only directly-recorded SnapshotAssetValues. There is no automatic carry-forward. Users can reference prior snapshot values in Bulk Entry mode (manual creation) or use the copy-forward option during CSV import.
-1. The CSV file does NOT contain a date -- the user explicitly selects a date when importing
-1. Users may delete or edit snapshots after creation
-
-______________________________________________________________________
-
-## Calculation Logic
-
-All calculations are derived from stored structured data. No spreadsheet-style hidden formulas. All portfolio-level metrics operate on stored portfolio values.
-
-### Portfolio Total Value
-
-For a given snapshot, the total value is the sum of all directly-stored SnapshotAssetValues, **converted to the display currency** using the snapshot's exchange rate:
-
-```
-total_value(snapshot) = sum(convert(sav.marketValue, from: asset.currency, to: displayCurrency) for each sav)
-```
-
-If any required exchange rate is unavailable, the converted total is unavailable rather than a mixed-currency sum. Native totals remain available grouped by currency so the user can inspect the underlying values. This value is always derived, never stored on the Snapshot model.
-
-### Currency Conversion
-
-Each asset and cash flow has a native currency. When computing cross-asset totals, values are converted to the global display currency using the snapshot's `ExchangeRate`:
-
-```
-converted_value = value / rates[from_currency] * rates[to_currency]
-```
-
-Where `rates[baseCurrency]` is implicitly 1.0. Cross-rate conversion is used when neither currency is the base currency.
-
-**Conversion status**: A conversion is complete only when every non-display currency used by the snapshot has a positive, finite rate in an exchange-rate record whose base currency and Gregorian `fetchDate` match the display currency and snapshot date. Missing, invalid, or wrong-date rates produce an explicit unavailable status; they never silently pass through native values as if they were display-currency values.
-
-When conversion is incomplete, the UI shows native asset and cash-flow totals grouped by currency. Statistics that require a single display-currency series (category allocations, platform totals, growth and return rates, TWR/CAGR, and related graphs) remain in place with an unavailable overlay identifying the missing currencies and affected snapshots.
-
-**Auto-Fetch Missing Rates**: On app launch and after backup restore, `ExchangeRateService.fetchMissingRates()` scans all snapshots and fetches exchange rates for any that need currency conversion but lack a complete usable `ExchangeRate`. This covers snapshots created offline, failed fetches, malformed, incomplete, or wrong-date cached data, and restored backups (especially v2 backups which lack `exchange_rates.csv`). Requests for the same date/base-currency pair are coalesced with caller-aware cancellation, API response dates and currency coverage are validated before caching, and failures are returned to callers instead of being silently treated as successful conversion data.
-
-### Category Allocation
-
-For each snapshot with complete conversion, asset values are converted to the display currency before computing allocation:
-
-```
-category_value = sum(convert(market_value, asset.currency, displayCurrency) for assets in category)
-category_percentage = category_value / total_portfolio_value * 100
-```
-
-- Uncategorized assets appear as a separate "Uncategorized" group
-- A category with no assets has allocation = 0%
-- If all assets are uncategorized, the "Uncategorized" group shows 100% allocation
-- If any required exchange rate is missing, allocation is unavailable rather than calculated from mixed currencies
-
-### Growth Rate
-
-Growth rate measures the **simple percentage change** in portfolio value between two dates. It includes the effect of cash flows (deposits/withdrawals) and does NOT isolate investment performance.
-
-```
-growth_rate = (Ending_Value - Beginning_Value) / Beginning_Value
-```
-
-**Period Lookback**: For 1M, 3M, and 1Y growth:
-
-1. Calculate the target lookback date (latest snapshot date minus 1/3/12 months)
-1. Find the closest snapshot to the target date in either direction (before or after), with no distance limit
-1. When two snapshots are equidistant from the target, prefer the earlier one
-1. If fewer than 2 snapshots exist, return N/A
-
-### Modified Dietz Return
-
-The Modified Dietz method calculates investment returns, isolating actual performance by adjusting for the timing and magnitude of external cash flows.
-
-**Formula**:
-
-```
-R = (EMV - BMV - CF) / (BMV + sum(wi * CFi))
-```
-
-Where:
-
-- `EMV` = ending portfolio value
-- `BMV` = beginning portfolio value
-- `CF` = total net cash flow during the period (sum of CFi)
-- `CFi` = net cash flow at each intermediate snapshot
-- `wi` = time-weighting factor for each cash flow
-- `wi = (CD - Di) / CD`
-- `CD` = total calendar days in the period (code: `totalDays`)
-- `Di` = number of days from period start to cash flow i (code: `daysSinceStart`)
-
-**Cash Flow Time-Weighting**:
-
-Cash flows recorded on snapshot dates have known timing. For a return calculation over any period:
-
-1. Identify all snapshots strictly after the begin date through the end date (inclusive)
-1. Each snapshot's net cash flow (sum of its CashFlowOperation amounts) is a cash flow event at that snapshot's date
-1. Weight each by how much of the period remained when it occurred
-
-**Example**: 90-day period, cash flow of +100,000 at day 30:
-
-```
-w = (90 - 30) / 90 = 0.667
-Weighted cash flow = 0.667 * 100,000 = 66,700 (added to denominator)
-```
-
-A cash flow at the very start (day 0) gets weight 1.0 (fully invested). A cash flow at the very end (day 90) gets weight 0.0 (not invested during the period).
-
-**Period Lookback**: Same bidirectional closest-snapshot lookback as growth rate (no distance limit, prefer earlier on tie).
-
-**Supported Levels**: Portfolio-level return only in v1. Category-level return is not tracked because category-level cash flow data is unavailable.
-
-### Cumulative Time-Weighted Return (TWR)
-
-Cumulative TWR chains Modified Dietz returns between consecutive snapshots to measure long-term portfolio performance:
-
-For each consecutive pair of snapshots (S0->S1, S1->S2, ..., Sn-1->Sn), compute the Modified Dietz return `ri`:
-
-```
-TWR = (1 + r1) * (1 + r2) * ... * (1 + rn) - 1
-```
-
-This is the standard time-weighted return methodology that eliminates the distortion of external cash flows across the full history.
-
-### CAGR
-
-```
-CAGR = (Ending_Value / Beginning_Value) ^ (1 / Years) - 1
-```
-
-Where `Years` = (end date - start date) / 365.25, calculated as Decimal. CAGR keeps the ratio and fractional exponent in Decimal arithmetic; it does not convert portfolio values through Double.
-
-Available for portfolio-level only in v1.
-
-### Edge Cases
-
-| Scenario                              | Behavior                                                                                     |
-| ------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Only one snapshot                     | Growth/return/TWR/CAGR = N/A. Display "Insufficient data"                                    |
-| Beginning value = 0                   | Return = N/A. Display "Cannot calculate"                                                     |
-| Beginning value < 0                   | Return = N/A. Display "Cannot calculate"                                                     |
-| Ending value \<= 0 (CAGR)             | CAGR = N/A. Display "Cannot calculate"                                                       |
-| Denominator (BMV + weighted CF) \<= 0 | Return = N/A. Display "Cannot calculate"                                                     |
-| Category has no assets                | Allocation = 0%, return = N/A                                                                |
-| All assets uncategorized              | Uncategorized group shows 100% allocation                                                    |
-| Fewer than 2 snapshots                | All period metrics = N/A                                                                     |
-| Period < 1 year for CAGR              | Calculate using fractional years (may produce large annualized numbers -- display with note) |
-| Negative period return > -100%        | Display normally                                                                             |
-| Net cash flow but no value change     | Return is negative (cash added but no growth). Display normally                              |
-
-______________________________________________________________________
-
-## Rebalancing Engine
-
-Rebalancing is a read-only, closed-portfolio preview using the latest snapshot's directly recorded values. Missing entries do not carry forward. Convert both asset values and minimums using that snapshot's valid exchange-rate record. Missing goal rates disable the plan independently of otherwise valid asset valuations.
-
-### Inputs and protected funds
-
-Use category UUIDs for identity. Let `V` be total value, `c_i` current category balance, `m_i` minimum or zero, and `u` uncategorized value.
-
-1. If `sum(m_i) > V`, report globally infeasible minimums and funding shortfall `sum(m_i) - V`.
-1. For every category without a percentage, protect `q_i = max(c_i, m_i)`.
-1. Define `Q = u + sum(q_i)` and the percentage pool `A = V - Q`.
-1. Let `F` be minimums of percentage-target categories. If `Q + F > V`, report insufficient available funds and shortfall `Q + F - V`. Protected holdings can cause this even when total minimums fit within V.
-1. Require percentage targets to sum to 100% when any exist. Save is permitted before this condition is met; actions are unavailable.
-
-Per-category shortfalls `max(0, m_i - c_i)` are distinct from external funding shortfalls. With only minimum goals, current surpluses remain protected; unmet minimums require new funds or changed configuration, without an automatically chosen donor.
-
-### Constrained allocation
-
-Reserve explicit zero-percentage targets at their minimums. For positive percentages solve:
-
-```text
-target_i = max(minimum_i, lambda * percentage_i)
-sum(target_i for percentage categories) = available_pool
-adjustment_i = target_i - current_i
-```
-
-Repeatedly distribute remaining funds according to remaining percentage weights, fix any below-minimum category at its minimum, and redistribute. Each iteration removes a bound category, so iteration count is bounded by category count. Minimum-only targets are q_i; no-target and uncategorized balances are unchanged. A feasible plan conserves portfolio value and never violates a minimum.
-
-For V = TWD 1,000,000, reserve 10% with a TWD 300,000 minimum, equities 60%, and bonds 30%, effective targets are approximately TWD 300,000 / 466,666.67 / 233,333.33. Flexible weights retain a 60:30 ratio after the reserve minimum binds.
-
-Use checked Decimal arithmetic at full precision. Finite balance-arithmetic results with normal Decimal precision loss are accepted; overflow, underflow, division by zero and invalid numbers are rejected. Percentage aggregation remains exact. Minimum and protected funding sums that lose precision are usable only when their strict budget comparison is unambiguous: a conservative error bound of `max(requiredTotal, budget, 1) * componentCount * 1e-37` accounts for Decimal's 38 significant digits. If the rounded sum lies within that bound of the budget, the plan remains unavailable rather than erasing a requirement. Original components participate in the combined funding check, so rounded subtotals cannot conceal a deficit. This error bound never permits underfunding. Asset values are summed in stable asset UUID order, and allocation inputs in category UUID order. Independently summed portfolio and category totals may differ by at most `max(V, 1) * 1e-28`; larger inconsistencies are invalid. This tolerance applies only to arithmetic consistency and target reconciliation, never to genuine funding deficits or minimum compliance. A division/rounding remainder within that bound may be reconciled to a flexible positive-weight category that remains above its minimum; otherwise the calculation is unavailable. No financial value is converted through Double or rounded to currency display precision. Display and chart conversion do not feed back into the calculation.
-
-### Result and presentation
-
-Structured results distinguish feasible, no goals, invalid data, invalid percentage sum, globally infeasible minimums, and insufficient available funds. The assessment layer separately represents no snapshot and missing asset/goal conversion. Zero-valued snapshots can still have funding shortfalls; shares of a zero total/pool are unavailable.
-
-Rows expose requested pool percentage, original minimum/currency, current balance/share of total, effective balance/share of total, difference, and binding reason. Minimum-only rows are included. Protected and uncategorized rows remain visible. Sort by absolute adjustment and then stable UUID.
-
-Mandatory minimum top-ups remain actionable below one display-currency unit. Transfer planning first funds every actual minimum shortfall, then uses remaining donor capacity for actionable percentage adjustments. Small donor reductions participate when large reductions cannot cover the total minimum shortfall; optional increases above minimums do not count toward this mandatory demand. Repeated transfers between the same pair are combined for display. Other subunit differences show “Small adjustment” with their precise value. Transfer summaries are limited by actual donor and recipient capacity. Omitted/unmatched adjustments are disclosed as a residual; invalid or infeasible plans have no actions or transfer summaries.
-
-Historical comparisons use current goal settings and each snapshot's rates, with unavailable gaps; they do not record goal history. Value charts include the converted minimum overlay. Raw pool percentages are not plotted as whole-portfolio allocation references.
-
-## CSV Import System
-
-### Import Flow
-
-1. User selects import type (Assets or Cash Flows) via segmented control
-1. User selects a CSV file (drag-and-drop or browse)
-1. System auto-detects column mapping by case-insensitive header matching:
-   - If all required columns match: parsing proceeds immediately (no sheet)
-   - If required columns are missing: a column mapping sheet appears with a full CSV table preview, per-column dropdowns, and sample data rows; the user maps each CSV column to a canonical field or skips it; matched optional columns are pre-selected
-1. User configures import parameters:
-   - **Asset import**: Snapshot date (required, defaults to today), Platform (optional), Category (optional)
-   - **Cash flow import**: Snapshot date (required, defaults to today)
-1. Preview table shows parsed data with inline validation indicators
-1. User may remove individual rows from the preview
-1. User clicks "Import" to confirm
-1. On success: snapshot created or updated; user navigated to snapshot detail
-
-### CSV Schemas
-
-**Asset CSV** (required columns: `Asset Name`, `Market Value`; optional: `Platform`):
-
-```csv
-Asset Name,Market Value,Platform
-AAPL,15000,Interactive Brokers
-VTI,28000,Interactive Brokers
-Bitcoin,5000,Coinbase
-Savings Account,20000,Chase Bank
-```
-
-**Cash Flow CSV** (required columns: `Description`, `Amount`):
-
-```csv
-Description,Amount
-Salary deposit,50000
-Emergency fund transfer,-10000
-```
-
-### Parsing Rules
-
-- **Encoding**: UTF-8 (with BOM tolerance)
-- **Delimiter**: Comma only
-- **Number parsing**: Strip whitespace, currency symbols ($), thousand separators (commas in numbers). Parse as `Decimal`. Negative values allowed.
-- **Empty rows**: Silently skipped
-- **Header row**: Required as first row
-- **Malformed files**: Invalid encoding, quoting, field counts, or CSV structure produce a user-visible import error; no rows are imported
-
-### Validation
-
-**Errors (block import) -- Asset CSV**:
-
-- Missing `Asset Name` or `Market Value` column
-- `Market Value` cannot be parsed as a number for any row
-- Empty `Asset Name` for any row
-- File is empty or contains only headers
-- Duplicate entries detected (within CSV or against existing snapshot)
-- Unsupported currency code for any row (must match a currency supported by the app)
-
-**Errors (block import) -- Cash Flow CSV**:
-
-- Missing `Description` or `Amount` column
-- `Amount` cannot be parsed as a number for any row
-- Empty `Description` for any row
-- File is empty or contains only headers
-- Duplicate entries detected (within CSV or against existing snapshot)
-
-**Warnings (allow import) -- Asset CSV**:
-
-- `Market Value` is zero for an asset
-- `Market Value` is negative for an asset
-- Unrecognized columns (ignored but noted)
-- Asset already exists with a different category than import-level selection
-- Asset already exists with a different currency than the CSV-provided currency
-
-**Warnings (allow import) -- Cash Flow CSV**:
-
-- `Amount` is zero
-- Unrecognized columns (ignored but noted)
-
-Each error/warning references the specific row number and column.
-
-### Platform Handling
-
-Platform for each asset is determined by the import-level platform selection and apply mode:
-
-1. If no import-level platform is selected, use per-row CSV values (or empty if no `Platform` column)
-1. If an import-level platform is selected:
-   1. **Override All** (default): Every row receives the selected platform, overriding CSV values
-   1. **Fill Empty Only**: Only rows whose CSV platform is empty receive the selected platform; rows with existing CSV platforms keep their original values
-
-The apply mode toggle appears only when a platform is selected AND the CSV has a mix of empty and non-empty platform values.
-
-### Currency Handling
-
-Currency for each asset is determined by the CSV data and existing asset state:
-
-1. If the CSV provides a `Currency` column value for a row, that currency is assigned to the asset on import (takes precedence over any existing currency)
-1. If the CSV has no currency for a row (no `Currency` column or empty value), the existing asset's currency is preserved unchanged
-1. Unsupported currency codes (not recognized by `CurrencyService`) produce a validation error that blocks import
-1. When an unsupported currency error exists for a row, it takes precedence over the currency change warning (both are not shown simultaneously)
-
-Cash flow CSV currency handling follows the same pattern: CSV currency is assigned if provided, otherwise no currency is set on the new cash flow operation.
-
-### Duplicate Detection
-
-Duplicates are shown as per-row error popovers on the affected preview rows. Rows with duplicate errors block import.
-
-**Asset CSV duplicates**:
-
-- **Within CSV**: Two rows with the same (Asset Name, Platform) after applying platform handling rules and normalized identity comparison. The second occurrence gets the error.
-
-- **Between CSV and existing snapshot**: An asset in the CSV matches an asset already recorded in the target snapshot (same date)
-
-- **Bulk Entry platform resolution**: Empty or target-matching platform values are resolved to the selected target platform before within-CSV duplicate detection. Rows for other platforms are skipped with a warning and do not participate in duplicate detection.
-
-**Cash flow CSV duplicates**:
-
-- **Within CSV**: Two rows with the same Description (case-insensitive). The second occurrence gets the error.
-- **Between CSV and existing snapshot**: A Description matches an existing CashFlowOperation in the target snapshot
-
-Excluding (removing) a row with a duplicate error triggers revalidation; if the remaining rows have no duplicates, the errors are cleared.
-
-### Category Assignment During Import
-
-Category for each asset is determined by the import-level category selection and apply mode:
-
-1. If no category is selected, imported assets are uncategorized (existing assets retain their current category)
-1. If a category is selected:
-   1. **Override All** (default): Every asset receives the selected category, overriding existing categories
-   1. **Fill Empty Only**: Only assets that have no existing category receive the selected category; assets with existing categories keep their original category
-
-The apply mode toggle ("All Rows" checkbox) appears only when a category is selected AND the import contains a mix of categorized and uncategorized existing assets (`hasMixedCategories`).
-
-- In **Override All** mode, a category reassignment warning is shown on rows where the existing asset has a different category
-- In **Fill Empty Only** mode, no category reassignment warning is shown (existing categories won't change)
-- The preview table's Category column shows the effective post-import category reflecting the apply mode
-- "New Category..." option: if entered name matches existing category (case-insensitive), the existing one is used; otherwise a new category is created with no target allocation
-
-______________________________________________________________________
-
-## Category Management
-
-### Operations
-
-- **Create**: User provides name and optional target allocation. Also created implicitly via "New Category..." picker option. New categories receive the next sequential `displayOrder` value.
-- **Edit**: Rename or change target allocation
-- **Delete**: Only allowed if no assets are assigned. If assets exist, user must reassign them first. After deletion, `displayOrder` values are compacted to remove gaps.
-- **Reorder**: Categories can be reordered via drag-and-drop. The `displayOrder` property persists the user-defined order. All category lists sort by `displayOrder` first, then alphabetically by name as a tiebreaker.
-
-### Target Allocation and Minimum Balance Rules
-
-A category may have an optional percentage target, an optional minimum balance, both, or neither. Minimums are finite nonnegative Decimal amounts with an explicit currency; amount and currency are either both present or both absent. Explicit zero is valid. Currency defaults to the single currency shared by the category's assets, or the display currency if mixed or empty. Changing display currency preserves the saved denomination. Changing the goal currency does not convert the entered amount.
-
-Percentage targets distribute the available allocation pool, after protecting uncategorized assets and categories without percentage targets. A minimum-only category protects `max(current balance, minimum)`. No-target categories protect their current balances. Percentage targets may be saved incrementally, but their sum must equal 100% before an actionable percentage plan is available. An explicit 0% targets its minimum, or zero; absence of a percentage protects the category instead.
-
-All assets still contribute to total value and actual allocation percentages. Minimums take priority over percentage preferences. Infeasible requirements can be saved and produce diagnostics rather than partial buy/sell plans. Ordinary asset/cash-flow imports do not change category goals.
-
-______________________________________________________________________
+A snapshot contains only asset values and external cash flows recorded for its date. A missing asset entry is absent, not zero, and values never carry forward automatically. A user may explicitly seed a new snapshot from a prior one in Bulk Entry or copy selected prior-platform values during CSV import. Snapshots can later be edited or deleted; an import into an existing date may add records but cannot silently replace a recorded nonzero asset value or an existing cash flow.
 
 ## Asset Identity and Matching
 
-### Identity Rule
+An asset's import identity is its name and platform after trimming outer whitespace, collapsing repeated internal spaces, and comparing without case. A matching asset record is reused across snapshots. Importing a different name or platform creates another asset; editing an existing asset's identity changes the same record across its history and must not collide with another asset. An asset may be deleted only when no snapshot values refer to it. Removing an asset from one snapshot removes that recorded value, not the asset record.
 
-An asset is uniquely identified by the tuple: **(Asset Name, Platform)**
+An asset is **stale** when it has no entry in the latest snapshot. A latest value of zero is present and is not stale. The asset-list visibility control and its persistence belong in [UserInterfaceDesign.md](UserInterfaceDesign.md#assets-screen).
 
-- During import, if an asset with the same name and platform already exists, the existing asset record is reused
-- If no match exists, a new asset record is created
-- Matching uses normalized identity comparison (trim whitespace, collapse spaces, case-insensitive)
+## Calculation Logic
 
-### Renaming Behavior
+### Currency Conversion
 
-- Renaming an asset or changing its platform **via CSV import** creates a new asset (old one remains with historical values)
-- Renaming an asset or changing its platform **via the Asset detail view** updates the existing asset retroactively across all snapshots. The new (name, platform) must not conflict with an existing asset.
+Monetary amounts and rates use `Decimal`. Portfolio values, cash flows, and minimum goals have currency units; performance returns are ratios (for example, `0.09` means 9%). Category targets and allocation shares use percentage-point units on a 0–100 scale. Calculations use unrounded values; display rounding never feeds back into a financial decision.
 
-### Asset Deletion
+An asset or cash flow with an empty stored currency inherits the **current display currency for conversion**. This is distinct from an explicit currency and from a missing rate. For a snapshot, conversion requires a positive, finite rate for every required non-display currency, an exchange-rate record with the display currency as its base, and a Gregorian rate date matching the snapshot date. The base-currency rate is 1. Cross-currency conversion is:
 
-An asset can be deleted when it has **no SnapshotAssetValue records** in any snapshot:
+```text
+converted amount = native amount / rate[native currency] × rate[display currency]
+```
 
-- The asset was removed from all snapshots, or
-- The asset was created but never used
+### Portfolio Total Value
 
-When an asset has snapshot associations, the delete action is disabled with explanatory text. Deletion is permanent and requires confirmation.
+The converted snapshot total is the sum of its directly recorded asset values after conversion. If any required asset rate is missing or unusable, the converted total is unavailable. Native totals remain available **separately by currency**; a mixed-currency sum is never a single-currency total. Net cash flow likewise sums converted external-flow amounts only when its required rates are available. No cash-flow operations means a net cash flow of zero.
 
-### Stale Assets and the Hide Filter
+Availability depends on the calculation:
 
-An asset is considered **stale** when it has **no value in the latest snapshot** (its `latestValue` lookup is `nil`). Assets typically become stale after the user closes a position: the asset still has SnapshotAssetValue records in older snapshots, but the most recent snapshot no longer references it.
+| Result                             | Required conversion and valid inputs                                                                                                                                                                                                |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Snapshot total and category shares | Asset values at that snapshot; shares also require a positive converted total.                                                                                                                                                      |
+| Net cash flow                      | Cash-flow amounts at that snapshot; asset-rate availability is independent.                                                                                                                                                         |
+| Period growth                      | Asset totals at the resolved beginning and ending snapshots.                                                                                                                                                                        |
+| Period Modified Dietz              | Asset and cash-flow conversion status at the beginning, ending, and intervening snapshots used by the dashboard; the beginning snapshot's flows are excluded from the period even though its combined conversion status is checked. |
+| Cumulative TWR                     | Every consecutive interval's Modified Dietz result across the history.                                                                                                                                                              |
+| CAGR                               | Asset totals at the first and latest snapshots, plus a positive time interval and positive endpoint values.                                                                                                                         |
+| Rebalancing                        | Latest-snapshot asset values and each configured minimum's currency conversion; a missing goal rate can disable the plan while the asset total remains available.                                                                   |
 
-The Asset list provides a **Hide Stale Assets** filter (toolbar Filter menu) to remove these rows from the list. The filter is **enabled by default** so the list focuses on the user's current portfolio. The user's choice is persisted in `UserDefaults` under `Constants.UserDefaultsKeys.hideStaleAssets` via `SettingsService.hideStaleAssets`, so it survives view switches and app relaunches. The filter is purely presentational — it does not delete data and does not affect any other view (Dashboard, Snapshots, Categories, Platforms, Rebalancing).
+A missing rate disables the affected converted result, not unrelated metrics. The service also retains native totals by currency for diagnosis. Exchange-rate fetching may fill missing records later; it does not justify substituting native amounts for converted amounts.
 
-______________________________________________________________________
+### Category Allocation
+
+For a snapshot with a positive converted total:
+
+```text
+category value = sum of converted values of directly recorded assets in that category
+category share (%) = category value / converted portfolio total × 100
+```
+
+Uncategorized assets form their own group. A category with no recorded assets has zero value and a 0% share when the total is positive. If every recorded asset is uncategorized, that group has 100% of a positive total. For a zero or negative total, or incomplete asset conversion, a meaningful share is unavailable rather than inferred from a partial or mixed-currency total.
+
+## Portfolio Performance
+
+Performance calculations are portfolio-level. Category-level external flows are not recorded, so the app does not calculate category returns.
+
+### Growth Rate
+
+For 1M, 3M, and 1Y metrics, subtract the selected number of months from the latest snapshot date to get a target date. Choose the closest **other** snapshot on either side of that date. There is no 14-day or other distance cutoff; ties choose the earlier snapshot. The selected beginning snapshot and the latest snapshot define the **actual interval**, which can be shorter or longer than the named period. Fewer than two snapshots leave period metrics unavailable.
+
+Simple growth includes contributions and withdrawals; it does not isolate investment performance:
+
+```text
+growth ratio = (ending converted value - beginning converted value)
+               / beginning converted value
+```
+
+The beginning value must be positive. Growth needs conversion of the two endpoint asset totals, not every historical snapshot or cash flow.
+
+### Net Cash Flow
+
+An **external cash flow** moves money into or out of the portfolio. Positive amounts are contributions; negative amounts are withdrawals. Dividend reinvestment within the portfolio is not an external contribution. Operations are portfolio-level and are assigned to their snapshot date, regardless of the platform involved. Amounts are converted to the display currency at that snapshot before aggregation. If no operations are recorded, the calculation treats net external flow as zero.
+
+### Modified Dietz Return
+
+For a period from `begin` to `end`, include cash flows from snapshots in **`(begin, end]`**. A flow on the beginning date is excluded by the dashboard's aggregation rule; a flow on the ending date is included. A flow's weight uses the calendar days remaining after its assigned date:
+
+```text
+R  = (EMV - BMV - Σ CFᵢ) / (BMV + Σ(wᵢ × CFᵢ))
+wᵢ = (period calendar days - days since begin) / period calendar days
+```
+
+`BMV` and `EMV` are beginning and ending converted portfolio values; each `CFᵢ` is a signed converted external flow. The period must contain a positive number of calendar days, `BMV` must be positive, and the denominator must be positive. A flow on the ending date has weight zero. The pure formula would give a day-zero flow weight one, but the app excludes beginning-date flows from this period.
+
+**Worked example:** Over 90 days, begin with 100,000, record a +100,000 contribution on day 30, and end with 215,000 in the same currency. The flow weight is `60/90 = 2/3`, so its weighted contribution is approximately 66,666.67. The numerator is 15,000; the full-precision denominator is `100,000 + (2/3 × 100,000)`. The expected return is **`0.09` (9%)**. The displayed 66,666.67 is rounded for reading, not used as the calculation input. This matches the synthetic mid-period case in [CalculationServiceTests.swift](../AssetFlowTests/Services/CalculationServiceTests.swift).
+
+Modified Dietz estimates cash-flow-adjusted performance from available valuations and assumed flow dates. It does not reconstruct a valuation at every actual transaction time. The [GIPS Standards Handbook for Firms](https://www.gipsstandards.org/wp-content/uploads/2021/04/gips-standards-handbook-firms.pdf) describes the method as an estimate; this description does not claim GIPS compliance.
+
+### Cumulative Time-Weighted Return (TWR)
+
+The app chains Modified Dietz estimates between consecutive snapshots:
+
+```text
+cumulative TWR ratio = ∏(1 + interval return) - 1
+```
+
+For example, consecutive estimated returns of +10% and -5% produce `1.10 × 0.95 - 1 = 0.045`, or 4.5%. The chain remains an estimate under the snapshot-date assumptions. If any required interval return is undefined, the all-time cumulative result and its history are unavailable; an empty set of intervals is not a reported 0% result.
+
+For a selected range other than All, filter the cumulative history first. Let `Cₖ` be the inception-based return at its first visible point and `Cᵢ` the return at another visible point. Rebase each point as:
+
+```text
+range returnᵢ = (1 + Cᵢ) / (1 + Cₖ) - 1
+```
+
+The first visible point becomes 0% when `1 + Cₖ` is nonzero. For example, inception returns of 50% at the first visible point and 65% later become 0% and 10% for that range. All retains the inception-based series. If `Cₖ = -100%`, the divisor is zero; the current calculation retains the original points because it cannot rebase them.
+
+### CAGR
+
+CAGR annualizes the change from the first to the latest converted portfolio value:
+
+```text
+years = calendar days between snapshots / 365.25
+CAGR ratio = (ending value / beginning value) ^ (1 / years) - 1
+```
+
+Both values and the interval must be positive. Fractional years are allowed, including periods shorter than one year. CAGR includes the effect of external flows, unlike Modified Dietz. Its ratio and fractional exponent are evaluated using `Decimal` arithmetic rather than converting portfolio values through `Double`.
+
+### Edge Cases
+
+| Condition                                                      | Domain result                                                                                                                    |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Fewer than two snapshots                                       | Growth, period return, cumulative TWR, and CAGR unavailable.                                                                     |
+| Nonpositive beginning value                                    | Growth, Modified Dietz, and CAGR unavailable.                                                                                    |
+| Nonpositive Modified Dietz denominator or nonpositive interval | That interval return and a chain requiring it unavailable.                                                                       |
+| Nonpositive ending value for CAGR                              | CAGR unavailable.                                                                                                                |
+| Missing conversion                                             | Only results requiring the missing asset, flow, or goal rate are unavailable.                                                    |
+| Zero or negative converted portfolio total                     | Category shares and effective target shares unavailable; positive minimum shortfalls can still be assessed where values convert. |
+
+## Category Management
+
+### Target Allocation and Minimum Balance Rules
+
+A category may have a percentage target, a currency-denominated minimum balance, both, or neither. Goal fields are edited as one draft and validated together on save. Category names must be nonempty and unique without case. A present percentage must be finite and within 0–100. Minimum amount and currency must be both present or both absent; a present amount must be finite and nonnegative, and zero is valid. The chosen currency must be valid for the goal editor. A newly created category has no goal unless one is supplied.
+
+The suggested minimum currency is the single currency shared by the category's assets, or the display currency when its assets are mixed or absent. The saved minimum keeps its original denomination when the display currency changes. Changing the goal currency changes what the entered amount means; it does not convert the amount. A category's persisted user order and stored fields are defined in [DataModel.md](DataModel.md#category). Infeasible goals can be saved so the assessment can explain their shortfall. Ordinary asset and cash-flow imports do not change goals.
+
+### Goal Assessment and Warnings
+
+For a category with a converted minimum, its **current minimum shortfall** is `max(0, minimum - current balance)`. Every strictly positive shortfall warrants a warning, including a minimum-only goal or an infeasible whole-portfolio plan. This is different from the **external funding shortfall** needed to make all category goals feasible.
+
+Current and effective allocation shares both use the **whole converted portfolio** as denominator. Only a category with a percentage target receives an allocation-deviation warning, and only when the absolute difference from its effective share is **greater than 5 percentage points**; exactly 5 does not warn. A category with both issues reports both reasons. A minimum-only category protects its current surplus and does not receive a surplus-deviation warning. A no-goal category has no effective target. Zero-total shares, infeasible effective targets, missing conversion, and absent snapshots are unavailable states, not proof of compliance or shortfall. Comparisons use full `Decimal` precision.
+
+## Rebalancing Engine
+
+### Inputs and Feasibility
+
+Rebalancing is a read-only preview using the latest snapshot's directly recorded assets. Missing assets do not carry forward. Let:
+
+- `V` be the converted portfolio total.
+- `cᵢ` be category `i`'s current converted balance and `mᵢ` its converted minimum, or zero.
+- `u` be the converted uncategorized balance.
+- `qᵢ = max(cᵢ, mᵢ)` for a category **without** a percentage target; this protects its current holding and minimum.
+- `Q = u + Σqᵢ` be protected funds, and `A = V - Q` be the pool for percentage-target categories.
+- `F` be the sum of minimums on percentage-target categories.
+
+Invalid balances, goal fields, or arithmetic make the plan unavailable without targets. For valid inputs, funding and goal statuses are assessed in this order:
+
+1. If `Σmᵢ > V`, all minimums cannot fit; the global funding shortfall is `Σmᵢ - V`.
+1. If `Q + F > V`, protected funds leave insufficient room for percentage-category minimums; the shortfall is `Q + F - V`. This can occur even if total minimums alone fit.
+1. If any percentage targets exist, their sum must equal **exactly 100%** for an actionable percentage plan. Goals may be saved before the sum reaches 100%.
+1. If no goals exist, there is no plan.
+
+When only minimums exist, current surpluses remain protected. The app does not invent a donor to fund an unmet minimum. A zero-valued portfolio can still report a positive funding shortfall; a feasible zero total does not supply meaningful percentage shares.
+
+### Constrained Allocation
+
+An explicit 0% target receives its minimum, or zero if it has none. A missing percentage protects `qᵢ` instead. For positive percentages, find a scale `λ` such that:
+
+```text
+effective targetᵢ = max(mᵢ, λ × percentage targetᵢ)
+sum of percentage-category targets = A
+adjustmentᵢ = effective targetᵢ - current balanceᵢ
+```
+
+Distribute the remaining pool in proportion to remaining positive percentage weights. Fix any category whose proportional share falls below its minimum, then redistribute among the others. A feasible plan preserves the whole portfolio value, leaves protected and uncategorized holdings in place, and meets every minimum. Requested percentages describe the allocation **pool**; effective shares use `V`.
+
+| Synthetic case                                                                                                                    | Expected domain result                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `V = 1,000`: minimum-only balance 200 with minimum 100, no-goal balance 100, uncategorized 200, and one 100% category holding 500 | Protected funds `Q = 500`; the 100% category receives the remaining 500. The minimum-only surplus remains 200.                                            |
+| `V = 1,000,000`: reserve 200,000 at 10% with minimum 300,000; equities 600,000 at 60%; bonds 200,000 at 30%                       | Targets are approximately 300,000 / 466,666.67 / 233,333.33. The reserve minimum binds; the other targets retain their 60:30 ratio.                       |
+| `V = 1,000`: minimum-only category holds 200 and requires 300; a no-goal category holds 800                                       | Total minimums fit, but protected requirements total 1,100. The plan reports insufficient available funds of 100 and gives no transfers.                  |
+| `V = 100`: current balances 40 / 20.5 / 39.5 / 0, targets 30% / 20% / 49.8% / 0.2%, last category minimum 0.2                     | Fund its mandatory 0.2 first, then use 9.8 of the same donor's reduction for the larger increase. Two optional 0.5 differences remain as a residual of 1. |
+
+The cases correspond to [RebalancingCalculatorTests.swift](../AssetFlowTests/Services/RebalancingCalculatorTests.swift) and [RebalancingTransferPlannerTests.swift](../AssetFlowTests/Services/RebalancingTransferPlannerTests.swift). Approximate figures in the table are for reading; requirements and targets are compared before display rounding.
+
+### Precision and Suggested Transfers
+
+Balance arithmetic uses checked `Decimal` operations. Finite results with normal precision loss can be used; overflow, underflow, invalid values, and division by zero make the plan unavailable. Percentage aggregation requires exact arithmetic. When summing nonnegative minimum or protected requirements loses precision, a strict funding decision is accepted only if it is unambiguous outside a conservative bound of `max(required total, budget, 1) × component count × 10⁻³⁷`. A budget inside that bound is **unavailable**, never presumed sufficient. Original requirements enter the combined comparison so rounded subtotals cannot hide a deficit.
+
+Independently grouped portfolio and category totals may differ by at most `max(V, 1) × 10⁻²⁸` from `Decimal` arithmetic. This tolerance is solely for consistency and allocation remainder reconciliation; it never relaxes minimums or genuine funding deficits. Remainders may go only to a flexible positive-weight category without violating its minimum. No monetary value is converted through `Double` or rounded to display precision to decide feasibility.
+
+Transfer eligibility is separate from funding order. An adjustment with an absolute value of at least one display-currency unit is eligible. A smaller positive adjustment is also eligible when its category has any current minimum shortfall; the **whole target increase** can then be funded. Smaller donor reductions become eligible when donors reducing by at least one unit cannot cover the total mandatory shortfall. Other subunit adjustments are suppressed.
+
+The planner first funds only **actual current minimum shortfalls** of eligible recipients, including subunit amounts. It then uses remaining donor and recipient capacity for their other target increases. For example, a recipient increasing by 0.8 with a minimum shortfall of 0.2 can receive 0.2 first and the remaining 0.6 if donor capacity allows; the optional 0.6 does not count as mandatory demand. Transfers cannot exceed donor or recipient capacity. Suppressed or unmatched differences remain visible as a residual. Invalid, infeasible, or conversion-unavailable plans provide no actionable transfers.
+
+Historical goal comparisons use current goal settings with each snapshot's rates; they do not reconstruct historical goal settings.
+
+## CSV Import System
+
+[APIDesign.md](APIDesign.md#csv-import-format-specification) owns exact headers, encoding, mapping, and interchange examples. Asset CSV requires an asset name and market value; platform and currency are optional. Cash-flow CSV requires a description and amount; currency is optional. The file contains no snapshot date: the user selects a target date no later than today. Required headers are detected without case or surrounding whitespace, and unresolved columns can be mapped before import.
+
+A malformed file, no data rows, missing required fields, an empty required identity, or an unparseable amount blocks import. A supplied asset currency absent from the app's supported currency list also blocks the standard asset import. The cash-flow import does not currently reject a supplied code solely because it is absent from that list; a needed but unavailable rate can later make converted cash-flow results unavailable. Zero or negative asset market values and zero cash-flow amounts are warnings in the standard import; they are not parser errors. A file with blocking errors does not partially import valid rows.
+
+### Platform, Category, and Currency Resolution
+
+With no import-level platform selected, each asset row keeps its CSV platform or an empty one. With a selection, **Override All** assigns it to every row; **Fill Empty Only** assigns it only where the CSV platform is empty. Identity and duplicate checks use the resulting platform.
+
+With no import-level category selected, existing assets keep their categories and new assets remain uncategorized. A selected category applies to all imported assets in **Override All** mode, or only to uncategorized assets in **Fill Empty Only** mode. A newly entered category name reuses an existing category when the names match without case; otherwise it creates a category without a goal.
+
+An explicit asset CSV currency changes the matched asset's stored currency. A blank currency preserves an existing asset's currency; a new asset remains blank and inherits the display currency when converted. An explicit cash-flow CSV currency is stored on the new operation; a blank one remains blank and inherits the display currency when converted. Bulk Entry's **new** asset and cash-flow rows instead start with the current display currency as their editable default.
+
+### Duplicate and Replacement Policy
+
+Two included asset rows with the same normalized name and resolved platform conflict. A matching **nonzero** asset value already recorded on the selected snapshot date also blocks import. A matching **zero** value is a placeholder and is replaced in place by asset CSV import; this does not permit silent replacement of a nonzero value. Zero values imported through the standard asset import remain subject to that placeholder rule on a later import.
+
+Cash-flow descriptions must be unique within the included CSV rows and against existing operations on the target snapshot date, without case. There is no zero-amount replacement exception. Excluding a conflicting preview row triggers duplicate revalidation.
+
+An import may create a snapshot or append records to one already present. Copy-forward applies only when creating a new date and only to selected platforms from the latest earlier snapshot; it avoids adding an asset already recorded on the target date. CSV import does not update category goals.
 
 ## Snapshot Lifecycle
 
-### Manual Creation
+A manually created snapshot uses a unique date no later than today. An empty start has no asset values. A Bulk Entry start seeds **only assets recorded in the latest snapshot before the chosen date**, grouped by platform; the user may add further platforms and assets. It is a draft until saved. The draft starts with no cash-flow operations, even when the prior snapshot had them.
 
-1. User clicks "New Snapshot" on the Snapshots screen
-1. Selects a date (must be today or earlier, future dates disabled)
-1. If the selected date already has a snapshot, show validation error: "A snapshot already exists for [date]. Go to the Snapshots screen to view and edit it."
-1. Chooses starting point:
-   - **Empty snapshot**: Creates snapshot with no asset entries
-   - **Bulk Entry** (default): Opens BulkEntryView with all assets from the latest prior snapshot grouped by platform. When no prior snapshots exist, the view shows an empty state with an "Add Platform" action. Users can add platforms and assets inline without needing prior data.
-1. User is taken to snapshot detail for editing
-
-#### Bulk Entry Validation Rules
-
-- New asset rows (`.manualNew`) must have a non-empty name before saving
-- Duplicate asset names within the same platform (case-insensitive) are validated at save time (same pattern as cash flow duplicate descriptions)
-- Same asset name in different platforms is allowed
-- Categories for new assets are stored as name strings and resolved on save via `resolveCategory(name:)` (case-insensitive find-or-create)
-- New categories typed by the user are immediately available in the picker for other new asset rows but are not created in the database until save
-
-### CSV Import Creation
-
-Snapshots created through the CSV import flow. If a snapshot already exists for the selected date, SnapshotAssetValues are added to the existing snapshot.
-
-### Editing
-
-Within the snapshot detail view:
-
-- **Add asset**: Select existing asset or create new one. Rejected if (Asset Name, Platform) already exists in this snapshot.
-- **Edit value**: Click on market value to edit. Changes saved immediately. There is no undo for inline value edits. Users should verify values before moving to the next field.
-- **Remove asset**: Remove a directly-recorded asset from this snapshot (asset record itself is NOT deleted)
-- **Add/Edit/Remove cash flow**: Manage CashFlowOperations with description uniqueness check
-
-### Deletion
-
-- Confirmation required showing date, asset count, and cash flow count
-- Removes the Snapshot and all its SnapshotAssetValues and CashFlowOperations
-- Asset records are NOT deleted
-
-______________________________________________________________________
-
-## Net Cash Flow
-
-### Purpose
-
-Net cash flow represents external money added to or withdrawn from the portfolio between snapshots. It is needed for accurate Modified Dietz return calculation.
-
-### Cash Flow Operations
-
-Each snapshot contains zero or more CashFlowOperation records:
-
-- **Description** (required, unique within snapshot) -- identifies the cash flow
-- **Amount** (required) -- Positive = inflow, negative = outflow
-
-Net cash flow = sum of all CashFlowOperation amounts for a snapshot.
-
-### Input Methods
-
-1. **CSV import**: Using the cash flow CSV schema. Duplicate detection applies.
-1. **Manual entry**: On the snapshot detail screen. Description uniqueness enforced.
-
-### Scope and Limitations
-
-- Portfolio-level only in v1
-- Category-level cash flow tracking deferred to future version
-- Cash flow operations apply to entire portfolio regardless of which platforms were included
-- All operations within a snapshot assumed to occur at the snapshot date for time-weighting
-
-### Default Behavior
-
-If a snapshot has no cash flow operations, net cash flow = 0, which assumes all value changes are due to investment returns.
-
-______________________________________________________________________
+Editing a saved snapshot may add, change, or remove directly recorded asset values and cash flows, subject to per-snapshot identity and value validation. Deleting a snapshot requires confirmation and removes its recorded values and cash flows; asset records remain. Category deletion requires its assets to be reassigned or removed first; asset deletion requires no recorded snapshot values. [DataModel.md](DataModel.md#relationships-and-integrity) owns the relationship and delete-rule details.
 
 ## Bulk Entry
 
-### Overview
+For an included Bulk Entry asset row, a valid nonzero entered amount becomes its recorded value. An included row with a **blank pending value** saves a zero-value placeholder after confirmation. An **explicit zero** in a manual or CSV-filled Bulk Entry row blocks save until corrected or excluded. Unparseable nonempty value text also blocks save; it is not a pending zero. An excluded row creates no snapshot value. At least one asset row must be included. New asset names must be nonempty; duplicate normalized names within one platform block save. New categories named on asset rows resolve case-insensitively when the draft is saved.
 
-Bulk entry provides a full-screen workflow for entering asset values across all platforms in a single session. It presents all known assets grouped by platform, allowing users to enter new market values directly or import them from per-platform CSV files.
+An included cash-flow row needs a nonempty description and a parseable amount; zero is valid for a cash flow. Descriptions must be unique within the saved snapshot. Excluded rows create no operation. Cash flows are portfolio-level and are never copied from the previous snapshot.
 
-### Save Semantics
+Bulk Entry CSV import changes **draft** rows rather than a saved snapshot. For assets, a valid CSV replaces the prior CSV-sourced values for its selected platform and fills matching draft rows by normalized name; rows for other platforms are skipped with feedback. A mismatched explicit currency on a matching asset row is skipped with feedback. For cash flows, a valid CSV replaces prior CSV-sourced rows across the whole draft and matches descriptions to existing draft rows. Parser or row-validation errors reject the replacement before prior CSV draft data changes; valid rows in a mixed-validity file are not applied separately. An imported asset value of zero becomes an explicit-zero draft row and prevents saving until resolved.
 
-- **Included rows with values**: A SnapshotAssetValue is created with the entered market value
-- **Included rows without values (pending)**: A SnapshotAssetValue is created with market value 0
-- **Excluded rows**: No SnapshotAssetValue is created; the asset is omitted from the snapshot
+## Calculation and validation outcomes
 
-### Zero-Value Design Invariant
-
-A `SnapshotAssetValue` with `marketValue == 0` is treated as a placeholder — an asset that has not yet been recorded for the snapshot. If a snapshot should not track an asset, the `SnapshotAssetValue` should be removed rather than kept with value 0. This invariant enables:
-
-- **CSV import overwrite**: When importing into an existing snapshot, zero-value SAVs are overwritten in-place rather than flagged as duplicates. This allows users to create a snapshot via bulk entry (which saves pending rows as 0) and later fill in values via CSV import.
-- **Bulk entry validation**: Explicitly entering 0 is blocked (`hasZeroValueError`); users must exclude the asset instead.
-
-### Zero-Value Warning Rules
-
-Assets with a market value of 0 trigger warnings in multiple contexts:
-
-- **Bulk entry save**: A confirmation alert lists all assets that will be saved with value 0, giving the user a chance to review before proceeding
-- **Snapshot detail view**: A yellow warning icon appears next to assets with value 0, with a tooltip explaining that the value may need updating or the asset should be removed
-- **Asset list view**: Assets whose latest snapshot value is 0 display a warning indicator
-
-### Cash Flow Operations in Bulk Entry
-
-Cash flow rows are portfolio-level and do not carry forward from previous snapshots. The cash flow section starts empty each time a new bulk entry session begins.
-
-**Input methods**:
-
-1. **Manual entry**: The "Add Cash Flow" button appends an inline row with editable description, amount, and currency fields. Manually-added rows (`.manualNew`) can be deleted via a trash button.
-1. **CSV import**: The "Import CSV" button uses the `.cashFlow` schema with auto-detect column mapping (required: Description, Amount; optional: Currency). A valid replacement clears all previous CSV-sourced rows globally (cash flows are portfolio-level, not per-platform) before applying the new import. Any parser or row-validation error rejects the replacement without changing the previous CSV-sourced rows. CSV rows are matched to existing rows by normalized description (`normalizedForIdentity`).
-
-**Validation rules**:
-
-1. Non-empty description is required for all included rows
-1. Case-insensitive duplicate description detection via `normalizedForIdentity` blocks save
-1. Invalid (unparseable) amount text blocks save
-1. All cash flow validation errors prevent saving (reflected in `canSave`)
-
-**Bulk Entry CSV failure handling**:
-
-- Asset and cash-flow CSV parse results are always surfaced in an import feedback alert, including row-level parser errors and file-read failures.
-- Any parser or row-validation error rejects the replacement before existing CSV values or rows are changed; valid rows from a mixed-validity file are not imported separately.
-
-**Save semantics**:
-
-- **Included rows**: Create `CashFlowOperation` objects on the snapshot. All included rows must have a non-empty, parseable amount (enforced by `canSave`). Explicit zero amounts are allowed. Currency is preserved from the row.
-- **Excluded rows**: Omitted entirely; no `CashFlowOperation` is created.
-
-**`canSave` integration**: The bulk entry `canSave` check includes cash flow validation alongside asset validation: no cash flow validation errors, no empty amounts, no empty descriptions on included rows. Duplicate cash flow descriptions are validated at save time (not in `canSave`) to avoid expensive `normalizedForIdentity` computation on every keystroke.
-
-______________________________________________________________________
-
-## Data Validation Rules
-
-### Category Validation
-
-- `name` must not be empty
-- `name` must be unique (case-insensitive)
-- `targetAllocationPercentage`, if provided, must be 0-100
-
-### Asset Validation
-
-- `name` must not be empty
-- `(name, platform)` must be unique (case-insensitive, normalized)
-
-### Snapshot Validation
-
-- `date` must be today or earlier
-- `date` must be unique (one snapshot per date)
-
-### SnapshotAssetValue Validation
-
-- `(snapshot, asset)` must be unique (one value per asset per snapshot)
-- `marketValue` must be a valid `Decimal`
-
-### CashFlowOperation Validation
-
-- `description` must not be empty
-- `(snapshot, description)` must be unique (case-insensitive)
-- `amount` must be a valid `Decimal`
-
-______________________________________________________________________
-
-## Error Handling
-
-### Import Errors
-
-| Error                                       | Handling                                                             |
-| ------------------------------------------- | -------------------------------------------------------------------- |
-| File cannot be opened                       | Alert: "Could not open file. Please check the file is a valid CSV."  |
-| Malformed CSV syntax or encoding            | Error feedback with the parser diagnostic; no replacement is applied |
-| Missing required columns for selected type  | Show which columns are expected vs. found, block import              |
-| Unparseable values                          | Highlight specific rows/columns, block import                        |
-| No data rows                                | Alert: "File contains no data rows."                                 |
-| Duplicate assets in CSV                     | Error dialog listing duplicates with row numbers, import rejected    |
-| Duplicate assets with existing snapshot     | Error dialog listing conflicts, import rejected                      |
-| Duplicate cash flows in CSV                 | Error dialog listing duplicates, import rejected                     |
-| Duplicate cash flows with existing snapshot | Error dialog listing conflicts, import rejected                      |
-
-### Calculation Errors
-
-- Division by zero: Display "N/A" or "Cannot calculate" with explanation
-- Insufficient snapshots for TWR/CAGR: Display "Insufficient data (need at least 2 snapshots)"
-
-### Data Integrity
-
-- Category deletion blocked if assets assigned
-- Asset deletion blocked if SnapshotAssetValues exist
-- Snapshot deletion requires confirmation
-- Value edits validated (must be a valid number)
-- Cash flow description uniqueness enforced per snapshot
-
-______________________________________________________________________
-
-## Design Principles
-
-All calculations must be:
-
-- **Deterministic** -- same inputs always produce same outputs
-- **Recomputable** -- derived values are never the source of truth
-- **Transparent** -- user can see what data drives each number
-- **Auditable** -- data sources are visible, not hidden
-
-```
-Raw Snapshot Data -> Derived Metrics -> Visualization
-```
-
-NOT:
-
-```
-Spreadsheet Formulas -> UI
-```
-
-______________________________________________________________________
-
-## App Lock (Authentication)
-
-### Overview
-
-Optional app-level authentication to protect against casual physical access. Uses macOS `LocalAuthentication` framework with `LAPolicy.deviceOwnerAuthentication`.
-
-### Rules
-
-1. **Off by default** — user enables in Settings → Security
-1. **Enable gate** — toggling app lock on triggers a system authentication prompt first; if auth fails, the toggle reverts to off (prevents accidental lockout)
-1. **Lock on launch** — if app lock is enabled, the app starts locked and requires authentication
-1. **Per-condition re-lock (three-step protocol)** — all lock state is centralized in `AuthenticationService`:
-   - **Step 1: `recordBackground(trigger:)`** — called by notification handlers. Two independent triggers:
-     - **App switch** (`NSApplication.didResignActiveNotification`) — fires when Cmd+Tab, clicking another window, or minimizing
-     - **Screen lock / sleep** — detected via two notifications: `com.apple.screenIsLocked` distributed notification (fires immediately on Ctrl+Cmd+Q and screen lock) and `NSWorkspace.screensDidSleepNotification` (fires on display sleep from lid close or idle timeout). Both are needed because screen lock does not trigger display sleep, and display sleep on external monitors may not trigger screen lock
-   - `screenSleep` always overrides a pending `appSwitch` (higher priority). Recording is suppressed while `isAuthenticating` is true to prevent re-lock loops. If the relevant timeout is `.immediately`, `isLocked` is set eagerly (lock overlay appears immediately, auth dialog deferred)
-   - **Step 2: `evaluateOnBecomeActive()`** — called on `didBecomeActiveNotification`. Evaluates the pending background event against its timeout and locks if elapsed time exceeds the threshold. Always clears background state afterward
-   - **Step 3: `authenticateIfActive()`** — auth dialog is ONLY shown when `isAppActive == true`. This prevents the system authentication dialog from appearing while the user is in another app. `LockScreenView` calls this via `.task(id:)` (for lock-on-launch) and `.onReceive(didBecomeActiveNotification)` (for deferred auth when returning to a locked app)
-   - Note: `ScenePhase` is not used because it is unreliable on macOS (only fires for Cmd+H hide)
-1. **Window protection** — both the main `WindowGroup` and `Settings` scene use the same `ZStack` + `LockScreenView` overlay pattern. No windows are closed when locking — each window independently shows/hides its own lock overlay based on `authService.isLocked`. This eliminates bugs caused by `NSApplication.shared.mainWindow` returning the wrong window
-1. **Menu command gating** — keyboard shortcuts (Cmd+N, Cmd+I) are disabled when `authService.isLocked` is true
-1. **Re-lock timeouts** — Immediately (0s), After 1 Minute (60s), After 5 Minutes (300s), After 15 Minutes (900s), Never (skip locking for that trigger). Default: Immediately for both triggers
-1. **Auto-disable / auto-reset** — when both `appSwitchTimeout` and `screenLockTimeout` are set to `.never`, `isAppLockEnabled` is automatically set to `false` (the user has effectively disabled all lock triggers). Conversely, when re-enabling app lock while both timeouts are still `.never`, both are reset to `.immediately` (the default) so the lock is immediately functional
-1. **Authentication method** — not user-configurable. The system dialog handles fallback: Touch ID → Apple Watch → system password
-1. **Disabling** — toggling app lock off immediately unlocks the app and disables future locking
-
-### State
-
-- `isAppLockEnabled` — persisted in UserDefaults
-- `appSwitchTimeout` — persisted in UserDefaults (raw value of `ReLockTimeout` enum). Timeout for app switch trigger
-- `screenLockTimeout` — persisted in UserDefaults (raw value of `ReLockTimeout` enum). Timeout for screen lock / sleep trigger
-- `isLocked` — runtime only, not persisted. Set to `true` on launch if app lock is enabled
-- `isAppActive` — runtime only, tracks whether the app is the frontmost application. Initialized to `true` (app starts active). Maintained by `didResignActiveNotification` / `didBecomeActiveNotification` handlers in `AssetFlowApp`. Used as a gate for `authenticateIfActive()` to prevent auth dialogs from appearing while the user is in another app
-- `backgroundDate` — runtime only, the timestamp when the app entered the background. Set by `recordBackground()`, cleared by `evaluateOnBecomeActive()`
-- `backgroundTrigger` — runtime only, which trigger (`.appSwitch` or `.screenSleep`) caused the background event
-- `isAuthenticating` — runtime only, `true` while the system authentication dialog is being presented. Used to suppress `recordBackground()` calls
-- `authWasCancelled` — runtime only, set to `true` when the user cancels or fails authentication; suppresses auto-auth retries in `authenticateIfActive()` until the next background event resets it
-- `lastUnlockDate` — runtime only, set after each successful authentication
-
-______________________________________________________________________
-
-## References
-
-### Financial Concepts
-
-- [Investopedia - Modified Dietz Method](https://www.investopedia.com/terms/m/modifieddietz.asp)
-- [Investopedia - Time-Weighted Return](https://www.investopedia.com/terms/t/time-weightedror.asp)
-- [Investopedia - CAGR](https://www.investopedia.com/terms/c/cagr.asp)
-- [Investopedia - Asset Allocation](https://www.investopedia.com/terms/a/assetallocation.asp)
-
-### Implementation
-
-- Swift `Decimal` type for precision, including exchange rates and annualized return calculations
-- Swift Charts for visualization
-- Specification: `SPEC.md` Sections 2, 4, 5, 6, 7, 8, 9, 10, 11
-
-### Category list goal assessment
-
-Current and effective percentages both use the full portfolio denominator. The list consumes the same assessment values and plan targets as rebalancing. A percentage-target category warns when its absolute deviation exceeds 5 percentage points (exactly 5 does not warn). Every strictly positive minimum shortfall warns independently, including minimum-only categories and infeasible plans. A combined indicator explains both reasons. Minimum-only effective balances protect current surpluses; they do not create a surplus deviation warning. No-goal categories have no effective target. Zero portfolio shares and unavailable/infeasible effective shares are displayed as an em dash; missing conversion never fabricates compliance or a shortfall. Financial comparisons remain at full Decimal precision.
+Domain results distinguish **zero** (a valid numeric value or pending placeholder), **absent** (no row or goal), **invalid** (bad input or arithmetic), **unavailable** (missing required conversion or inputs), and **stale** (asset absent from the latest snapshot). An unavailable result must not be replaced with a mixed native-currency total or a compliant-looking goal state. Imported and edited data remain the source of truth; totals, shares, returns, and plans are recomputed from it. User-facing messages and controls belong in [UserInterfaceDesign.md](UserInterfaceDesign.md), while app-lock behavior belongs in [SecurityAndPrivacy.md](SecurityAndPrivacy.md#app-lock-optional) and [Architecture.md](Architecture.md).

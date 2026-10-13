@@ -731,7 +731,7 @@ The category detail view also includes an allocation percentage line chart (same
 - Shows portfolio-level return over time
 - Hover shows tooltip with date and cumulative TWR percentage. No click-to-navigate behavior.
 - Time range zoom controls (see above)
-- **Rebasing:** A selected non-"All" range starts at 0% at its first visible point and shows the chained estimated return within that range. See [BusinessLogic.md](BusinessLogic.md) for the calculation.
+- **Rebasing:** For a selected non-"All" range, the first visible point starts at 0% and later points show the chained estimated return within that range, unless the first point's inception-based TWR is -100%. In that case, rebasing is undefined and the filtered inception-based values remain unchanged. See [BusinessLogic.md](BusinessLogic.md) for the calculation.
 
 ### 12.5 Chart Empty & Edge States
 
