@@ -9,10 +9,9 @@ Documentation site for AssetFlow, built with [Material for MkDocs](https://squid
 Run these commands from the repository root:
 
 ```bash
-uv sync --locked --group docs                 # Install the docs group in .venv
-uv run --locked --group docs mkdocs serve     # Preview at http://127.0.0.1:8000
-uv run --locked --group docs mkdocs build     # Build the site in site/
-uv run --locked --group docs mike serve       # Preview deployed versions locally
+uv run --group docs mkdocs serve     # Preview at http://127.0.0.1:8000
+uv run --group docs mkdocs build     # Build the site in site/
+uv run --group docs mike serve       # Preview deployed versions locally
 ```
 
 For publishing, follow the authorized maintainer procedure in [README.md](README.md#manual-deployment).
@@ -66,7 +65,7 @@ Uses [mike](https://github.com/jimporter/mike) for multi-version docs. Config: `
 ## Images
 
 - Screenshots stored in `mkdocs/assets/images/` and tracked by **Git LFS** (configured in `.gitattributes`)
-- Contributors need `git lfs install` before cloning
+- Install Git LFS and run `git lfs install`; in an existing checkout, run `git lfs pull` to fetch image content
 - Reference images from content pages with relative paths (e.g., `../../assets/images/app-overview.png` from `guide/` pages)
 
 ## Writing Conventions
@@ -91,7 +90,7 @@ MkDocs content uses a separate `mdformat` pre-commit hook (`mdformat-mkdocs` + `
 ## Verifying Changes
 
 ```bash
-uv run --locked --group docs mkdocs build
+uv run --group docs mkdocs build
 ```
 
 Inspect the build output. Warnings about missing images are expected if screenshots have not been added yet; broken links or missing pages need correction.

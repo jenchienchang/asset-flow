@@ -72,6 +72,7 @@ AssetFlow/
 - [uv](https://docs.astral.sh/uv/) for the project-local development tools
 - [swift-format](https://github.com/swiftlang/swift-format/tree/main)
 - [SwiftLint](https://github.com/realm/SwiftLint/tree/main)
+- [Git LFS](https://git-lfs.com/) for documentation screenshots
 
 #### Steps
 
@@ -101,17 +102,20 @@ AssetFlow/
 
 ### Tooling Setup
 
-Install the required code quality tools using Homebrew:
+Install the local development tools using Homebrew:
 
 ```bash
-brew install uv swift-format swiftlint
+brew install uv swift-format swiftlint git-lfs
+git lfs install
+git lfs pull
 ```
+
+Git LFS retrieves the documentation screenshots for this checkout. It is a Git tool installed separately from the Python packages managed by uv.
 
 Set up the pre-commit hooks via a project-local [uv](https://docs.astral.sh/uv/) virtual environment:
 
 ```bash
-uv sync --locked --only-group dev
-uv run --locked --only-group dev pre-commit install --hook-type pre-commit --hook-type commit-msg
+uv run pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
 
 The pre-commit hook checks applicable files before each commit, including formatting and linting. The commit-msg hook checks Conventional Commit messages.

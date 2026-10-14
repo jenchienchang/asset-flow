@@ -19,21 +19,18 @@ git lfs install
 
 # Pull LFS files (if cloning for the first time)
 git lfs pull
-
-# Install the documentation dependency group in the project-local .venv
-uv sync --locked --group docs
 ```
 
 ## Local Development
 
-From the repository root, after installing the `docs` group:
+From the repository root, select the `docs` group for each command. `uv run` installs it in the project-local `.venv` as needed:
 
 ```bash
 # Start the live-reloading dev server
-uv run --locked --group docs mkdocs serve
+uv run --group docs mkdocs serve
 
 # Build the static site (output: site/)
-uv run --locked --group docs mkdocs build
+uv run --group docs mkdocs build
 ```
 
 The dev server runs at `http://127.0.0.1:8000` and automatically reloads when you edit any file.
@@ -109,7 +106,7 @@ The site uses [mike](https://github.com/jimporter/mike) for version switching. E
 
 ### Manual deployment
 
-These commands publish changes to remote Git state. Run them only for an authorized maintainer release, from the repository root with the `docs` group installed.
+The deploy and set-default commands publish changes to remote Git state. Run them only for an authorized maintainer release, from the repository root. `--locked` prevents publication if `uv.lock` needs updating.
 
 ```bash
 # Deploy a specific version with the "latest" alias
@@ -119,5 +116,5 @@ uv run --locked --group docs mike deploy --push --update-aliases v1.0.0 latest
 uv run --locked --group docs mike set-default --push latest
 
 # Preview all deployed versions locally
-uv run --locked --group docs mike serve
+uv run --group docs mike serve
 ```

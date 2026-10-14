@@ -10,7 +10,7 @@ Commands below use the repository root unless another location is stated. Git-ch
 
 The app's deployment target is macOS 15.0+. The shared `AssetFlow` scheme uses Debug to run, Testing to test, and Release to archive. CI selects Xcode 27.0 on the `xcode-27` runner; use that version when reproducing CI results. Xcode 27 includes the Swift 6.4 compiler, while the project sets Swift 6 language mode. [Apple's Xcode 27 release notes](https://developer.apple.com/documentation/xcode-release-notes/xcode-27-release-notes) specify macOS Tahoe 26.6 or later and an Apple silicon Mac to run Xcode 27. These are development-host requirements, separate from the app's deployment target.
 
-Install Git, [uv](https://docs.astral.sh/uv/), `swift-format`, and SwiftLint. Homebrew is a convenient way to install the local tools. Git LFS retrieves documentation screenshots; Material for MkDocs and pytest are installed through uv dependency groups.
+Install Git, [Git LFS](https://git-lfs.com/), [uv](https://docs.astral.sh/uv/), `swift-format`, and SwiftLint. Homebrew is a convenient way to install these command-line tools. Git LFS retrieves documentation screenshots and is installed separately from the Python packages in uv's `dev` and `docs` groups.
 
 For a new human contributor, the commands below assume Homebrew and GitHub SSH access. Clone in the desired parent directory, then run the remaining commands from the repository root:
 
@@ -20,12 +20,11 @@ cd asset-flow
 brew install uv swift-format swiftlint git-lfs
 git lfs install
 git lfs pull
-uv sync --locked --only-group dev
-uv run --locked --only-group dev pre-commit install --hook-type pre-commit --hook-type commit-msg
+uv run pre-commit install --hook-type pre-commit --hook-type commit-msg
 open AssetFlow.xcodeproj
 ```
 
-`git lfs pull` populates screenshot files in the checkout. `uv sync` creates the project-local `.venv` from `uv.lock`; it does not install the separate `docs` group. The `pre-commit install` command installs local Git hooks for file checks and the configured commit-message check. Hook environments are installed separately when first needed. See [pre-commit's installation options](https://pre-commit.com/#pre-commit-install) for the two hook types.
+`git lfs pull` populates screenshot files in the checkout. `uv run` creates or syncs the project-local `.venv` with the default `dev` group; it does not install the separate `docs` group. The `pre-commit install` command installs local Git hooks for file checks and the configured commit-message check. Hook environments are installed separately when first needed. See [pre-commit's installation options](https://pre-commit.com/#pre-commit-install) for the two hook types.
 
 ### Repository map
 
@@ -142,12 +141,11 @@ For an intentional repository-wide diagnostic, a human contributor can run `uv r
 
 The user guide uses Material for MkDocs. Source is in `mkdocs/`, configuration is in `mkdocs.yml`, and `overrides/` contains theme changes. Git LFS stores screenshots. [mkdocs/README.md](../mkdocs/README.md) covers site layout, screenshots, translation, and versioning in detail.
 
-From the repository root, add the `docs` group to the default `dev` group, then choose a live preview or a static build. The shared `.venv` retains pre-commit for its installed Git hooks; `mkdocs build` also writes `site/`. [uv's syncing rules](https://docs.astral.sh/uv/concepts/projects/sync/) explain why `--only-group docs` would exclude `dev` during an exact sync. If MkDocs cannot be found, confirm the `docs` group was selected:
+From the repository root, select the `docs` group for a live preview or a static build. `uv run` installs it alongside the default `dev` group as needed; `mkdocs build` also writes `site/`. If MkDocs cannot be found, confirm the `docs` group was selected:
 
 ```bash
-uv sync --locked --group docs
-uv run --locked --group docs mkdocs serve
-uv run --locked --group docs mkdocs build
+uv run --group docs mkdocs serve
+uv run --group docs mkdocs build
 ```
 
 `mkdocs serve` provides a local preview at `http://127.0.0.1:8000`; stop it when finished. CI deploys the `dev` version after relevant changes on `main` and a versioned site on release. Publishing with mike changes remote Git state; the manual publishing procedure in [mkdocs/README.md](../mkdocs/README.md#manual-deployment) is for an authorized maintainer action. Keep English and Traditional Chinese page structure aligned when editing the user guide.
