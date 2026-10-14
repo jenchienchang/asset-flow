@@ -11,7 +11,7 @@ Welcome to AssetFlow! This page walks you through system requirements, installat
 | **Operating System** | macOS 15.0 (Sequoia) or later                                     |
 | **Architecture**     | Apple silicon or Intel Mac                                        |
 | **Disk Space**       | Minimal — AssetFlow stores data locally in a lightweight database |
-| **Network**          | Optional — only used to fetch exchange rates                      |
+| **Network**          | Optional — used to fetch currency names and exchange rates        |
 
 ---
 
@@ -41,7 +41,7 @@ The app will open normally on all subsequent launches.
 
 ## First Launch
 
-When you open AssetFlow for the first time, you'll see an empty dashboard with helpful prompts to get started. There's no account to create and no sign-in required — everything runs locally on your Mac.
+When you open AssetFlow for the first time, you'll see an empty dashboard with helpful prompts to get started. There's no account to create or sign-in required. Portfolio records are stored locally; currency names and exchange rates may be fetched over the network.
 
 ![Empty dashboard](../../../assets/images/dashboard-empty-state.png)
 

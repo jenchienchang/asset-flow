@@ -46,16 +46,16 @@ Restore replaces all current data with the backup contents. If you had newer dat
 
 ### Touch ID not available
 
-Touch ID requires a Mac with a Touch ID sensor (MacBook Pro/Air with Touch Bar or later). On other Macs, use your system password instead.
+Touch ID requires a compatible built-in sensor or keyboard and must be set up in macOS. Available methods are chosen by the system; see [Security](settings/security.md) for details.
 
 ### Can't unlock the app
 
-- Try your Mac's system login password — it's always available as a fallback authentication method.
+- If macOS offers a password option, try your Mac login password.
 - If you've changed your system password recently, the new password should work.
 
 ### App keeps locking too quickly
 
-Adjust the timeout settings in **Settings** (++cmd+comma++) **> Security**. Set "When Switching Apps" and "When Locked or Sleeping" to longer intervals or "Never".
+Adjust the timeout settings in **Settings** (++cmd+comma++) **> Security**. Choose a longer interval or set one trigger to "Never" to skip locking for it. Setting both to "Never" turns app lock off.
 
 ---
 

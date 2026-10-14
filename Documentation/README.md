@@ -112,7 +112,7 @@ ______________________________________________________________________
 
 ### [TestingStrategy.md](TestingStrategy.md)
 
-**Comprehensive testing approach**
+**Risk-based testing approach**
 
 Should explain how to establish correctness in proportion to risk, with separate sections for Swift application tests and Python repository-tooling tests. Describe each area's risks, fixtures, and execution environment:
 
@@ -123,7 +123,7 @@ Should explain how to establish correctness in proportion to risk, with separate
 - Migration, import, backup compatibility, restore failure, and data preservation tests
 - Observation refresh and authentication tests, plus accessibility, localization, and chart interaction checks
 - Python tooling tests, CI gates, failure diagnosis, and meaningful coverage expectations
-- Test examples for new models and ViewModels, and red-green-refactor guidance when using TDD
+- Representative assertions, links to model and ViewModel tests, and red-green-refactor guidance when using TDD
 
 Link application tests to SPEC acceptance criteria and BusinessLogic examples, and tooling tests to the scripts' expected behavior. Keep executable test commands and setup in DevelopmentGuide and, for Swift tests, the test skill; the TDD red phase should fail assertions rather than compilation.
 
@@ -204,7 +204,7 @@ Should define contracts between components and across file/network boundaries:
 - Internal service APIs, including calculation, CSV parsing, and backup/restore
 - ViewModel contracts, inputs, outputs, preconditions, and side effects
 - Data access, persistence effects, actor requirements, and cancellation where relevant
-- CSV import/export formats: encoding, headers, types, quoting, dates, and decimal representation
+- CSV import formats: encoding, headers, types, quoting, dates, and decimal representation
 - Backup archive layout, manifest, format versions, validation, and compatibility
 - Exchange-rate provider integration: request/response shape, date and currency conventions, caching, timeouts, and failure behavior
 - Error handling patterns and the meaning of optional or unavailable results
@@ -286,19 +286,19 @@ SPEC is the source of truth for intended product behavior. Design documents expl
 
 **When to update documentation:**
 
-| Change                      | Update                                                                                                 |
-| --------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Add/modify model            | [DataModel.md](DataModel.md), `AssetFlow/Models/README.md`                                             |
-| Change architecture/service | [Architecture.md](Architecture.md), [APIDesign.md](APIDesign.md)                                       |
-| Add new tool/workflow       | [DevelopmentGuide.md](DevelopmentGuide.md)                                                             |
-| Create coding convention    | [CodeStyle.md](CodeStyle.md)                                                                           |
-| Modify testing approach     | [TestingStrategy.md](TestingStrategy.md)                                                               |
-| New build command           | [DevelopmentGuide.md](DevelopmentGuide.md), [`CLAUDE.md`](../CLAUDE.md), applicable agent instructions |
-| Design new screen/UI        | [UserInterfaceDesign.md](UserInterfaceDesign.md)                                                       |
-| Add business rule/calc      | [BusinessLogic.md](BusinessLogic.md)                                                                   |
-| Security/privacy change     | [SecurityAndPrivacy.md](SecurityAndPrivacy.md)                                                         |
-| API/service integration     | [APIDesign.md](APIDesign.md)                                                                           |
-| Add/change product behavior | [SPEC.md](SPEC.md) and all affected design documents                                                   |
+| Change                                               | Update                                                                                                                                                           |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add/modify model or schema                           | [DataModel.md](DataModel.md), `AssetFlow/Models/README.md`; [APIDesign.md](APIDesign.md) if backup mapping changes                                               |
+| Change component boundary or service lifetime        | [Architecture.md](Architecture.md); [APIDesign.md](APIDesign.md) if an interface changes                                                                         |
+| Change service, file, or network contract            | [APIDesign.md](APIDesign.md); [SecurityAndPrivacy.md](SecurityAndPrivacy.md) if the trust boundary changes                                                       |
+| Add/change tool, dependency, or contributor workflow | [DevelopmentGuide.md](DevelopmentGuide.md); [CodeStyle.md](CodeStyle.md) if conventions change; [TestingStrategy.md](TestingStrategy.md) if verification changes |
+| Create coding convention                             | [CodeStyle.md](CodeStyle.md)                                                                                                                                     |
+| Modify test runner or testing approach               | [DevelopmentGuide.md](DevelopmentGuide.md) for commands, [TestingStrategy.md](TestingStrategy.md) for verification design                                        |
+| New build command                                    | [DevelopmentGuide.md](DevelopmentGuide.md), [`CLAUDE.md`](../CLAUDE.md), applicable agent instructions                                                           |
+| Design new screen/UI                                 | [UserInterfaceDesign.md](UserInterfaceDesign.md)                                                                                                                 |
+| Add business rule/calc                               | [BusinessLogic.md](BusinessLogic.md)                                                                                                                             |
+| Security/privacy change                              | [SecurityAndPrivacy.md](SecurityAndPrivacy.md)                                                                                                                   |
+| Add/change product behavior                          | [SPEC.md](SPEC.md), affected design documents, and relevant user-guide pages                                                                                     |
 
 Review related tests, source comments, model notes, agent instructions, and user guides when their behavior or procedures are affected. Cross-link shared definitions instead of copying them: for example, return formulas belong in BusinessLogic, interface result units in APIDesign, and presentation in UserInterfaceDesign.
 

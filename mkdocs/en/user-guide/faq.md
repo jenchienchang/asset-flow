@@ -14,15 +14,15 @@ Monthly is a good starting point for most users. Some prefer weekly or even dail
 
 ## Where is my data stored?
 
-All data is stored locally on your Mac using Apple's SwiftData framework. No data is sent to external servers. The only network activity is fetching exchange rates from cdn.jsdelivr.net.
+Portfolio records are stored locally on your Mac using Apple's SwiftData framework; AssetFlow does not upload them. It requests public currency names and exchange rates from cdn.jsdelivr.net. You choose where exported backups are saved, including locations that may sync through another service.
 
 ## Can I use AssetFlow offline?
 
-Yes. The only feature that requires internet is exchange rate fetching. Everything else works fully offline.
+You can record and review portfolio data offline. Fetching the expanded currency list or missing exchange rates needs a connection; converted values and calculations that depend on unavailable rates cannot be shown until usable rates are available.
 
 ## How do I track assets in different currencies?
 
-Set each asset's currency in its detail view. AssetFlow automatically fetches exchange rates and converts values to your main currency for display. See [Currencies & Exchange Rates](reference/currencies.md) for details.
+Set each asset's currency in its detail view. AssetFlow requests rates for snapshot dates and shows converted values in your selected display currency when those rates are available. See [Currencies & Exchange Rates](reference/currencies.md) for details.
 
 ## Can I import data from my brokerage?
 

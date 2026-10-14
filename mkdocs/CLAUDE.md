@@ -6,13 +6,16 @@ Documentation site for AssetFlow, built with [Material for MkDocs](https://squid
 
 ## Commands
 
+Run these commands from the repository root:
+
 ```bash
-uv sync                        # Install all dependencies (includes docs group)
-uv run mkdocs serve           # Local dev server at http://127.0.0.1:8000
-uv run mkdocs build           # Build static site to site/
-uv run mike deploy VERSION    # Deploy a versioned snapshot via mike
-uv run mike serve              # Preview all deployed versions locally
+uv sync --locked --group docs                 # Install the docs group in .venv
+uv run --locked --group docs mkdocs serve     # Preview at http://127.0.0.1:8000
+uv run --locked --group docs mkdocs build     # Build the site in site/
+uv run --locked --group docs mike serve       # Preview deployed versions locally
 ```
+
+For publishing, follow the authorized maintainer procedure in [README.md](README.md#manual-deployment).
 
 ## Site Structure
 
@@ -88,7 +91,7 @@ MkDocs content uses a separate `mdformat` pre-commit hook (`mdformat-mkdocs` + `
 ## Verifying Changes
 
 ```bash
-uv run mkdocs build 2>&1 | grep -E "WARNING|ERROR"
+uv run --locked --group docs mkdocs build
 ```
 
-Warnings about missing images are expected if screenshots haven't been added yet. Warnings about broken links or missing pages indicate real issues.
+Inspect the build output. Warnings about missing images are expected if screenshots have not been added yet; broken links or missing pages need correction.
