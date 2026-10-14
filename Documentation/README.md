@@ -259,7 +259,7 @@ ______________________________________________________________________
 ### Project Files
 
 - [`README.md`](../README.md) - Project overview
-- [`AGENTS.md`](../AGENTS.md) and [`CLAUDE.md`](../CLAUDE.md) - Coding agent instructions
+- [`AGENTS.md`](../AGENTS.md) - Coding agent instructions
 - [`AssetFlow/Models/README.md`](../AssetFlow/Models/README.md) - Source-level model orientation
 - [`mkdocs/README.md`](../mkdocs/README.md) - Documentation-site workflow; `mkdocs/` contains user-facing guides
 - [`CHANGELOG.md`](../CHANGELOG.md) - Release history maintained by Release Please; do not edit manually
@@ -294,7 +294,7 @@ SPEC is the source of truth for intended product behavior. Design documents expl
 | Add/change tool, dependency, or contributor workflow | [DevelopmentGuide.md](DevelopmentGuide.md); [CodeStyle.md](CodeStyle.md) if conventions change; [TestingStrategy.md](TestingStrategy.md) if verification changes |
 | Create coding convention                             | [CodeStyle.md](CodeStyle.md)                                                                                                                                     |
 | Modify test runner or testing approach               | [DevelopmentGuide.md](DevelopmentGuide.md) for commands, [TestingStrategy.md](TestingStrategy.md) for verification design                                        |
-| New build command                                    | [DevelopmentGuide.md](DevelopmentGuide.md), [`CLAUDE.md`](../CLAUDE.md), applicable agent instructions                                                           |
+| New build command                                    | [DevelopmentGuide.md](DevelopmentGuide.md), [`AGENTS.md`](../AGENTS.md), applicable agent instructions                                                           |
 | Design new screen/UI                                 | [UserInterfaceDesign.md](UserInterfaceDesign.md)                                                                                                                 |
 | Add business rule/calc                               | [BusinessLogic.md](BusinessLogic.md)                                                                                                                             |
 | Security/privacy change                              | [SecurityAndPrivacy.md](SecurityAndPrivacy.md)                                                                                                                   |

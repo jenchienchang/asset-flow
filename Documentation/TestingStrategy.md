@@ -2,7 +2,7 @@
 
 Tests should establish AssetFlow's behavior against the [product requirements](SPEC.md), with calculation examples from [BusinessLogic.md](BusinessLogic.md) and file and service contracts from [APIDesign.md](APIDesign.md). Prioritize financial correctness, unavailable results, failed operations, and preservation of existing data. Describe each check by what it asserts; a passing suite does not establish behavior it never exercises.
 
-Swift application tests use Swift Testing on macOS. Python repository-tooling tests use pytest and have separate fixtures and CI execution. [DevelopmentGuide.md](DevelopmentGuide.md) owns setup and contributor commands; the [test skill](../.codex/skills/test/SKILL.md) owns agent execution of Swift tests. [AssetFlowTests/CLAUDE.md](../AssetFlowTests/CLAUDE.md) and [CodeStyle.md](CodeStyle.md) own test structure and naming conventions.
+Swift application tests use Swift Testing on macOS. Python repository-tooling tests use pytest and have separate fixtures and CI execution. [DevelopmentGuide.md](DevelopmentGuide.md) owns setup and contributor commands; the [test skill](../.codex/skills/test/SKILL.md) owns agent execution of Swift tests. [AssetFlowTests/AGENTS.md](../AssetFlowTests/AGENTS.md) and [CodeStyle.md](CodeStyle.md) own test structure and naming conventions.
 
 ## Swift Application Tests
 
@@ -44,7 +44,7 @@ The [SPEC success criteria](SPEC.md#17-success-criteria) identify expected outco
 
 ### Fixtures and failure boundaries
 
-- For ordinary model and ViewModel tests, [TestDataManager](../AssetFlowTests/TestDataManager.swift) creates a uniquely named in-memory container with `CurrentSchema.schema`. Retain the `ModelContainer` for the whole test, including relationship reads; a helper result that discards it can invalidate the backing store. The `TestContext` pattern in [AssetFlowTests/CLAUDE.md](../AssetFlowTests/CLAUDE.md#swiftdata-lifetime-critical) keeps it alive.
+- For ordinary model and ViewModel tests, [TestDataManager](../AssetFlowTests/TestDataManager.swift) creates a uniquely named in-memory container with `CurrentSchema.schema`. Retain the `ModelContainer` for the whole test, including relationship reads; a helper result that discards it can invalidate the backing store. The `TestContext` pattern in [AssetFlowTests/AGENTS.md](../AssetFlowTests/AGENTS.md#swiftdata-lifetime-critical) keeps it alive.
 - Migration and reopen behavior require disposable disk stores. [CategoryGoalMigrationTests](../AssetFlowTests/Integration/CategoryGoalMigrationTests.swift) opens V1 fixtures through `AssetFlowMigrationPlan` and reopens migrated data. Backup tests use temporary archives and separate model graphs to check supported versions, invalid records, transaction rollback, and preservation of settings when restore fails.
 - Settings tests use `SettingsService.createForTesting()` or an isolated `UserDefaults` suite. Exchange-rate tests inject a `URLSession` with mock `URLProtocol`; persistence-failure tests inject `ModelFetching` doubles. These fixtures avoid changing user settings, relying on a live network, or treating a failed fetch as an empty portfolio.
 - Async import and backup checks use `Sendable` transfer values, cancellation points, and state assertions. Bulk Entry tests use a gate between preparation and main-actor application, then assert that cancellation leaves rows and feedback unchanged. Swift 6 concurrency compilation checks actor transfers, but does not establish responsiveness. Avoid elapsed-time thresholds and thread-identity assertions.

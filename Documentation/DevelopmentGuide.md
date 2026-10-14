@@ -2,7 +2,7 @@
 
 This guide covers contributor setup and repeatable development procedures for AssetFlow. The app is a macOS project; Python supports repository checks, release tooling, and the documentation site. [SPEC.md](SPEC.md) owns intended product behavior, [CodeStyle.md](CodeStyle.md) owns implementation conventions, and [TestingStrategy.md](TestingStrategy.md) owns verification design.
 
-Commands below use the repository root unless another location is stated. Git-changing and publication commands are contributor procedures, not standing authorization for coding agents. Follow [CLAUDE.md](../CLAUDE.md) and applicable agent instructions before an agent performs them.
+Commands below use the repository root unless another location is stated. Git-changing and publication commands are contributor procedures, not standing authorization for coding agents. Follow [AGENTS.md](../AGENTS.md) and applicable agent instructions before an agent performs them.
 
 ## Shared Setup
 
@@ -56,7 +56,7 @@ The command compiles the app and writes products to Xcode's build directory; ins
 xcodebuild -project AssetFlow.xcodeproj -scheme AssetFlow test -destination 'platform=macOS'
 ```
 
-CI runs the same Xcode test operation. Coding agents use the [build skill](../.codex/skills/build/SKILL.md) for compilation and the [test skill](../.codex/skills/test/SKILL.md) for Swift tests, including their host-access and log-inspection rules. The [test instructions](../AssetFlowTests/CLAUDE.md) and [TestingStrategy.md](TestingStrategy.md) explain test structure and the evidence each test type provides. Python tests have a separate entry point below.
+CI runs the same Xcode test operation. Coding agents use the [build skill](../.codex/skills/build/SKILL.md) for compilation and the [test skill](../.codex/skills/test/SKILL.md) for Swift tests, including their host-access and log-inspection rules. The [test instructions](../AssetFlowTests/AGENTS.md) and [TestingStrategy.md](TestingStrategy.md) explain test structure and the evidence each test type provides. Python tests have a separate entry point below.
 
 For routine app changes, build, run the relevant Swift tests, and exercise affected interactions where needed. Formatting and linting run through installed hooks at commit time; they are not an extra required step after every edit. A documentation-only change normally needs link and example checks instead of an app build.
 
@@ -83,7 +83,7 @@ When changing Category navigation or forms, verify that unsaved drafts remain gu
 
 ### Localization
 
-App strings use `.xcstrings` catalogs: English is the development language and Traditional Chinese uses `zh-Hant`. SwiftUI text is extracted into `Localizable.xcstrings`; ViewModels and services use `String(localized:table:)` with their feature table. Display names for enums use `localizedName`, not persisted `rawValue`. See [AssetFlow/CLAUDE.md](../AssetFlow/CLAUDE.md) for current patterns.
+App strings use `.xcstrings` catalogs: English is the development language and Traditional Chinese uses `zh-Hant`. SwiftUI text is extracted into `Localizable.xcstrings`; ViewModels and services use `String(localized:table:)` with their feature table. Display names for enums use `localizedName`, not persisted `rawValue`. See [AssetFlow/AGENTS.md](../AssetFlow/AGENTS.md) for current patterns.
 
 When adding app text, build with Xcode to update extraction, check the relevant catalog, and supply the Traditional Chinese translation. For a new app language, update the Xcode project's `knownRegions` and the catalogs. The user guide has its own `mkdocs/en/` and `mkdocs/zh-TW/` trees; app `zh-Hant` and site `zh-TW` are different locale identifiers.
 
@@ -164,7 +164,7 @@ docs(development): clarify contributor setup
 Explain the app and repository tooling paths for new contributors.
 ```
 
-Human contributors may create branches, pull changes, commit, and publish after reviewing their effect. For coding agents, the initial request to commit authorizes preparation only. The [commit skill](../.codex/skills/commit/SKILL.md) inspects already staged changes, shows the complete proposed message, and waits for explicit approval of that exact message before committing. Agent staging, branch changes, pulls, and pushes each require their own explicit authorization under [CLAUDE.md](../CLAUDE.md). The [pull-request skill](../.codex/skills/pull-request/SKILL.md) writes `PR_DESCRIPTION.md` from the current branch diff against the chosen target branch; it does not create a hosted pull request.
+Human contributors may create branches, pull changes, commit, and publish after reviewing their effect. For coding agents, the initial request to commit authorizes preparation only. The [commit skill](../.codex/skills/commit/SKILL.md) inspects already staged changes, shows the complete proposed message, and waits for explicit approval of that exact message before committing. Agent staging, branch changes, pulls, and pushes each require their own explicit authorization under [AGENTS.md](../AGENTS.md). The [pull-request skill](../.codex/skills/pull-request/SKILL.md) writes `PR_DESCRIPTION.md` from the current branch diff against the chosen target branch; it does not create a hosted pull request.
 
 ## Maintainer Release Procedures
 

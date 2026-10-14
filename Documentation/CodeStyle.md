@@ -95,7 +95,7 @@ Prefer optional binding when absence changes behavior. Coalesce only a genuinely
 
 ## Localization, Errors, and Logging
 
-User-facing literals in `Text` and `Label` are extracted into String Catalogs; maintain English and Traditional Chinese (`zh-Hant`) entries. Use `String(localized:table:)` for strings created in ViewModels, services, and `LocalizedError.errorDescription`. Keep interpolated values inside a localizable string and avoid concatenating `Text` fragments to assemble sentences. Display an enum's `localizedName`, not its persistence `rawValue`. See [AssetFlow/CLAUDE.md](../AssetFlow/CLAUDE.md) for the catalog tables and patterns.
+User-facing literals in `Text` and `Label` are extracted into String Catalogs; maintain English and Traditional Chinese (`zh-Hant`) entries. Use `String(localized:table:)` for strings created in ViewModels, services, and `LocalizedError.errorDescription`. Keep interpolated values inside a localizable string and avoid concatenating `Text` fragments to assemble sentences. Display an enum's `localizedName`, not its persistence `rawValue`. See [AssetFlow/AGENTS.md](../AssetFlow/AGENTS.md) for the catalog tables and patterns.
 
 Report errors to the user in localized, actionable language. Localize each `LocalizedError` description. Keep the underlying error available to the handling layer without inserting raw parser or filesystem messages into user-facing text or logs when they may contain private data.
 
@@ -103,7 +103,7 @@ Do not use `print()` for diagnostics. When logging is needed, use `Logger` with 
 
 ## Test Code Conventions
 
-App tests use Swift Testing: name suites for the component or behavior, use descriptive `@Test` names, and keep reusable setup in private helpers. Place suites under the corresponding `AssetFlowTests/` area, such as `Models/`, `Services/`, `ViewModels/`, or `Integration/`. Follow [AssetFlowTests/CLAUDE.md](../AssetFlowTests/CLAUDE.md) for test structure and [TestingStrategy.md](TestingStrategy.md) for what to verify.
+App tests use Swift Testing: name suites for the component or behavior, use descriptive `@Test` names, and keep reusable setup in private helpers. Place suites under the corresponding `AssetFlowTests/` area, such as `Models/`, `Services/`, `ViewModels/`, or `Integration/`. Follow [AssetFlowTests/AGENTS.md](../AssetFlowTests/AGENTS.md) for test structure and [TestingStrategy.md](TestingStrategy.md) for what to verify.
 
 When a helper creates an in-memory SwiftData context, retain its `ModelContainer` for the full test scope; discarding the container while keeping only the context can invalidate related models. The test instructions document the `TestContext` pattern.
 
