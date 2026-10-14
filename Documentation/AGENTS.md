@@ -15,6 +15,8 @@ Conciseness is essential for readability and maintaining a single source of trut
 ## Scope and Ownership
 
 - Follow README's document responsibilities. Keep SPEC focused on product requirements, design documents on their respective decisions and contracts, and README on scope and navigation.
+- Treat a review finding as a lead to verify, not a mandate to edit every related document. Before making corrective edits to a document, identify its own inaccurate, missing, or ambiguous statement; permission to edit it does not make a related detail necessary there.
+- For targeted corrections, compare proposed wording with existing text in the target and related documents. Change only the identified defect or omission; do not add adjacent facts merely because verification uncovered them. Keep details with their owning document and link where needed.
 - Keep contributor procedures in DevelopmentGuide, conventions in CodeStyle, and verification design in TestingStrategy. Link to repository configuration and source rather than copying exhaustive rules or symbol inventories.
 - Separate Swift application development from Python repository tooling within DevelopmentGuide and TestingStrategy. Keep shared prerequisites and contributor workflows together; group any Python conventions separately in CodeStyle.
 - Architecture describes the shipped application. Include repository tooling there only when it affects application architecture.
@@ -41,7 +43,7 @@ Conciseness is essential for readability and maintaining a single source of trut
 
 ## Completion Checks
 
-1. Review the change for correctness, readability, necessary context, ownership, and duplication across related documents.
+1. Review the final diff hunk by hunk. For each addition or rewrite, identify the defect, omission, or specific requested outcome it addresses; drop changes that only repeat nearby content or another document. Check correctness, necessary context, readability, and ownership.
 1. Check relative links, heading anchors, source references, and examples. Search for consumers before renumbering SPEC sections or moving referenced content; update affected links within scope or report followups.
 1. Update README when adding a document or changing document responsibilities.
 1. Use verification proportional to the change. Prose-only edits normally need link/example checks, not an app build or full test suite. If compilation or tests are necessary, follow the repository build/test instructions and skills.
