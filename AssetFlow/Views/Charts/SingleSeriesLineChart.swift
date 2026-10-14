@@ -29,11 +29,14 @@ struct SingleSeriesLineChart<
   let data: [DataPoint]
   let dateKeyPath: KeyPath<DataPoint, Date>
   let valueOf: (DataPoint) -> Double
+  let seriesOf: (DataPoint) -> Int
   let color: Color
   let height: CGFloat
   let yAxisLabel: (Double) -> String
   let tooltipContent: (DataPoint) -> TooltipContent
   let yDomain: ((Double, Double) -> (Double, Double))?
+  let xDomain: ClosedRange<Date>?
+  let unavailableDates: [Date]
   let extraContent: ExtraContent
   let onTapDate: ((Date) -> Void)?
   let symbolSize: CGFloat
@@ -44,11 +47,14 @@ struct SingleSeriesLineChart<
     data: [DataPoint],
     dateKeyPath: KeyPath<DataPoint, Date>,
     valueOf: @escaping (DataPoint) -> Double,
+    seriesOf: @escaping (DataPoint) -> Int = { _ in 0 },
     color: Color,
     height: CGFloat,
     yAxisLabel: @escaping (Double) -> String = { ChartDataService.abbreviatedLabel(for: $0) },
     tooltipContent: @escaping (DataPoint) -> TooltipContent,
     yDomain: ((Double, Double) -> (Double, Double))? = nil,
+    xDomain: ClosedRange<Date>? = nil,
+    unavailableDates: [Date] = [],
     onTapDate: ((Date) -> Void)? = nil,
     symbolSize: CGFloat = 20,
     @ChartContentBuilder extraContent: () -> ExtraContent
@@ -56,11 +62,14 @@ struct SingleSeriesLineChart<
     self.data = data
     self.dateKeyPath = dateKeyPath
     self.valueOf = valueOf
+    self.seriesOf = seriesOf
     self.color = color
     self.height = height
     self.yAxisLabel = yAxisLabel
     self.tooltipContent = tooltipContent
     self.yDomain = yDomain
+    self.xDomain = xDomain
+    self.unavailableDates = unavailableDates
     self.onTapDate = onTapDate
     self.symbolSize = symbolSize
     self.extraContent = extraContent()
@@ -101,7 +110,8 @@ struct SingleSeriesLineChart<
       }
     }
     .chartXScale(
-      domain: date.addingTimeInterval(-dayInterval)...date.addingTimeInterval(dayInterval)
+      domain: xDomain
+        ?? date.addingTimeInterval(-dayInterval)...date.addingTimeInterval(dayInterval)
     )
     .chartXAxis {
       AxisMarks(values: [date]) { _ in
@@ -131,7 +141,8 @@ struct SingleSeriesLineChart<
             switch phase {
             case .active(let location):
               hoveredDate = ChartHelpers.findNearestDate(
-                at: location, in: proxy, points: data, dateKeyPath: dateKeyPath)
+                at: location, in: proxy, points: data, dateKeyPath: dateKeyPath,
+                unavailableDates: unavailableDates)
 
             case .ended:
               hoveredDate = nil
@@ -140,7 +151,8 @@ struct SingleSeriesLineChart<
           .onTapGesture { location in
             if let onTapDate,
               let tappedDate = ChartHelpers.findNearestDate(
-                at: location, in: proxy, points: data, dateKeyPath: dateKeyPath)
+                at: location, in: proxy, points: data, dateKeyPath: dateKeyPath,
+                unavailableDates: unavailableDates)
             {
               onTapDate(tappedDate)
             }
@@ -163,7 +175,8 @@ struct SingleSeriesLineChart<
       ForEach(data) { point in
         LineMark(
           x: .value("Date", point[keyPath: dateKeyPath]),
-          y: .value("Value", valueOf(point))
+          y: .value("Value", valueOf(point)),
+          series: .value("Segment", seriesOf(point))
         )
         .foregroundStyle(color)
 
@@ -189,7 +202,7 @@ struct SingleSeriesLineChart<
         }
       }
     }
-    .chartXScale(domain: firstDate...lastDate)
+    .chartXScale(domain: xDomain ?? firstDate...lastDate)
     .chartYScale(domain: domain.0...domain.1)
     .chartYAxis {
       AxisMarks { value in
@@ -210,7 +223,8 @@ struct SingleSeriesLineChart<
             switch phase {
             case .active(let location):
               hoveredDate = ChartHelpers.findNearestDate(
-                at: location, in: proxy, points: data, dateKeyPath: dateKeyPath)
+                at: location, in: proxy, points: data, dateKeyPath: dateKeyPath,
+                unavailableDates: unavailableDates)
 
             case .ended:
               hoveredDate = nil
@@ -219,7 +233,8 @@ struct SingleSeriesLineChart<
           .onTapGesture { location in
             if let onTapDate,
               let date = ChartHelpers.findNearestDate(
-                at: location, in: proxy, points: data, dateKeyPath: dateKeyPath)
+                at: location, in: proxy, points: data, dateKeyPath: dateKeyPath,
+                unavailableDates: unavailableDates)
             {
               onTapDate(date)
             }
@@ -246,22 +261,28 @@ extension SingleSeriesLineChart where ExtraContent == EmptyChartContent {
     data: [DataPoint],
     dateKeyPath: KeyPath<DataPoint, Date>,
     valueOf: @escaping (DataPoint) -> Double,
+    seriesOf: @escaping (DataPoint) -> Int = { _ in 0 },
     color: Color,
     height: CGFloat,
     yAxisLabel: @escaping (Double) -> String = { ChartDataService.abbreviatedLabel(for: $0) },
     tooltipContent: @escaping (DataPoint) -> TooltipContent,
     yDomain: ((Double, Double) -> (Double, Double))? = nil,
+    xDomain: ClosedRange<Date>? = nil,
+    unavailableDates: [Date] = [],
     onTapDate: ((Date) -> Void)? = nil,
     symbolSize: CGFloat = 20
   ) {
     self.data = data
     self.dateKeyPath = dateKeyPath
     self.valueOf = valueOf
+    self.seriesOf = seriesOf
     self.color = color
     self.height = height
     self.yAxisLabel = yAxisLabel
     self.tooltipContent = tooltipContent
     self.yDomain = yDomain
+    self.xDomain = xDomain
+    self.unavailableDates = unavailableDates
     self.onTapDate = onTapDate
     self.symbolSize = symbolSize
     self.extraContent = EmptyChartContent()

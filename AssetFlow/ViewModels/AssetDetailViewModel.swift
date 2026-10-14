@@ -27,6 +27,41 @@ struct AssetValueHistoryEntry: Identifiable {
   let snapshotAssetValue: SnapshotAssetValue
 }
 
+/// Values prepared for the converted asset chart after applying its time range.
+struct AssetConvertedChartPoint: Identifiable {
+  let id: PersistentIdentifier
+  let date: Date
+  let value: Decimal
+  let segment: Int
+}
+
+struct AssetConvertedChartData {
+  let points: [AssetConvertedChartPoint]
+  let unavailableDates: [Date]
+
+  init(history: [AssetValueHistoryEntry]) {
+    var convertedPoints: [AssetConvertedChartPoint] = []
+    var unavailableDates: [Date] = []
+    var segment = 0
+    for entry in history {
+      guard let converted = entry.convertedMarketValue else {
+        unavailableDates.append(entry.date)
+        segment += 1
+        continue
+      }
+      convertedPoints.append(
+        AssetConvertedChartPoint(
+          id: entry.id,
+          date: entry.date,
+          value: converted,
+          segment: segment
+        ))
+    }
+    points = convertedPoints
+    self.unavailableDates = unavailableDates
+  }
+}
+
 /// ViewModel for the Asset detail/edit screen.
 ///
 /// Manages editing asset properties (name, platform, category),

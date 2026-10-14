@@ -100,7 +100,12 @@ struct ContentView: View {
   @Query private var queryCashFlowOperations: [CashFlowOperation]
   @Query private var queryExchangeRates: [ExchangeRate]
 
-  @State private var selectedSection: SidebarSection? = .dashboard
+  #if DEBUG
+    @State private var selectedSection: SidebarSection? =
+      ProcessInfo.processInfo.arguments.contains("--preview-missing-rates") ? .assets : .dashboard
+  #else
+    @State private var selectedSection: SidebarSection? = .dashboard
+  #endif
   @State private var selectedSnapshot: Snapshot?
   @State private var selectedAsset: Asset?
   @State private var selectedCategory: Category?
@@ -249,11 +254,19 @@ struct ContentView: View {
       if importViewModel == nil {
         importViewModel = ImportViewModel(modelContext: modelContext)
       }
+      #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--preview-missing-rates") {
+          selectedAsset = queryAssets.first { $0.name == "Exchange Rate Gap" }
+        }
+      #endif
     }
     .task {
       await CurrencyService.shared.loadFromAPI()
     }
     .task(id: goalRateRequestID) {
+      #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--preview-missing-rates") { return }
+      #endif
       let service = ExchangeRateService()
       do {
         let snapshots = try fetchModels(

@@ -65,6 +65,7 @@ Before you begin development, ensure you have the following installed:
    - Target platform: macOS only
    - Debug builds produce `AssetFlow-Debug.app`; Release builds produce `AssetFlow.app`, allowing both builds to coexist in separate locations.
    - To review the dashboard with disposable sample assets and snapshots, add `--preview-data` under the Run scheme's **Arguments Passed On Launch**. This Debug-only mode uses an in-memory store and does not modify saved portfolio data.
+   - To review the Asset Detail converted chart with a missing historical rate, launch the Debug app with `--preview-missing-rates`. This opens a disposable in-memory asset history on the Assets screen, with converted mode selected and rate fetching disabled for the fixture.
 
 ### Python Runtime and Environment
 
