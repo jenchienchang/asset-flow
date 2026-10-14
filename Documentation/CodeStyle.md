@@ -1,35 +1,24 @@
 # Code Style Guide
 
-## Overview
+This guide defines implementation conventions for AssetFlow. The configuration files enforce mechanical rules; this document explains project choices that need developer judgment. [DevelopmentGuide.md](DevelopmentGuide.md) owns setup and contributor commands, [Architecture.md](Architecture.md) owns component boundaries, and [TestingStrategy.md](TestingStrategy.md) owns verification design.
 
-This document defines the code style standards for the AssetFlow project. Consistency in code style improves readability, maintainability, and collaboration.
+## Formatting and Enforcement
 
-## Enforcement
+Swift source uses two-space indentation and a configured 100-character line length. [`.swift-format`](../.swift-format) and [`.editorconfig`](../.editorconfig) define formatting; [`.swiftlint.yml`](../.swiftlint.yml) defines lint rules and their scope. Keep imports ordered as required by swift-format. SwiftLint warns on force unwrapping and `print()` and checks the required file header in `AssetFlow/`. Review warnings instead of treating the examples here as a second configuration file.
 
-Code style is enforced through:
+[`.pre-commit-config.yaml`](../.pre-commit-config.yaml) runs formatting and linting hooks at commit time. Follow [DevelopmentGuide.md](DevelopmentGuide.md) for the contributor workflow.
 
-- **`swift-format`**: Automated code formatting. Configuration in `.swift-format`.
-- **`SwiftLint`**: Static analysis for stylistic and convention-based rules. Configuration in `.swiftlint.yml`.
-- **Python formatting**: Pre-commit runs isort before Black. isort uses `profile = "black"` in `pyproject.toml` to match Black's default 88-character line length and import wrapping, preventing conflicting formatting changes.
-- **Python type checking**: Pyright resolves dependencies from the repo-local `.venv`, configured by `venvPath = "."` and `venv = ".venv"` in `pyproject.toml`. Pre-commit hook environments are separate from this dependency environment.
-- **EditorConfig**: Editor settings (`.editorconfig`)
-- **Pre-commit hooks**: Automated checks before commits (`.pre-commit-config.yaml`)
+## Naming, Files, and Access
 
-______________________________________________________________________
+Use `UpperCamelCase` for types and protocols, `lowerCamelCase` for properties and functions, and names that explain their use. File names normally match their primary type; established suffixes include `View`, `ViewModel`, `Service`, and `Calculator`. Give Boolean properties assertion-like names such as `isImportDisabled` or `hasSnapshotValues`.
 
-## General Principles
+Follow [Swift's API case conventions](https://www.swift.org/documentation/api-design-guidelines/) for acronyms and initialisms: common uppercase forms are uniformly upper- or lowercased to fit the identifier's position. For example, `HTTPClient`, `urlString`, and `csvParser` are consistent with that rule. There is no two- or three-letter cutoff. Prefer a domain name when it clarifies meaning: `CashFlowOperation.cashFlowDescription` is the established property name, not a requirement imposed by `CustomStringConvertible` on every `description` property.
 
-1. **Clarity over brevity**: Code should be self-documenting
-1. **Consistency**: Follow established patterns in the codebase
-1. **Swift API Design Guidelines**: Follow Apple's official guidelines
-1. **Type safety**: Leverage Swift's type system
-1. **Immutability**: Prefer `let` over `var` when possible
+Keep helpers and stored implementation details `private` when they are used only by their declaring type or file. Expose the narrowest useful interface for a ViewModel, service, or model. Organize a file so its primary type and closely related helpers are easy to find; split unrelated responsibilities rather than adding generic extensions to a large file.
 
-______________________________________________________________________
+### File Headers and Comments
 
-## File Organization
-
-### File Structure
+Swift files use the project license header. SwiftLint's configured `file_header` rule checks app source under `AssetFlow/`; follow the same convention in test source. The header is:
 
 ```swift
 //  AssetFlow — snapshot-based portfolio management for macOS.
@@ -48,736 +37,76 @@ ______________________________________________________________________
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
-
-// 1. Imports (sorted alphabetically)
-import Foundation
-import SwiftData
-import SwiftUI
-
-// 2. Type definitions
-// 3. Extensions
-// 4. Helper types (if small and related)
 ```
 
-### Import Organization
+Use `///` comments to state a nonobvious contract, unit, actor requirement, or failure condition. Ordinary comments should explain why a choice is necessary rather than repeat the code. Keep examples and comments current when an interface changes.
 
-**Order**:
+## SwiftUI State and Identity
 
-1. System frameworks (alphabetically)
-1. Third-party dependencies (alphabetically)
-1. Internal modules (alphabetically)
+AssetFlow targets macOS 15.0+; app views do not need iOS or iPadOS conditional branches. Views use `@State` for navigation, presentation, and simple temporary form fields, `@FocusState` for focus bindings, and `@Binding` for state owned by a parent. A view can read SwiftData with `@Query` where a direct query fits. Screen ViewModels are `@Observable @MainActor` classes and are held in view `@State`, as in [AssetListView.swift](../AssetFlow/Views/AssetListView.swift).
 
-**SwiftLint Rule**: Imports must be sorted alphabetically.
+A larger draft may live in a ViewModel, as in [CategoryDetailViewModel.swift](../AssetFlow/ViewModels/CategoryDetailViewModel.swift); keep it separate from persisted models until the screen's commit action. [UserInterfaceDesign.md](UserInterfaceDesign.md) defines the visible Save and Cancel behavior.
 
-______________________________________________________________________
+Give computed `Identifiable` values stable IDs derived from their underlying records. Creating `UUID()` each time a computed chart or row collection is evaluated changes identity on every render. For example, [CategoryRowData](../AssetFlow/ViewModels/CategoryListViewModel.swift) returns its category's stored UUID; a derived chart point can combine a stable series key and date.
 
-## Naming Conventions
+When a restore replaces a selected SwiftData object with a new instance, the parent detail view uses `.id(ObjectIdentifier(selectedObject))` to recreate state tied to that instance; see [ContentView.swift](../AssetFlow/Views/ContentView.swift). Use the identity appropriate to the purpose: stored UUID for the same record across renders, instance identity when replacing a stateful detail.
 
-### Types
+For a `Picker` with an optional selection, include an explicitly typed nil tag such as `.tag(Optional<Date>.none)`. See [CategoryAllocationPieChart.swift](../AssetFlow/Views/Charts/CategoryAllocationPieChart.swift) for an existing use.
 
-**Classes, Structs, Enums, Protocols**: `UpperCamelCase`
+### Lock-Aware Help and Hover
 
-```swift
-class SnapshotDetailViewModel { }
-struct Category { }
-enum ImportType { }
-protocol CalculationResolving { }
-```
-
-### Variables and Functions
-
-**Variables, Constants, Functions**: `lowerCamelCase`
-
-```swift
-var marketValue: Decimal
-let snapshotDate: Date
-func calculateCompositeValue() -> Decimal
-```
-
-### Acronyms
-
-Follow Swift standard library convention: short acronyms (2-3 letters) remain uppercase, longer ones are treated as words:
-
-```swift
-// Good
-let urlString: String
-let csvParser: CSVParsingService
-class HTTPClient { }       // Short acronym: all caps
-var jsonDecoder: JSONDecoder
-
-// Bad
-let uRLString: String
-let cSVParser: CSVParsingService
-class HttpClient { }       // Should be HTTPClient
-```
-
-### Boolean Properties
-
-Use `is`, `has`, `should`, or `can` prefixes:
-
-```swift
-var isImportDisabled: Bool
-var hasSnapshotValues: Bool
-var canDeleteAsset: Bool
-```
-
-______________________________________________________________________
-
-## Code Formatting
-
-### Line Length
-
-- **Warning**: 120 characters
-- **Error**: 150 characters
-
-### Indentation
-
-- **4 spaces** (no tabs)
-- Configuration: `.editorconfig`, `.swift-format`
-
-### Braces
-
-Opening brace on same line, closing brace on new line:
-
-```swift
-if condition {
-    // code
-}
-```
-
-### Blank Lines
-
-- One blank line between functions
-- One blank line between types
-- No blank line at start/end of braces
-
-______________________________________________________________________
-
-## Type Declarations
-
-### Classes and Structs
-
-**Use structs by default**, classes when needed for:
-
-- Reference semantics
-- SwiftData models (`@Model` requires class)
-- ViewModels (`@Observable` requires class)
-
-### Sendable Conformance
-
-For Swift 6 strict concurrency compatibility, all data types passed across isolation boundaries must conform to `Sendable`. In particular:
-
-- Service data types (structs used as inputs/outputs, such as `CSVParseResult`, `RebalancingAction`) should conform to `Sendable`
-- Using `enum` for stateless services naturally avoids actor isolation issues
-- Pure helpers that access only their value-type inputs should be marked `nonisolated` when they are used from nonisolated code
-- Avoid `@unchecked Sendable` and `nonisolated(unsafe)` unless the shared-state invariant is documented and tested
-
-### Properties
-
-**Computed properties** when appropriate:
-
-```swift
-var totalValue: Decimal {
-    assetValues?.reduce(0) { $0 + $1.marketValue } ?? 0
-}
-```
-
-### Type Inference
-
-Use type inference when obvious:
-
-```swift
-// Good
-let name = "Category"
-let count = 5
-let items: [Asset] = []  // Explicit when empty
-
-// Avoid
-let name: String = "Category"
-let count: Int = 5
-```
-
-______________________________________________________________________
-
-## Functions
-
-### Declaration
-
-```swift
-func functionName(parameterLabel argumentName: Type) -> ReturnType {
-    // implementation
-}
-```
-
-### Multiple Parameters
-
-Line breaks for readability (>3 parameters or long):
-
-```swift
-func createSnapshotAssetValue(
-    snapshotID: UUID,
-    assetID: UUID,
-    marketValue: Decimal
-) -> SnapshotAssetValue
-```
-
-### Function Length
-
-- **Warning**: 60 lines
-- **Error**: 100 lines
-- Extract into smaller functions when needed
-
-______________________________________________________________________
-
-## Control Flow
-
-### guard Statements
-
-**Early exit pattern**:
-
-```swift
-func deleteCategory(_ category: Category) throws {
-    guard category.assets?.isEmpty ?? true else {
-        throw CategoryError.cannotDeleteWithAssignedAssets
-    }
-    modelContext.delete(category)
-}
-```
-
-### switch Statements
-
-**Prefer switch over if-else chains**:
-
-```swift
-switch importType {
-case .assets:
-    parseAssetCSV(url)
-case .cashFlows:
-    parseCashFlowCSV(url)
-}
-```
-
-______________________________________________________________________
-
-## Optionals
-
-### Unwrapping
-
-**Prefer optional binding**:
-
-```swift
-if let snapshot = selectedSnapshot {
-    showDetail(for: snapshot)
-}
-
-guard let category = category else { return }
-```
-
-**Avoid force unwrapping** (generates SwiftLint warning).
-
-### Nil Coalescing
-
-```swift
-let platform = asset.platform ?? ""
-let netCashFlow = cashFlows?.reduce(0) { $0 + $1.amount } ?? 0
-```
-
-______________________________________________________________________
-
-## SwiftUI-Specific
-
-### View Structure
-
-```swift
-struct SnapshotDetailView: View {
-    // 1. Property wrappers
-    @State private var viewModel: SnapshotDetailViewModel
-    @State private var showingAddAsset = false
-
-    // 2. Body
-    var body: some View {
-        content
-    }
-
-    // 3. Extracted view builders
-    private var content: some View {
-        VStack {
-            assetTable
-            cashFlowSection
-        }
-    }
-}
-```
-
-### ViewBuilder
-
-Extract complex views into computed properties:
-
-```swift
-var body: some View {
-    content
-}
-
-private var content: some View {
-    VStack {
-        header
-        mainContent
-        footer
-    }
-}
-```
-
-### Modifiers
-
-Order (generally):
-
-1. Layout modifiers (frame, padding)
-1. Style modifiers (foregroundColor, font)
-1. Behavior modifiers (onTapGesture, task)
-
-### Property Wrappers Order
-
-```swift
-struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var snapshots: [Snapshot]
-    @State private var viewModel: ViewModel
-    @State private var isPresented = false
-    @Binding var selectedSnapshot: Snapshot?
-}
-```
-
-______________________________________________________________________
-
-## SwiftData-Specific
-
-### Model Definition
-
-```swift
-import SwiftData
-import Foundation
-
-@Model
-final class Asset {
-    // 1. Stored Properties
-    var id: UUID
-    var name: String
-    var platform: String
-    var currency: String
-
-    // 2. Relationships
-    @Relationship(deleteRule: .nullify)
-    var category: Category?
-
-    @Relationship(deleteRule: .deny, inverse: \SnapshotAssetValue.asset)
-    var snapshotAssetValues: [SnapshotAssetValue]?
-
-    // 3. Initializer
-    init(name: String, platform: String = "") {
-        self.id = UUID()
-        self.name = name
-        self.platform = platform
-        self.currency = ""
-    }
-}
-```
-
-______________________________________________________________________
-
-## Financial Data
-
-### Critical Rule: Use Decimal
-
-**Always use `Decimal`** for monetary values:
-
-```swift
-// Good
-var marketValue: Decimal
-var targetAllocationPercentage: Decimal?
-let total: Decimal = 100.50
-
-// Bad - NEVER use Float/Double for money
-var marketValue: Double  // NO
-var targetAllocation: Float  // NO
-```
-
-Exchange-rate values are financial inputs and must also remain `Decimal` from API decoding through conversion and persistence. Converting them to `Double` is permitted only at visualization boundaries such as chart coordinates.
-
-### Display Currency
-
-- Default display currency: `"USD"` (cosmetic only, no FX conversion)
-- Use extensions from `Utilities/Extensions.swift`:
-
-```swift
-let formatted = value.formatted(currency: "USD")  // "$1,234.56"
-let percentage = ratio.formattedPercentage()       // "12.34%"
-```
-
-### Parsing User Input
-
-Use `Decimal.parse(_:locale:)` for parsing user-entered numeric strings. Never use `Decimal(string:)` directly for UI text field input — it doesn't handle locale-specific separators.
-
-```swift
-// Good — locale-aware parsing handles "1,000" correctly
-guard let value = Decimal.parse(amountText) else { return }
-
-// Bad — "1,000" returns nil or parses incorrectly
-guard let value = Decimal(string: amountText) else { return }
-```
-
-`Decimal.parse()` uses `NumberFormatter` internally, supporting:
-
-- Thousands separators (comma in US, period in Germany, space in France)
-- Decimal separators (period in US, comma in Germany)
-- Currency symbols ($, €, £, ¥, ₩, ₹)
-- Leading/trailing whitespace
-
-**Note**: CSV parsing uses `CSVParsingService.parseDecimalValue()` which has different rules (strips all commas) since CSV files use a canonical format.
-
-______________________________________________________________________
-
-## Localization
-
-### String Localization in ViewModels and Services
-
-All user-facing strings in ViewModels and Services must be localized:
-
-```swift
-// Good
-nameValidationMessage = String(localized: "Category name cannot be empty.", table: "Category")
-
-// Bad -- not localized
-nameValidationMessage = "Category name cannot be empty."
-```
-
-### Enum Display Names
-
-Never display enum `rawValue` directly in the UI. Use `localizedName`:
-
-```swift
-// Good
-Text(importType.localizedName)
-
-// Bad
-Text(importType.rawValue)
-```
-
-### String Concatenation in Views
-
-Avoid `+` concatenation inside `Text()` -- it breaks localization auto-extraction:
-
-```swift
-// Good (single literal)
-Text("This asset cannot be deleted because it has values in snapshot(s).")
-
-// Bad (concatenation breaks localization)
-Text("This asset cannot be deleted" + " because it has values.")
-```
-
-______________________________________________________________________
-
-## macOS-Specific Code
-
-AssetFlow targets macOS only (15.0+). No `#if os(iOS)` or `#if os(iPadOS)` compiler directives are needed.
-
-```swift
-// macOS window configuration
-.frame(minWidth: 900, minHeight: 600)
-.toolbar {
-    ToolbarItem(placement: .primaryAction) {
-        Button("Import", systemImage: "square.and.arrow.down") { /* action */ }
-    }
-}
-```
-
-______________________________________________________________________
-
-## Documentation
-
-### File Headers
-
-**Required** (enforced by SwiftLint):
-
-```swift
-//  AssetFlow — snapshot-based portfolio management for macOS.
-//  Copyright (C) 2026 Jen-Chien Chang
-//
-//  This program is free software: you can redistribute it and/or modify
-//  it under the terms of the GNU General Public License as published by
-//  the Free Software Foundation, either version 3 of the License, or
-//  (at your option) any later version.
-//
-//  This program is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU General Public License for more details.
-//
-//  You should have received a copy of the GNU General Public License
-//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-//
-```
-
-### Inline Comments
-
-Document complex logic. Avoid obvious comments:
-
-```swift
-// BAD
-// Set name to "Category"
-name = "Category"
-
-// GOOD - explains WHY
-// Normalize platform name for case-insensitive matching
-let normalized = platform.trimmingCharacters(in: .whitespaces).lowercased()
-```
-
-### Doc Comments
-
-Use for public APIs:
-
-```swift
-/// Calculates the total portfolio value for a snapshot.
-///
-/// - Parameters:
-///   - snapshot: The target snapshot
-/// - Returns: Total value as the sum of all SnapshotAssetValues
-static func totalValue(
-    for snapshot: Snapshot
-) -> Decimal
-```
-
-______________________________________________________________________
-
-## Error Handling
-
-### Custom Errors
-
-```swift
-enum ImportError: LocalizedError {
-    case missingRequiredColumns([String])
-    case duplicateAssetsInCSV([(row1: Int, row2: Int, name: String)])
-    case emptyFile
-
-    var errorDescription: String? {
-        switch self {
-        case .missingRequiredColumns(let columns):
-            return "Missing required columns: \(columns.joined(separator: ", "))"
-        case .duplicateAssetsInCSV(let duplicates):
-            return "Duplicate assets found in CSV"
-        case .emptyFile:
-            return "File contains no data rows"
-        }
-    }
-}
-```
-
-______________________________________________________________________
-
-## Logging
-
-### No print() Statements
-
-**SwiftLint Custom Rule**: `print()` statements are **prohibited**.
-
-### Use os.log Instead
-
-```swift
-import os.log
-
-let logger = Logger(
-    subsystem: "com.yourname.AssetFlow",
-    category: "Import"
-)
-
-// Log levels
-logger.debug("Debug information")
-logger.info("CSV import completed successfully")
-logger.warning("Zero market value detected for asset")
-logger.error("Failed to parse CSV: \(error.localizedDescription)")
-```
-
-______________________________________________________________________
-
-## Code Review Guidelines
-
-### What to Look For
-
-- [ ] Follows naming conventions
-- [ ] Proper use of `Decimal` for financial data
-- [ ] No `print()` statements
-- [ ] File headers present
-- [ ] Appropriate access control
-- [ ] Optional handling is safe
-- [ ] Functions are focused and short
-- [ ] Comments explain "why" not "what"
-- [ ] SwiftLint warnings addressed
-- [ ] Formatted with swift-format
-- [ ] Localization used for user-facing strings
-- [ ] No force unwrapping without good reason
-
-______________________________________________________________________
-
-## Project-Specific Patterns
-
-### Test Isolation (TestContext Pattern)
-
-**Problem**: `ModelContainer` must be retained for the entire test scope. If a helper creates a container, the caller must hold a strong reference to it. Otherwise, ARC deallocates the container early and crashes occur on `@Relationship` property access ("model instance destroyed by calling ModelContext.reset").
-
-**Solution**: Use a `TestContext` struct to bundle container + context + model objects:
-
-```swift
-private struct TestContext {
-    let container: ModelContainer
-    let context: ModelContext
-}
-
-private func createTestContext() -> TestContext {
-    let container = TestDataManager.createInMemoryContainer()
-    let context = container.mainContext
-    return TestContext(container: container, context: context)
-}
-
-// Usage — container stays alive through `tc` for entire test scope
-let tc = createTestContext()
-let viewModel = DashboardViewModel(modelContext: tc.context)
-```
-
-**Note**: Never use `_ = helper()` or `let (_, context, ...) = helper()` — this discards the container immediately.
-
-### Stable Identifiable IDs in Computed Properties
-
-**Problem**: Using `let id = UUID()` in structs created inside computed properties (e.g., chart data) generates new UUIDs on every body evaluation. SwiftUI/Charts treats every render as a full data replacement, breaking animations and diffing.
-
-**Solution**: Use stable composite keys based on data content:
-
-```swift
-// BAD — new UUID every recompute
-struct ChartPoint: Identifiable {
-    let id = UUID()
-    let date: Date
-    let category: String
-}
-
-// GOOD — stable identity
-struct ChartPoint: Identifiable {
-    var id: String { "\(category)-\(date.timeIntervalSince1970)" }
-    let date: Date
-    let category: String
-}
-```
-
-### Naming to Avoid Protocol Conflicts
-
-**Problem**: Property names like `description` conflict with Swift's built-in `CustomStringConvertible` protocol requirement.
-
-**Solution**: Use domain-specific names that avoid conflicts:
-
-```swift
-// Instead of:
-struct CashFlowOperation {
-    var description: String  // Conflicts with CustomStringConvertible
-}
-
-// Use:
-struct CashFlowOperation {
-    var cashFlowDescription: String  // Clear, no conflict
-}
-```
-
-**Example**: `CashFlowOperation.cashFlowDescription` is used instead of `.description` to avoid protocol conflicts while maintaining clarity.
+Use `.helpWhenUnlocked()` for tooltip help text and `.onHoverWhenUnlocked()` or `.onContinuousHoverWhenUnlocked()` for hover callbacks. The modifiers in [WhenUnlockedModifiers.swift](../AssetFlow/Utilities/WhenUnlockedModifiers.swift) suppress help and send `false` or `.ended` for hover callbacks received while locked. Ordinary `.help()`, `.onHover()`, and `.onContinuousHover()` can expose content through the lock overlay. [SecurityAndPrivacy.md](SecurityAndPrivacy.md#app-lock-optional) describes the protection boundary.
 
 ### Animating Empty↔Content Transitions
 
-**Problem**: Using `.animation(_:value:)` on ViewModel-based views animates the initial `.onAppear` data load, causing a flash of the empty state on every navigation. Adding `.transition(.opacity)` to empty/content branches is also unnecessary and may cause jitter.
+A ViewModel-based screen may initially render an empty state before its load completes. Do not attach `.animation(_:value:)` or an opacity transition to that empty/content switch; it can flash on navigation. Keep the switch immediate, and animate list changes in the user-action path when useful. `@Query`-driven views whose data is available synchronously can use value-driven animation where appropriate. Use [AnimationConstants.swift](../AssetFlow/Utilities/AnimationConstants.swift) for shared durations and Reduce Motion behavior.
 
-**Solution**: Do NOT add `.transition(.opacity)` to empty/content branches. The `withAnimation` in user-action code paths smoothly updates list content; the empty↔content switch itself should be instant. Views using `@Query` (data available synchronously) can use `.animation(_:value:)` safely.
+## SwiftData, Concurrency, and Refresh
 
-```swift
-// BAD — flashes empty state on initial navigation
-Group {
-    if viewModel.isEmpty { emptyState.transition(.opacity) }
-    else { content.transition(.opacity) }
-}
-.animation(.easeOut, value: viewModel.isEmpty)
-.onAppear { viewModel.load() }
+SwiftData entities are `@Model` classes. Keep model relationships and persistence invariants consistent with [DataModel.md](DataModel.md); access the shared `ModelContext` on the main actor. Inject a `ModelContext` or focused service dependency at the boundary that needs it, rather than making a broad global dependency. [Architecture.md](Architecture.md#persistence-and-concurrency) explains the shared container, stateful services, and worker boundaries.
 
-// GOOD — instant empty↔content swap, withAnimation only for list content changes
-Group {
-    if viewModel.isEmpty { emptyState }
-    else { content }
-}
-.onAppear { viewModel.load() }
-.onChange(of: dataFingerprint) {
-    withAnimation(AnimationConstants.standard) { viewModel.load() }
-}
-```
+The app target has default MainActor isolation. An `enum` declaration does not itself make a service nonisolated. Mark a pure helper `nonisolated` only when its implementation can safely run without main-actor state. Values crossing isolation boundaries should be `Sendable`; review each service input and result for that boundary.
 
-All animation durations are defined in `AnimationConstants` (`Utilities/AnimationConstants.swift`), which automatically respects the Reduce Motion accessibility setting.
+Use `@unchecked Sendable` or `nonisolated(unsafe)` only with a documented shared-state invariant and evidence that it holds. Do not pass live SwiftData models or a `ModelContext` into nonisolated file, parsing, or archive work.
 
-### ViewModel Auto-Reload with `withObservationTracking`
+Aggregate ViewModels use an `@ObservationIgnored` [ObservedRefresh](../AssetFlow/Utilities/ObservedRefresh.swift) coordinator. Compute local results while tracking reads of source models and settings, then queue observable assignments with `refresh.publish` so publication happens outside tracking. Do not read derived output as an input to that calculation; doing so can create a reload loop.
 
-**Problem**: ViewModels compute aggregate/converted values eagerly in their load method (called from `.onAppear`). When external dependencies change (e.g., display currency, asset currency, exchange rates), computed values become stale.
+Keep explicit loads synchronous. Use weak ViewModel captures in the reload and requested-refresh closures so pending work does not retain the ViewModel or its container. `refresh.request` coalesces notifications, and the coordinator's generation check prevents an older callback from superseding a newer explicit load. [CategoryListViewModel.swift](../AssetFlow/ViewModels/CategoryListViewModel.swift) shows the pattern; [Architecture.md](Architecture.md#state-observation-and-refresh) explains how store-query revisions complement source observation.
 
-**Solution**: Wrap the load method body with `withObservationTracking`. All `@Observable`/`@Model` property reads during execution are automatically tracked. When any tracked property changes, `onChange` fires and re-triggers the load.
+## Financial Values and Optionals
+
+Use `Decimal` for monetary amounts and exchange rates through parsing, calculation, conversion, and persistence. Convert to `Double` only at a visualization boundary such as chart coordinates. Keep the currency unit attached to a value's meaning. The selected display currency drives actual conversion; a missing required rate makes the affected converted result unavailable. Never label a sum of different native currencies as a single-currency total. [BusinessLogic.md](BusinessLogic.md) owns the calculation and availability rules.
+
+`formattedPercentage()` expects **percentage-scale** `Decimal` input. A ratio such as `0.1234` must be multiplied by 100 before formatting:
 
 ```swift
-func loadData() {
-  withObservationTracking {
-    performLoadData()
-  } onChange: { [weak self] in
-    Task { @MainActor [weak self] in
-      self?.loadData()
-    }
-  }
-}
-private func performLoadData() { /* original load body */ }
+let percentagePoints: Decimal = 12.34
+let percentageLabel = percentagePoints.formattedPercentage()
+
+let returnRatio: Decimal = 0.1234
+let returnLabel = (returnRatio * 100).formattedPercentage()
 ```
 
-**Convention**: Always use double `[weak self]` — on both the outer `onChange` closure and the inner `Task` closure. This prevents the ViewModel from being retained after its `ModelContainer` is deallocated, which causes SIGTRAP crashes in tests with in-memory containers.
+These examples run in a main-actor view or ViewModel; the formatter is defined in [Extensions.swift](../AssetFlow/Utilities/Extensions.swift). Format a converted amount with its actual currency code, for example `convertedValue.formatted(currency: displayCurrency)`. A default `"USD"` formatting argument does not perform conversion.
 
-______________________________________________________________________
+Use `Decimal.parse(_:locale:)` for localized user-entered numbers on the main actor. CSV input has its own parsing and interchange rules in [APIDesign.md](APIDesign.md); do not apply UI-locale parsing to canonical CSV data.
 
-## Tools Configuration
+Prefer optional binding when absence changes behavior. Coalesce only a genuinely optional value, and choose a fallback that preserves the domain meaning. A missing rate or failed fetch is not zero, and a nonoptional `Asset.platform` needs no `?? ""`. Avoid force unwrapping; if an invariant justifies one, make the invariant visible near the use.
 
-### .swift-format
+## Localization, Errors, and Logging
 
-```json
-{
-  "version": 1,
-  "indentation": {
-    "spaces": 4
-  },
-  "lineLength": 100,
-  "respectsExistingLineBreaks": true
-}
-```
+User-facing literals in `Text` and `Label` are extracted into String Catalogs; maintain English and Traditional Chinese (`zh-Hant`) entries. Use `String(localized:table:)` for strings created in ViewModels, services, and `LocalizedError.errorDescription`. Keep interpolated values inside a localizable string and avoid concatenating `Text` fragments to assemble sentences. Display an enum's `localizedName`, not its persistence `rawValue`. See [AssetFlow/CLAUDE.md](../AssetFlow/CLAUDE.md) for the catalog tables and patterns.
 
-### .swiftlint.yml
+Report errors to the user in localized, actionable language. Localize each `LocalizedError` description. Keep the underlying error available to the handling layer without inserting raw parser or filesystem messages into user-facing text or logs when they may contain private data.
 
-Key rules:
+Do not use `print()` for diagnostics. When logging is needed, use `Logger` with operation and error categories that help diagnose a failure without recording portfolio values, asset or platform names, cash-flow descriptions, imported filenames, backup contents, or raw error descriptions that may repeat them. See [SecurityAndPrivacy.md](SecurityAndPrivacy.md#network-and-privacy) for the data boundary. A lint rule against `print()` cannot establish that logging is privacy-safe.
 
-- `line_length`: warning: 120, error: 150
-- `function_body_length`: warning: 60, error: 100
-- `custom_rules.no_print`: Prohibit `print()`
-- `sorted_imports`: Required
+## Test Code Conventions
 
-### .editorconfig
+App tests use Swift Testing: name suites for the component or behavior, use descriptive `@Test` names, and keep reusable setup in private helpers. Place suites under the corresponding `AssetFlowTests/` area, such as `Models/`, `Services/`, `ViewModels/`, or `Integration/`. Follow [AssetFlowTests/CLAUDE.md](../AssetFlowTests/CLAUDE.md) for test structure and [TestingStrategy.md](TestingStrategy.md) for what to verify.
 
-```ini
-[*.swift]
-indent_style = space
-indent_size = 4
-end_of_line = lf
-charset = utf-8
-trim_trailing_whitespace = true
-insert_final_newline = true
-```
+When a helper creates an in-memory SwiftData context, retain its `ModelContainer` for the full test scope; discarding the container while keeping only the context can invalidate related models. The test instructions document the `TestContext` pattern.
 
-______________________________________________________________________
+## Python Repository Tooling
 
-## References
-
-- [Swift API Design Guidelines](https://swift.org/documentation/api-design-guidelines/)
-- [SwiftLint Rules](https://realm.github.io/SwiftLint/rule-directory.html)
-- [swift-format](https://github.com/apple/swift-format)
-- Project configurations: `.swiftlint.yml`, `.swift-format`, `.editorconfig`
+Python scripts are repository tooling, separate from the Swift app. [`.pre-commit-config.yaml`](../.pre-commit-config.yaml) runs isort before Black and includes Pyright. [`pyproject.toml`](../pyproject.toml) sets isort's Black profile and points Pyright at the repo-local `.venv`; pre-commit hook environments are separate. Follow those configurations for formatting and type-checking conventions. [DevelopmentGuide.md](DevelopmentGuide.md) owns environment setup and commands, while [TestingStrategy.md](TestingStrategy.md) owns Python test design.
