@@ -64,11 +64,11 @@ overrides/                      # Material theme overrides (custom_dir, at repo 
 
 ## Adding or Updating Screenshots
 
-Screenshots in `assets/images/` are tracked by Git LFS. Simply add or replace `.png` files as usual. Git LFS handles the rest transparently.
+Screenshots in [`assets/images/`](assets/images/) are tracked by Git LFS. Simply add or replace `.png` files as usual. Git LFS handles the rest transparently.
 
 ### Screenshot layout
 
-`assets/stylesheets/extra.css`, registered through `extra_css` in `mkdocs.yml`, centers standalone screenshots within the text column in both languages. Images retain their natural size and scale down to fit narrower screens. The rule targets image-only paragraphs containing screenshots from `assets/images/`, excluding explicitly aligned images; theme icons and the navigation logo are unaffected.
+[`assets/stylesheets/extra.css`](assets/stylesheets/extra.css), registered through `extra_css` in [`mkdocs.yml`](../mkdocs.yml), centers standalone screenshots within the text column in both languages. Images retain their natural size and scale down to fit narrower screens. The rule targets image-only paragraphs containing screenshots from `assets/images/`, excluding explicitly aligned images; theme icons and the navigation logo are unaffected.
 
 Introduce each screenshot with text explaining what to look for. Separate screenshots of different views with relevant explanations or subsections rather than placing them back-to-back. Keep the structure consistent in English and Traditional Chinese.
 
@@ -82,7 +82,7 @@ Keep English and Traditional Chinese screenshots aligned where the interface tex
 
 The site uses [mkdocs-static-i18n](https://github.com/ultrabug/mkdocs-static-i18n) with a folder-based layout. To add a new language:
 
-1. Create a new folder under `mkdocs/` (e.g., `mkdocs/zh-TW/`) mirroring the `en/` structure.
+1. Create a new folder under [`mkdocs/`](./) (e.g., [`mkdocs/zh-TW/`](zh-TW/)) mirroring the [`en/`](en/) structure.
 1. Add the locale to `mkdocs.yml` under `plugins > i18n > languages`.
 1. If the language is supported by [lunr.js](https://lunrjs.com/) but the locale code isn't (e.g., `zh-TW` → `zh`), add the language code to `plugins > search > lang` so search uses the correct tokenizer.
 1. Translate the content. Screenshots in `assets/images/` are shared across all languages.
@@ -101,12 +101,12 @@ This is expected and harmless. The plugin's auto-detector compares the literal l
 
 The site uses [mike](https://github.com/jimporter/mike) for version switching. Each release tag gets its own version, and a `latest` alias always points to the most recent release.
 
-- **Automatic deployment**: The `docs.yml` GitHub Actions workflow deploys `dev` on pushes to `main` (when docs change) and a versioned snapshot on each release.
+- **Automatic deployment**: The [`.github/workflows/docs.yml`](../.github/workflows/docs.yml) GitHub Actions workflow deploys `dev` on pushes to `main` (when docs change) and a versioned snapshot on each release.
 - **Version selector**: A dropdown in the header lets readers switch between versions.
 
 ### Manual deployment
 
-The deploy and set-default commands publish changes to remote Git state. Run them only for an authorized maintainer release, from the repository root. `--locked` prevents publication if `uv.lock` needs updating.
+The deploy and set-default commands publish changes to remote Git state. Run them only for an authorized maintainer release, from the repository root. `--locked` prevents publication if [`uv.lock`](../uv.lock) needs updating.
 
 ```bash
 # Deploy a specific version with the "latest" alias

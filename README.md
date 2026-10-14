@@ -91,7 +91,7 @@ AssetFlow/
 
 1. Build and run the project (⌘+R)
 
-   Alternatively, use the Makefile from the command line:
+   Alternatively, use the [`Makefile`](Makefile) from the command line:
 
    ```bash
    make          # Archive a Release build → build/AssetFlow.app
@@ -124,14 +124,14 @@ The pre-commit hook checks applicable files before each commit, including format
 
 ### VSCode Setup
 
-This project ships with `.vscode/settings.json` that configures SourceKit-LSP for the Xcode build system. To enable accurate cross-file symbol resolution, install [xcode-build-server](https://github.com/SolaWing/xcode-build-server) and generate a local build server config:
+This project ships with [`.vscode/settings.json`](.vscode/settings.json) that configures SourceKit-LSP for the Xcode build system. To enable accurate cross-file symbol resolution, install [xcode-build-server](https://github.com/SolaWing/xcode-build-server) and generate a local build server config:
 
 ```bash
 brew install xcode-build-server
 xcode-build-server config -scheme AssetFlow -project AssetFlow.xcodeproj
 ```
 
-This creates a machine-local `buildServer.json` (already in `.gitignore`) that tells SourceKit-LSP how to compile each file with the correct flags. Build in Xcode at least once to populate the index store, then restart the language server in VSCode.
+This creates a machine-local `buildServer.json` (already in [`.gitignore`](.gitignore)) that tells SourceKit-LSP how to compile each file with the correct flags. Build in Xcode at least once to populate the index store, then restart the language server in VSCode.
 
 ### Code Style
 
@@ -140,7 +140,7 @@ This project uses a combination of `swift-format` and `SwiftLint` to ensure high
 - **`swift-format`**: Used for automated code formatting.
 - **`SwiftLint`**: Used to enforce stylistic conventions and catch common errors.
 
-Configurations for these tools can be found in `.swift-format` and `.swiftlint.yml` respectively. Both are run automatically before each commit via pre-commit hooks.
+Configurations for these tools can be found in [`.swift-format`](.swift-format) and [`.swiftlint.yml`](.swiftlint.yml) respectively. Both are run automatically before each commit via pre-commit hooks.
 
 ### Architecture
 
