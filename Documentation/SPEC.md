@@ -169,7 +169,7 @@ ______________________________________________________________________
 - Asset name (editable)
 - Platform (editable)
 - Category assignment (editable)
-- Currency (editable) — ISO 4217 picker; sets the asset's native currency. Used for FX conversion display.
+- Currency (editable) — Supported currency picker; sets the asset's native currency. Used for FX conversion display.
 - **Converted value column and chart toggle:** When the asset's currency differs from the display currency (Settings), the value history table gains a "Converted Value" column showing each snapshot's market value converted to the display currency via the snapshot's stored ExchangeRate. A currency-code toggle button appears in the section header; clicking it switches the sparkline chart between the native-currency view (blue) and the converted-value view (green). The toggle is hidden when the asset currency matches the display currency or when no currency is set.
 - Delete action: **only enabled when the asset has no SnapshotAssetValue records in any snapshot**. When disabled, shows explanatory text: "This asset cannot be deleted because it has values in snapshot(s). Remove the asset from all snapshots first." (See Section 6.3)
 
