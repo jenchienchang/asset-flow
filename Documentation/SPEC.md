@@ -61,13 +61,12 @@ The app uses a **sidebar navigation** layout (standard macOS pattern):
 1. **Categories** — Category management with target allocations
 1. **Platforms** — Platform management (rename)
 1. **Rebalancing** — Rebalancing calculator
-1. **Import** — CSV import workflow
+1. **New Snapshot** — Opens snapshot creation
+1. **Import CSV** — CSV import workflow
 
-**Detail views:** Each sidebar section that has a list+detail pattern (Snapshots, Assets, Categories, Platforms) uses a **list-detail split** within the content area. The list appears on the leading side and the detail view appears on the trailing side. Selecting an item in the list reveals its detail. When no item is selected, the detail area shows a placeholder prompt (e.g., "Select a snapshot to view details"). Dashboard, Rebalancing, and Import occupy the full content area without a list-detail split.
+**Detail views:** Snapshots, Assets, Categories, and Platforms use a list beside the selected item's detail. When no item is selected, the detail area shows a prompt. Dashboard, Rebalancing, Import CSV, and an active Bulk Entry draft occupy the full content area.
 
-**Toolbar:**
-
-- Import button (opens the same import flow as the sidebar Import item)
+The File menu also opens New Snapshot and Import CSV. [UserInterfaceDesign.md](UserInterfaceDesign.md) owns navigation history, draft protection, and command details.
 
 ______________________________________________________________________
 
@@ -107,6 +106,10 @@ The dashboard provides a portfolio overview using the latest snapshot.
 
    - Portfolio-level cumulative time-weighted return over time (see Section 12.4)
    - Shows "Insufficient data (need at least 2 snapshots)" when fewer than 2 snapshots exist
+
+1. **Category value history chart:**
+
+   - Shows category values across snapshots with a legend that can hide individual categories
 
 1. **Recent snapshots list:**
 
@@ -230,7 +233,7 @@ Each screen must handle the empty/first-run case:
 | Assets      | Explain how to create or import assets when none exist; if the Hide Stale Assets toggle hides every row, explain how to reveal them. |
 | Categories  | "No categories yet. Create categories to organize your assets and set target allocations." with "Create Category" button             |
 | Platforms   | "No platforms yet. Platforms are created automatically when you import CSV data or create assets."                                   |
-| Rebalancing | "Set target allocations on your categories to use the rebalancing calculator."                                                       |
+| Rebalancing | "Add a snapshot to calculate rebalancing from your category goals."                                                                  |
 
 ______________________________________________________________________
 
@@ -269,14 +272,13 @@ ______________________________________________________________________
 | -------- | ----------------------------------------------------------------------------------- |
 | Delete   | Remove the selected item where supported, following that screen's confirmation rule |
 | Cmd+N    | New Snapshot                                                                        |
-| Cmd+I    | Open Import screen                                                                  |
+| Cmd+I    | Open Import CSV                                                                     |
 
 ______________________________________________________________________
 
 ### 3.12 Window and Appearance
 
 - **Minimum window size:** 900 × 600 points
-- **Sidebar:** Collapsible via toolbar button or drag. Default width: 220 points.
 - **Appearance:** Supports system appearance (light and dark mode). All custom colors and chart colors must adapt to both modes.
 
 **Number formatting:**
@@ -293,7 +295,7 @@ ______________________________________________________________________
 
 ### 4.1 Import Flow
 
-1. User clicks "Import" (sidebar item or toolbar button — both open the same flow)
+1. User opens Import CSV from the sidebar or File menu
 1. The import screen presents a unified view with:
    - **Import type selector** — Segmented control at the top: **Assets** | **Cash Flows**. Defaults to Assets. Selecting a type configures the rest of the screen for that CSV format.
    - **File selector** — Drag-and-drop zone or "Browse" button (filtered to `.csv` files)
@@ -394,7 +396,7 @@ Platform for each asset is determined by the import-level platform selection and
    1. **Override All** (default): Every row receives the selected platform, overriding CSV values
    1. **Fill Empty Only**: Only rows whose CSV platform is empty receive the selected platform; rows with existing CSV platforms keep their original values
 
-The apply mode toggle (segmented picker: "All Rows" / "Empty Only") appears only when a platform is selected AND the CSV contains a mix of empty and non-empty platform values. Otherwise, the distinction is meaningless and the toggle is hidden.
+The apply-mode choice is relevant when a platform is selected and CSV rows contain both empty and non-empty platform values. [UserInterfaceDesign.md](UserInterfaceDesign.md#import-screen) owns its control.
 
 ______________________________________________________________________
 
@@ -522,9 +524,8 @@ ______________________________________________________________________
 
 ### 8.1 Manual Creation
 
-Users can create a snapshot manually from the Snapshots screen:
+The New Snapshot actions in Sections 3.1 and 3.3 open the same date and creation-mode sheet:
 
-1. Click "New Snapshot"
 1. Select a snapshot date (required, must be today or earlier). **The selected date must not have an existing snapshot.** If the user selects a date that already has a snapshot, show a validation error: "A snapshot already exists for [date]. Go to the Snapshots screen to view and edit it." The creation flow cannot proceed until a valid date is selected.
 1. Choose a creation mode:
    - **Empty snapshot** — creates a snapshot with no asset entries; user is navigated to SnapshotDetailView to add assets manually
@@ -690,10 +691,9 @@ ______________________________________________________________________
 **Time range controls:** All line charts (12.2, 12.3, 12.4) include a zoom selector with the following scales:
 
 - 1W (1 week), 1M (1 month), 3M (3 months), 6M (6 months), 1Y (1 year), 3Y (3 years), 5Y (5 years), All
-- Default: All
+- A newly opened chart defaults to All; its range selection is not persisted across sessions
 - The chart displays only snapshots within the selected time range
 - If no snapshots exist within the selected range, display "No data for selected period"
-- The selected time range resets to "All" when navigating away from the chart's screen. Time range selections are not persisted across sessions.
 
 ### 12.1 Pie Chart — Category Allocation
 
@@ -796,7 +796,6 @@ ______________________________________________________________________
 ### Window Management
 
 - Minimum window size: 900 × 600 points
-- Sidebar collapsible
 - Supports system appearance (light and dark mode)
 
 ### Localization, Accessibility, and Privacy
