@@ -1,826 +1,264 @@
 # API and Integration Design
 
-## Preface
+AssetFlow is a local-first macOS app. This document defines the contracts between its Swift components and the formats crossing its CSV, backup, and exchange-rate boundaries. Portfolio records stay local; the app contacts `cdn.jsdelivr.net` for currency names and date-specific exchange rates. [SPEC.md](SPEC.md) defines intended behavior, [BusinessLogic.md](BusinessLogic.md) owns financial rules, [DataModel.md](DataModel.md) owns stored entities, and [Architecture.md](Architecture.md) owns component lifetimes and data flow.
 
-**Purpose of this Document**
-
-This document describes the design of internal service APIs and data format specifications for AssetFlow. As a **local-only application with no external API dependencies**, this document focuses exclusively on internal service interfaces, CSV import/export formats, and the backup/restore system.
-
-**What This Document Covers**
-
-- **Internal Service APIs**: Service layer interfaces for CSV parsing, calculations, backup/restore, and currency conversion
-- **External API Integration**: Exchange rate API for currency conversion
-- **CSV Import Format**: Asset CSV and Cash Flow CSV schemas, parsing rules, and validation
-- **Backup Format**: ZIP archive structure, CSV serialization, and manifest specification
-- **Error Handling**: Service-level error types and handling patterns
-
-**What This Document Does NOT Cover**
-
-- User interface design (see [UserInterfaceDesign.md](UserInterfaceDesign.md))
-- Business logic calculations (see [BusinessLogic.md](BusinessLogic.md))
-- Data model structure (see [DataModel.md](DataModel.md))
-
-**Design Philosophy**
-
-- **Local-First**: Data stored locally; network used only for exchange rate fetching (optional, graceful degradation)
-- **Standard Formats**: CSV for import/export, ZIP for backup archives
-- **Deterministic**: All operations produce the same output for the same input
-- **Fail-Safe**: Validation before execution; rejected operations leave no partial state
-
-**Related Documentation**
-
-- [Architecture.md](Architecture.md) - MVVM layers and service patterns
-- [BusinessLogic.md](BusinessLogic.md) - Calculation formulas and business rules
-- [DataModel.md](DataModel.md) - Data structures and relationships
-
-______________________________________________________________________
+The examples below show useful call boundaries rather than an inventory of every declaration. Source links identify the full interfaces.
 
 ## Internal Service APIs
 
 ### CSVParsingService
 
-**Purpose**: Parse CSV files according to the asset and cash flow schemas defined in SPEC Section 4.2.
+[CSVParsingService.swift](../AssetFlow/Services/CSVParsingService.swift), [CSVParsingService+ColumnMapping.swift](../AssetFlow/Services/CSVParsingService+ColumnMapping.swift), and [CSVParsingTypes.swift](../AssetFlow/Services/CSVParsingTypes.swift) define the user-import parser. It receives `Data`, not a file URL. [CSVFileReader](../AssetFlow/Services/CSVParsingService.swift) reads security-scoped URLs asynchronously; `CSVImportPreparationService` then prepares the same bytes for the Import screen and Bulk Entry.
 
-CSV record syntax is delegated to Apple’s `TabularData` framework through the internal `CSVRecordReader`. It enables RFC-style quoting, escaped double quotes, embedded newlines, and structural error reporting without a custom character-level parser. Columns are read back as strings so AssetFlow can retain exact field content and continue parsing monetary values as `Decimal` rather than floating-point values. `CSVParsingService` remains responsible for headers, schema validation, warnings, and raw within-CSV duplicate diagnostics. `CSVImportPreparationService` uses cancellable async parsing workers that check cancellation between record materialization, row validation, and duplicate detection. Import flows perform final duplicate validation after applying their context-specific platform rules. All user-facing import errors and warnings are resolved through the `Import` string catalog, including errors translated from `CSVRecordReader` reasons; framework-localized parser descriptions are not surfaced directly.
+| Boundary                                                                              | Input and result                                                                        | Failure and side effects                                                                                                                  |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `CSVParsingService.parseAssetCSV(data:importPlatform:)` and `parseCashFlowCSV(data:)` | Raw bytes → `CSVParseResult<AssetCSVRow>` or `CSVParseResult<CashFlowCSVRow>`           | Synchronous and nonthrowing. Syntax, header, and row problems are returned as `CSVError` values. No model mutation.                       |
+| Mapping overloads of `parseAssetCSV` and `parseCashFlowCSV`                           | Raw bytes and a confirmed `CSVColumnMapping` → the same result types                    | The header is still read, but its names are not revalidated against canonical names. Missing required mapped fields become result errors. |
+| `CSVImportPreparationService.prepare(data:schema:)` and `prepare(data:mapping:)`      | Bytes → `CSVImportPreparation.parsedAsset`, `.parsedCashFlow`, or `.needsMapping`       | Async and throwing, with cooperative cancellation. Ordinary parsing errors remain in the parsed result; cancellation throws.              |
+| `CSVParsingService.resolveAssetRowsForPlatform(rows:platform:)`                       | Parsed rows and a Bulk Entry target platform → included rows and mismatched asset names | Rows for another platform are skipped; included blank or matching platforms resolve to the target.                                        |
 
-```swift
-enum CSVParsingService {
-    /// Parse asset CSV data into structured rows
-    static func parseAssetCSV(
-        data: Data,
-        importPlatform: String?
-    ) -> CSVParseResult<AssetCSVRow>
+`CSVParseResult` keeps `parsingErrors`, `duplicateErrors`, and `warnings` separate; `errors` combines the two error arrays, and `hasErrors` determines whether the result is valid. `CSVError` and `CSVWarning` carry a source row, optional column, and localized message. Parsed asset and cash-flow rows keep their source `rowNumber`, `Decimal` amount, and currency string. `CashFlowCSVRow.description` maps to the model's `cashFlowDescription` property.
 
-    /// Parse asset CSV using a user-provided column mapping (skips header validation)
-    static func parseAssetCSV(
-        data: Data,
-        mapping: CSVColumnMapping,
-        importPlatform: String?
-    ) -> CSVParseResult<AssetCSVRow>
+[CSVRecordReader.swift](../AssetFlow/Services/CSVRecordReader.swift) uses TabularData for logical CSV records and quoting, including escaped quotes and embedded newlines. It reads columns as strings before the app parses monetary values as `Decimal`. The async reader checks cancellation between its TabularData passes and while materializing records; the async row parsers also check between rows and during duplicate detection.
 
-    /// Parse cash flow CSV data into structured rows
-    static func parseCashFlowCSV(data: Data) -> CSVParseResult<CashFlowCSVRow>
-
-    /// Parse cash flow CSV using a user-provided column mapping
-    static func parseCashFlowCSV(data: Data, mapping: CSVColumnMapping) -> CSVParseResult<CashFlowCSVRow>
-
-    /// Resolve Bulk Entry asset rows for a target platform and report skipped rows
-    static func resolveAssetRowsForPlatform(
-        rows: [AssetCSVRow],
-        platform: String
-    ) -> (rows: [AssetCSVRow], mismatches: [String])
-
-    /// Extract header names from the first line of CSV data
-    static func extractHeaders(from data: Data) -> [String]
-
-    /// Extract first N data rows as raw string arrays (for sample preview)
-    static func extractSampleRows(from data: Data, count: Int = 3) -> [[String]]
-
-    /// Auto-detect column mapping by case-insensitive header matching
-    static func autoDetectMapping(headers: [String], schema: CSVColumnSchema) -> CSVAutoDetectResult
-}
-
-struct CSVParseResult<T> {
-    let rows: [T]
-    let parsingErrors: [CSVError]
-    let duplicateErrors: [CSVError]
-    let errors: [CSVError]
-    let warnings: [CSVWarning]
-
-    var hasErrors: Bool
-    var isValid: Bool
-}
-
-struct AssetCSVRow {
-    let assetName: String
-    let marketValue: Decimal
-    let platform: String  // Resolved via platform handling rules
-    let currency: String  // From optional Currency column (empty if absent)
-    let rowNumber: Int?    // Source CSV row for diagnostics
-}
-
-struct CashFlowCSVRow {
-    let description: String  // Maps to CashFlowOperation.cashFlowDescription in the model
-    let amount: Decimal
-    let currency: String  // From optional Currency column (empty if absent)
-    let rowNumber: Int?    // Source CSV row for diagnostics
-}
-
-/// Canonical column identifiers for CSV mapping
-enum CanonicalColumn: String, CaseIterable, Identifiable {
-    case assetName = "Asset Name"
-    case marketValue = "Market Value"
-    case platform = "Platform"
-    case currency = "Currency"
-    case description = "Description"
-    case amount = "Amount"
-}
-
-/// Defines required/optional columns for a CSV schema
-enum CSVColumnSchema: CaseIterable {
-    case asset     // required: assetName, marketValue; optional: platform, currency
-    case cashFlow  // required: description, amount; optional: currency
-}
-
-/// A confirmed mapping from canonical columns to CSV column indices
-struct CSVColumnMapping {
-    let schema: CSVColumnSchema
-    let columnMap: [CanonicalColumn: Int]
-    let rawHeaders: [String]
-}
-
-/// Result of auto-detection attempt
-enum CSVAutoDetectResult {
-    case matched(CSVColumnMapping)
-    case needsUserMapping(rawHeaders: [String], partialMap: [CanonicalColumn: Int])
-}
-```
-
-**Note**: `CashFlowCSVRow.description` represents the "Description" column from the CSV file. When creating `CashFlowOperation` entities, this value is assigned to the `cashFlowDescription` property (not `description`) to avoid conflicts with Swift's built-in `CustomStringConvertible` protocol.
-
-**Parsing Rules**:
-
-- Encoding: UTF-8 (with BOM tolerance)
-- Delimiter: comma only
-- Number parsing: strip whitespace, currency symbols ($), thousand separators (commas in numbers), parse as `Decimal`
-- Empty rows: silently skipped
-- Header row: required as first row
-
-**Error and Warning Types**:
-
-```swift
-struct CSVError: Error, Equatable {
-    let row: Int
-    let column: String?
-    let message: String
-}
-
-struct CSVWarning: Equatable {
-    let row: Int
-    let column: String?
-    let message: String
-}
-```
-
-Methods do not throw — errors are embedded in the returned `CSVParseResult`. Check `result.hasErrors` or inspect `result.errors` after parsing.
-
-______________________________________________________________________
-
-### Duplicate Detection
-
-**Purpose**: Detect duplicates within a CSV and between CSV data and existing snapshot records.
-
-**Implementation**: AssetFlow handles duplicate detection in two layers:
-
-1. **CSV-Internal Duplicate Candidates** (reported by `CSVParsingService` and finalized by the importing workflow):
-
-   - Raw candidates are detected during CSV parsing and exposed separately from structural parsing errors
-   - Asset duplicates: Same (name, platform) within the CSV file (normalized: trim whitespace, collapse spaces, case-insensitive)
-   - Cash flow duplicates: Same description within the CSV file (case-insensitive)
-   - Final validation uses effective rows and preserves source row numbers
-   - Bulk Entry resolves empty or matching platforms to its target platform and ignores duplicates belonging only to skipped platforms
-
-1. **CSV-vs-Snapshot Duplicates** (handled by `ImportViewModel`):
-
-   - Detected when loading preview in import workflow
-   - Compares parsed CSV rows against existing snapshot data
-   - Asset conflicts: CSV row matches an asset already in the target snapshot
-   - Cash flow conflicts: CSV row description matches a cash flow operation already in the target snapshot
-   - Surfaces conflicts in the import preview UI for user resolution
-
-**Asset Duplicate Detection**: Two records share the same (Asset Name, Platform) identity using normalized comparison (trim whitespace, collapse spaces, case-insensitive).
-
-**Cash Flow Duplicate Detection**: Two records share the same Description (case-insensitive comparison).
-
-______________________________________________________________________
+The parser reports duplicate candidates within the raw CSV separately from structural errors. Import workflows recheck the *included, effective* rows after applying platform rules; `ImportViewModel` also checks conflicts with the target snapshot. A matching zero-valued snapshot asset can be replaced as a placeholder, while a matching nonzero asset blocks import. [BusinessLogic.md](BusinessLogic.md#duplicate-and-replacement-policy) owns the identity and conflict rules; the [CSV format section](#csv-import-format-specification) gives the file contract.
 
 ### CalculationService
 
-**Purpose**: Unified calculation engine for all financial metrics. All methods are pure functions operating on `Decimal` values.
+[CalculationService.swift](../AssetFlow/Services/CalculationService.swift) exposes pure `Decimal` calculations. Monetary inputs and outputs are in the caller's chosen currency; return and allocation ratios have different scales.
 
-**File**: `AssetFlow/Services/CalculationService.swift`
+| Call                                                            | Result contract                                                                                                                 |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `growthRate(beginValue:endValue:)`                              | `Decimal?` fraction, so `0.10` means 10%; `nil` when the beginning value is not positive.                                       |
+| `modifiedDietzReturn(beginValue:endValue:cashFlows:totalDays:)` | `Decimal?` fraction; cash-flow tuples contain an amount and whole `daysSinceStart`. Invalid period or denominator yields `nil`. |
+| `cumulativeTWR(periodReturns:)`                                 | `Decimal` fraction; an empty array yields zero.                                                                                 |
+| `cagr(beginValue:endValue:years:)`                              | `Decimal?` fraction; `years` is a `Decimal` duration. Undefined inputs yield `nil`.                                             |
+| `categoryAllocation(categoryValue:totalValue:)`                 | `Decimal` percentage on the 0–100 scale; a nonpositive total yields zero.                                                       |
 
-```swift
-enum CalculationService {
-    /// Calculate simple growth rate between two values (SPEC Section 10.3)
-    /// Formula: (endValue - beginValue) / beginValue
-    /// - Returns: Growth rate as a decimal (e.g., 0.10 for 10%), or nil if
-    ///   beginning value is zero or negative
-    static func growthRate(
-        beginValue: Decimal,
-        endValue: Decimal
-    ) -> Decimal?
-
-    /// Calculate Modified Dietz return (SPEC Section 10.4)
-    /// Formula: R = (EMV - BMV - CF) / (BMV + sum(wi * CFi))
-    /// Where wi = (totalDays - daysSinceStart) / totalDays
-    /// - Parameters:
-    ///   - beginValue: Beginning portfolio value (BMV)
-    ///   - endValue: Ending portfolio value (EMV)
-    ///   - cashFlows: Array of (amount, daysSinceStart) tuples for intermediate cash flows
-    ///   - totalDays: Total calendar days in the period
-    /// - Returns: Modified Dietz return as a decimal, or nil if denominator is <= 0
-    ///   or beginning value is zero/negative
-    static func modifiedDietzReturn(
-        beginValue: Decimal,
-        endValue: Decimal,
-        cashFlows: [(amount: Decimal, daysSinceStart: Int)],
-        totalDays: Int
-    ) -> Decimal?
-
-    /// Calculate cumulative time-weighted return by chaining period returns (SPEC Section 10.5)
-    /// Formula: TWR = (1 + r1) * (1 + r2) * ... * (1 + rn) - 1
-    /// - Parameter periodReturns: Array of Modified Dietz returns for consecutive periods
-    /// - Returns: Cumulative TWR as a decimal
-    static func cumulativeTWR(
-        periodReturns: [Decimal]
-    ) -> Decimal
-
-    /// Calculate compound annual growth rate (SPEC Section 10.6)
-    /// Formula: CAGR = (endValue / beginValue) ^ (1 / years) - 1
-    /// - Parameters:
-    ///   - beginValue: Beginning portfolio value
-    ///   - endValue: Ending portfolio value
-    ///   - years: Number of years (can be fractional), represented as Decimal
-    /// - Returns: CAGR as a decimal, or nil if beginning value is zero/negative
-    ///   or years is zero/negative
-    static func cagr(
-        beginValue: Decimal,
-        endValue: Decimal,
-        years: Decimal
-    ) -> Decimal?
-
-    /// Calculate category allocation percentage (SPEC Section 10.2)
-    /// Formula: categoryValue / totalValue * 100
-    /// - Returns: Allocation percentage, or 0 if total value is zero
-    static func categoryAllocation(
-        categoryValue: Decimal,
-        totalValue: Decimal
-    ) -> Decimal
-}
-```
+The date boundaries, cash-flow signs, assumptions, and formulas belong in [BusinessLogic.md](BusinessLogic.md#portfolio-performance).
 
 ### RebalancingCalculator
 
-**File**: `AssetFlow/Services/RebalancingCalculator.swift`
+[RebalancingCalculator.swift](../AssetFlow/Services/RebalancingCalculator.swift) provides `RebalancingCalculator.calculate(categories:totalValue:uncategorizedValue:) -> RebalancingPlan`. Each `CategoryGoalAllocation` carries a category UUID, name, current `Decimal` balance, optional 0–100 percentage, and optional minimum in the display currency. `totalValue` and `uncategorizedValue` use that same currency. The returned status distinguishes feasible, no-goal, invalid, and infeasible plans; only feasible plans contain actionable targets. A target retains its source allocation, target value, minimum-binding flag, difference, and current minimum shortfall.
 
-```swift
-static func calculate(
-    categories: [CategoryGoalAllocation],
-    totalValue: Decimal,
-    uncategorizedValue: Decimal = 0
-) -> RebalancingPlan
-```
+`CategoryGoalAssessmentService` is `@MainActor` because it reads snapshot and category models. `assess(snapshot:categories:displayCurrency:)` returns optional converted totals, per-category values and minimums, independent asset and goal conversion statuses, minimum states, and an optional plan. `requiredCurrencies(categories:displayCurrency:)` includes currencies needed solely for category minimums. `convertMinimum(amount:currency:snapshot:displayCurrency:) -> Decimal?` supports historical minimum overlays without making an allocation plan; `nil` means conversion is unavailable, not a zero minimum.
 
-`CategoryGoalAllocation` carries a stable category UUID, display name, current value, optional percentage, and optional converted minimum. `RebalancingPlan` carries status, targets, protected/available values, total minimums, and percentage sum. Targets include their input allocation, target balance, minimum-binding flag, difference, and current minimum shortfall. Invalid/infeasible outcomes contain no targets.
-
-The calculator accepts finite Decimal precision loss in balance arithmetic but rejects other arithmetic errors. Percentage sums retain exact aggregation. Minimum and protected funding sums use a conservative Decimal error bound to prove which side of the budget their exact sum occupies; an ambiguous comparison leaves the plan unavailable. Combined checks use original components rather than rounded subtotals. Rounding cannot erase a mandatory requirement or make an invalid percentage sum appear to be 100%. Input totals are consistent within `arithmeticTolerance(total:)`, defined as `max(total, 1) * 1e-28`; funding and minimum comparisons do not use this tolerance. Asset totals and category assessment aggregate in stable asset UUID order, and the calculator orders categories by UUID. Monetary inputs retain their full Decimal precision.
-
-`CategoryGoalAssessmentService.assess(snapshot:categories:displayCurrency:)` resolves snapshot values by UUID, converts goal amounts, and produces independent asset/goal conversion statuses and per-category minimum states. Missing conversion prevents the dependent plan without substituting zero. `requiredCurrencies` includes goal-only currencies for rate fetching.
-
-`RebalancingHelpPresentation.monetaryValue` formats popup amounts with `Decimal.formattedCurrencyNumber`, which shares fraction defaults with the existing asset currency formatter. `Decimal.currencyDisplayUnit` derives the smallest display unit from that formatter. Tiny nonzero amounts use bounds and localized signed-change labels. ISO codes remain per row or in a shared table heading. `CategoryGoalPresentation.diagnostic` accepts an optional amount formatter so popup funding explanations follow the same policy while existing callers retain their behavior. No calculation or persisted value is rounded by these helpers.
-
-`CategoryGoalValidator` shares paired-field, range, finite-value, currency, and form parsing validation. Restore preserves syntactically valid codes absent from the current currency list; new selections use the cached supported list. `CategoryGoalPresentation` localizes domain diagnostics; pure allocation results contain no localized identifiers.
-
-The ViewModel classifies actionable differences, preserves mandatory subunit top-ups and their funding, and pairs transfers without exceeding capacities. See [BusinessLogic](BusinessLogic.md#rebalancing-engine) for equations and edge cases.
-
-### BackupService
-
-**Purpose**: Export all application data to a ZIP archive and restore from a backup archive.
-
-**Note**: BackupService's model-facing façade is `@MainActor` because it accepts `ModelContext`, but its archive and parsing helpers are nonisolated. This keeps required SwiftData access on the main actor without performing file or archive work there.
-
-```swift
-enum BackupService {
-    /// Export all data to a ZIP archive at the specified URL
-    @MainActor
-    static func exportBackup(
-        to url: URL,
-        modelContext: ModelContext,
-        settingsService: SettingsService
-    ) async throws
-
-    /// Validate a backup archive without modifying data
-    static func validateBackup(
-        at url: URL
-    ) async throws -> BackupManifest
-
-    /// Restore all data from a backup archive (replaces ALL existing data)
-    @MainActor
-    static func restoreFromBackup(
-        at url: URL,
-        modelContext: ModelContext,
-        settingsService: SettingsService
-    ) async throws
-}
-
-struct BackupManifest: Codable {
-    let formatVersion: Int
-    let exportTimestamp: String  // ISO 8601
-    let appVersion: String
-}
-```
-
-**Actor boundary**: BackupService is an async main-actor façade. It snapshots SwiftData values into `Sendable` transfer records on the main actor, then performs CSV serialization, archive extraction/validation, and `/usr/bin/ditto` work through nonisolated async helpers. SwiftData insertion, deletion, transactions, and settings mutation return to the main actor only after background validation succeeds. Archive tasks honor cancellation and replace export destinations only after a complete archive has been produced.
-
-**File Organization**: The BackupService implementation is split across extension files: `BackupService+Export.swift` (Sendable CSV writing and export helpers), `BackupService+Parsing.swift` (typed loading and file validation), `AssetFlow/Services/CSVRecordReader.swift` (TabularData-backed record parsing shared with user imports), `BackupService+EntityParsing.swift` and `BackupService+SupplementalParsing.swift` (typed entity validation), `BackupService+ParsingSupport.swift` (strict scalar parsing and validation helpers), `BackupService+GraphValidation.swift` (cross-file relationship validation), `BackupCSVParser.swift` (backup error translation and header-record adaptation), `BackupService+Restore.swift` (typed insertion and deletion), and `BackupService+Validation.swift` (validation entry point and cancellable ZIP operations). TabularData parser failures are converted to app-owned reasons before backup diagnostics are localized through `Services.xcstrings`; framework `localizedDescription` text is not exposed.
-
-**Export Format**: ZIP archive containing:
-
-- `manifest.json` -- format version (currently 4), export timestamp, app version
-- `categories.csv` -- all Category records (v2+ adds `displayOrder` column; v1 backups without it are supported on restore with default `displayOrder = 0`)
-- `assets.csv` -- all Asset records including `currency` column (v3+; v1/v2 backups without it restore an empty currency so display-currency inheritance remains active)
-- `snapshots.csv` -- all Snapshot records
-- `snapshot_asset_values.csv` -- all SnapshotAssetValue records
-- `cash_flow_operations.csv` -- all CashFlowOperation records including `currency` column (v3+; v1/v2 backups without it restore an empty currency so display-currency inheritance remains active)
-- `exchange_rates.csv` -- all ExchangeRate records (optional; absent in v2 backups). Columns: `snapshotID`, `baseCurrency`, `fetchDate`, `isFallback`, `ratesJSON` (base64-encoded JSON)
-- `settings.csv` -- user preferences with columns: `key`, `value`. Keys: `displayCurrency` (e.g., "USD"), `dateFormat` (e.g., "abbreviated"), `defaultPlatform` (e.g., "" or "Interactive Brokers")
-
-Format versions 1 through 4 contain only those three settings. Preferences not represented by the format, such as platform ordering and stale-asset visibility, remain unchanged during restore.
-
-The canonical layout places these files directly at the ZIP root. Restore also accepts archives with exactly one immediate enclosing folder, which accommodates archive tools that preserve the selected source folder. It does not search recursively or accept ambiguous layouts.
-
-**ZIP Implementation**: Uses `/usr/bin/ditto` via `Process` for ZIP creation (`-c -k --sequesterRsrc`) and extraction (`-x -k`). No external dependencies required — `ditto` is built into macOS.
-
-**CSV Serialization Rules**:
-
-- Column headers match data model field names (see [DataModel.md](DataModel.md))
-- UUID fields: standard UUID string format
-- Decimal fields: full precision (no rounding)
-- Date fields: ISO 8601 timestamps
-- Optional/nullable fields: empty string for null
-- Records follow RFC 4180 quoting, including escaped quotes, CRLF, embedded newlines, and trailing empty fields
-- Size limits: 1 MiB for `manifest.json` and 128 MiB per CSV file
-- These CSV files are internal to the backup format, not intended for user editing
-
-**Supported Restore Versions**:
-
-| Version | Categories                                | Assets                 | Cash flows             | Exchange rates |
-| ------- | ----------------------------------------- | ---------------------- | ---------------------- | -------------- |
-| 1       | 3 columns; `displayOrder` defaults to `0` | 4 columns; no currency | 4 columns; no currency | Not supported  |
-| 2       | 4 columns                                 | 4 columns; no currency | 4 columns; no currency | Not supported  |
-| 3       | 4 columns                                 | 5 columns              | 5 columns              | Optional       |
-
-Headers must match the manifest version. Unsupported versions and mixed-version schemas are rejected.
-
-**Restore Validation**:
-
-Before modifying any data, the restore operation validates:
-
-1. All expected CSV files are present, regular files, UTF-8 encoded, and within the documented size limits
-1. The manifest version is supported and all headers match that exact version
-1. Every logical CSV record has the required arity and valid UUID, date, decimal, integer, Boolean, base64, and JSON values
-1. Required strings are nonempty and category target allocations are between 0 and 100
-1. Entity IDs, normalized category/asset identities, normalized snapshot dates, snapshot/asset pairs, per-snapshot cash-flow descriptions, and per-snapshot exchange rates are unique
-1. All foreign key references are valid across files:
-   - Every `assetID` in `snapshot_asset_values.csv` exists in `assets.csv`
-   - Every `snapshotID` in `snapshot_asset_values.csv` exists in `snapshots.csv`
-   - Every `snapshotID` in `cash_flow_operations.csv` exists in `snapshots.csv`
-   - Every `categoryID` in `assets.csv` references an existing Category or is null
-
-Validation produces immutable typed transfer records. Raw CSV fields are never indexed or parsed by the mutation phase. If validation fails, the restore is rejected with detailed file, row, and column diagnostics. Semantic row issues are aggregated across files when parsing can continue; archive, file, encoding, and header failures may stop validation immediately. No data or settings are modified.
-
-After validation, existing pending model-context changes are saved to establish a rollback point. Autosave is suspended while deletion and typed insertion run in a single `ModelContext.transaction`. Any deletion, insertion, or save failure rolls the context back to that point. Validated `UserDefaults` settings are applied only after the SwiftData transaction succeeds.
-
-**Error Cases**:
-
-```swift
-enum BackupError: LocalizedError {
-    case invalidArchive
-    case missingFile(String)
-    case invalidCSVHeaders(file: String, expected: [String], got: [String])
-    case invalidForeignKey(file: String, column: String, value: String)
-    case unsupportedFormatVersion(Int)
-    case validationFailed([BackupValidationIssue])
-    case restoreFailed(String)
-    case corruptedData(String)
-}
-```
-
-______________________________________________________________________
-
-### SettingsService
-
-**Purpose**: Manage app-wide user preferences with `@Observable` reactivity.
-
-SettingsService is an `@Observable @MainActor class` with a shared singleton and support for test isolation via `createForTesting()`. Properties use `didSet` to persist to UserDefaults immediately:
-
-```swift
-@Observable
-@MainActor
-class SettingsService {
-    static let shared = SettingsService()
-
-    var mainCurrency: String       // Default: "USD"
-    var dateFormat: DateFormatStyle // Default: .abbreviated
-    var defaultPlatform: String    // Default: ""
-    var platformOrder: [String]    // Default: []
-
-    static func createForTesting() -> SettingsService
-}
-```
-
-**DateFormatStyle**: A `String`-backed `CaseIterable` enum with cases `.numeric`, `.abbreviated`, `.long`, `.complete`. Maps to `Date.FormatStyle.DateStyle` for rendering and provides `localizedName` and `preview(for:)`.
-
-**Usage in ViewModels**:
-
-```swift
-let service = settingsService ?? SettingsService.shared
-self.selectedCurrency = service.mainCurrency
-```
-
-Changes are applied immediately via `didSet` and persisted to UserDefaults.
-
-______________________________________________________________________
-
-### ExchangeRateService
-
-**Purpose**: Fetch and cache date-specific exchange rates needed to convert snapshot values into the configured display currency.
-
-`fetchRates(for:baseCurrency:)` formats dates with Gregorian calendar components, decodes rate values directly as `Decimal`, requires the API response's `date` to match the requested date, validates a non-empty set of positive finite rates, and coalesces concurrent requests for the same date/base-currency key. Coalesced waiters are tracked independently: cancelling the last waiter cancels the network task, and every caller checks cancellation before a result can be cached. `fetchMissingRates(snapshots:displayCurrency:modelContext:)` treats a cached record as usable only when its base currency, Gregorian fetch date, and all required currencies match; otherwise it refreshes or replaces the record. It returns a status for each snapshot (`cached`, `fetched`, `failed`, `cancelled`, or `notNeeded`) so callers can expose incomplete conversion to users.
-
-______________________________________________________________________
-
-### CurrencyService
-
-**Purpose**: Provides currency information (codes and names).
-
-```swift
-struct Currency: Identifiable, Hashable {
-    let code: String   // e.g., "USD"
-    let name: String   // e.g., "US Dollar"
-    var id: String     // equals code
-    var displayName: String  // e.g., "USD - US Dollar"
-}
-
-@Observable
-@MainActor
-class CurrencyService {
-    static let shared = CurrencyService()
-
-    private(set) var currencies: [Currency]
-
-    /// Fetch full currency list from exchange rate API
-    func loadFromAPI() async
-
-    /// Find currency by code (case-insensitive)
-    func currency(for code: String) -> Currency?
-}
-```
-
-Initializes with a hardcoded fallback list (~30 common fiat + top crypto currencies). `loadFromAPI()` fetches the full list (~480 currencies) via `ExchangeRateService.fetchCurrencyList()` and replaces the list on success, keeping the fallback on failure.
-
-______________________________________________________________________
-
-### ExchangeRateService
-
-**Purpose**: Fetch exchange rates from the `@fawazahmed0/currency-api` CDN.
-
-```swift
-final class ExchangeRateService {
-    init(session: URLSession = .shared)
-
-    /// Fetch exchange rates for a specific date and base currency
-    func fetchRates(
-        for date: Date,
-        baseCurrency: String
-    ) async throws -> [String: Decimal]
-
-    /// Fetch the full currency list (code → name)
-    func fetchCurrencyList() async throws -> [String: String]
-
-    /// Batch-fetch missing exchange rates for snapshots that need conversion
-    @MainActor
-    func fetchMissingRates(
-        snapshots: [Snapshot],
-        displayCurrency: String,
-        modelContext: ModelContext
-    ) async
-}
-```
-
-**API Details**:
-
-- Rates URL: `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@{YYYY-MM-DD}/v1/currencies/{base}.min.json`
-- Currency list URL: `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.min.json`
-- Free, no API key required
-- Stateless — callers cache results in SwiftData via `ExchangeRate` model
-- Accepts `URLSession` parameter for dependency injection in tests
-
-**Batch Fetch (`fetchMissingRates`)**:
-
-- Skips snapshots that already have an `ExchangeRate` or don't need conversion (all assets/cash flows use display currency)
-- Fetches sequentially to avoid API hammering
-- Silently continues on per-snapshot errors (one failure doesn't block others)
-- Called on app launch (`ContentView.task`) and after backup restore (`SettingsView.performRestore()`)
-- `@MainActor` because it accepts `ModelContext` for inserting `ExchangeRate` objects
-
-**Error Cases**:
-
-```swift
-enum ExchangeRateError: LocalizedError {
-    case networkUnavailable
-    case invalidResponse
-    case ratesNotFound
-}
-```
-
-______________________________________________________________________
+`RebalancingTransferPlanner.calculate(targets:total:)` accepts feasible targets and returns typed transfers (`sourceID`, `destinationID`, `Decimal` amount), actionable category IDs, and a residual. Transfers do not mutate holdings or create cash flows. [BusinessLogic.md](BusinessLogic.md#rebalancing-engine) owns feasibility, funding order, precision, and residual policy.
 
 ### CurrencyConversionService
 
-**Purpose**: Stateless currency conversion logic used by ViewModels for portfolio totals, cash flows, and category values.
+[CurrencyConversionService.swift](../AssetFlow/Services/CurrencyConversionService.swift) converts snapshot amounts using the selected display currency and the snapshot's exchange-rate record. Empty asset or cash-flow currency means the current display currency for conversion; it is distinct from an unavailable rate.
 
-```swift
-enum CurrencyConversionService {
-    /// Convert a single value between currencies
-    static func convert(
-        value: Decimal, from: String, to: String,
-        using exchangeRate: ExchangeRate?,
-        forSnapshotDate snapshotDate: Date
-    ) -> Decimal?
+`totalValueReport(for:displayCurrency:exchangeRate:)` and `netCashFlowReport(for:displayCurrency:exchangeRate:)` return a `CurrencyConversionReport`:
 
-    /// Sum all asset values in display currency
-    static func totalValue(
-        for snapshot: Snapshot, displayCurrency: String,
-        exchangeRate: ExchangeRate?
-    ) -> Decimal
+| Field                              | Meaning                                                                                                                                                |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `convertedTotal: Decimal?`         | Complete display-currency aggregate; `nil` when a required rate is missing, wrong-base, wrong-date, or incomplete. A valid zero remains `0`.           |
+| `nativeTotals: [String: Decimal]`  | Original amounts grouped by effective currency, available even when conversion is incomplete. Asset and cash-flow reports have separate native totals. |
+| `status: CurrencyConversionStatus` | `.notNeeded`, `.applied`, or `.missingRates([String])`. The missing-code list is sorted.                                                               |
 
-    /// Sum all cash flows in display currency
-    static func netCashFlow(
-        for snapshot: Snapshot, displayCurrency: String,
-        exchangeRate: ExchangeRate?
-    ) -> Decimal
-
-    /// Group converted values by category name
-    static func categoryValues(
-        for snapshot: Snapshot, displayCurrency: String,
-        exchangeRate: ExchangeRate?
-    ) -> [String: Decimal]
-
-    /// Check if conversion is possible between currencies
-    static func canConvert(
-        from: String, to: String,
-        using exchangeRate: ExchangeRate?,
-        forSnapshotDate snapshotDate: Date
-    ) -> Bool
-}
-```
-
-The snapshot date is required for every conversion check so that a rate from a different date cannot be used for historical data. When `exchangeRate` is nil, the required currency is missing, or the rate date does not match the snapshot, conversion is unavailable and the caller can present the original currency values instead. This ensures the app works offline without silently applying an incorrect rate.
-
-______________________________________________________________________
+The convenience `totalValue` and `netCashFlow` methods return `Decimal?`; `categoryValues` returns `[String: Decimal]?`. `convert(value:from:to:using:forSnapshotDate:) -> Decimal?` and `canConvert(from:to:using:forSnapshotDate:) -> Bool` require the rate date to match the snapshot when currencies differ. Aggregate reports additionally require the rate's base currency to match the display currency and coverage for every required currency. Callers must not replace a missing converted aggregate with a partial mixed-currency sum. Asset and cash-flow availability is computed independently.
 
 ### SnapshotSummaryService
 
-**Purpose**: Shared snapshot fetch and aggregation helper used by ViewModels that need converted totals. Fetch helpers use bounded descriptors for latest, latest-prior, and date-specific snapshot lookups. Fetch failures are throwing persistence errors; an empty result is only returned when SwiftData successfully reports no matching records.
+[SnapshotSummaryService.swift](../AssetFlow/Services/SnapshotSummaryService.swift) is `@MainActor`. Its snapshot fetch helpers accept either `ModelContext` or an injectable `ModelFetching`. Latest and latest-prior lookups use bounded fetch descriptors. Fetches throw `PersistenceError` on a SwiftData failure; an empty array or `nil` means a successful read found no matching snapshot.
 
-**File**: `AssetFlow/Services/SnapshotSummaryService.swift`
+`makeSummary(for:displayCurrency:)` and `makeSummaries(for:displayCurrency:)` compute shared display aggregates. The current `SnapshotSummary` type has a nonoptional `totalValue: Decimal` and nonoptional category/platform dictionaries, plus `conversionStatus` and `nativeCurrencyTotals`. When asset conversion is incomplete, this helper stores zero and empty converted dictionaries. Consumers **must check `conversionStatus`** before interpreting that zero as an available portfolio total; the underlying `CurrencyConversionReport.convertedTotal` is `nil` in that case.
 
-```swift
-struct SnapshotSummary {
-    let snapshot: Snapshot
-    let date: Date
-    let assetCount: Int
-    let totalValue: Decimal
-    let categoryValues: [String: Decimal]
-    let platformValues: [String: Decimal]
-}
+### SettingsService
 
-@MainActor
-enum SnapshotSummaryService {
-    static func fetchSnapshots(modelContext: ModelContext) throws -> [Snapshot]
-    static func fetchSnapshotsNewestFirst(modelContext: ModelContext) throws -> [Snapshot]
-    static func fetchLatestSnapshot(modelContext: ModelContext) throws -> Snapshot?
-    static func fetchSnapshot(on date: Date, modelContext: ModelContext) throws -> Snapshot?
-    static func fetchLatestSnapshot(
-        before date: Date,
-        modelContext: ModelContext
-    ) throws -> Snapshot?
-    static func makeSummaries(
-        for snapshots: [Snapshot],
-        displayCurrency: String
-    ) -> [SnapshotSummary]
-    static func makeSummary(
-        for snapshot: Snapshot,
-        displayCurrency: String
-    ) -> SnapshotSummary
-}
-```
+[SettingsService.swift](../AssetFlow/Services/SettingsService.swift) is an `@Observable @MainActor` singleton. Changes to `mainCurrency`, `dateFormat`, `defaultPlatform`, `platformOrder`, and `hideStaleAssets` persist immediately to `UserDefaults`. Their defaults are `USD`, `.abbreviated`, an empty platform, an empty order, and `true` respectively. `createForTesting()` creates isolated storage; `createForTesting(userDefaults:)` uses a caller-supplied store. Only the first three properties are transferred by the [backup format](#backup-interchange-format); the others remain unchanged on restore. `CurrencyService` separately caches the downloaded currency-name list in `UserDefaults`.
 
-`ModelFetching` is the injectable abstraction used by ViewModels and tests. `ModelContextFetcher` is the production adapter, and `fetchModels` wraps underlying SwiftData errors in `PersistenceError` with an operation name.
+### Presentation and Chart Services
 
-**Usage**: List and workflow ViewModels use `fetchLatestSnapshot` / `fetchLatestSnapshot(before:)` when only one snapshot is needed. Dashboard, category detail, and platform detail use `makeSummaries` so total, category, and platform history values are computed in one converted pass per snapshot. ViewModels expose `DataLoadState` and views show a retryable error state instead of treating a failed fetch as an empty portfolio.
+`RebalancingHelpPresentation` is a main-actor adapter from `CategoryGoalAssessment` and row inputs to `RebalancingHelpContent`, whose sections contain rows, bullets, and notes. `RebalancingHelpRow` keeps optional monetary currency and numeric text, formula, result flag, and suffix metadata separate from its complete display string. Optional monetary inputs preserve unavailable values. The adapter uses the assessed plan rather than recalculating allocation. [UserInterfaceDesign.md](UserInterfaceDesign.md) owns popover layout, currency headings, precision shown to users, and lock-aware interactions.
 
-______________________________________________________________________
+[ChartDataService.swift](../AssetFlow/Services/ChartDataService.swift) filters chart points relative to the latest point's date, rebases filtered cumulative TWR, and abbreviates axis labels. `abbreviatedLabel(for: Double)` is a display-only axis helper; monetary storage and calculations use `Decimal`. Chart presentation belongs in [UserInterfaceDesign.md](UserInterfaceDesign.md).
 
-### ChartDataService
+### ViewModel and Persistence Boundaries
 
-**Purpose**: Stateless service for chart data filtering by time range and Y-axis label abbreviation.
+`ImportViewModel` and `BulkEntryViewModel` are main-actor coordinators. They use async CSV preparation without changing SwiftData, then apply the confirmed mapping to the pending file's same bytes. `ImportViewModel.executeImport() -> Snapshot?` performs final validation and model changes on the main actor; it returns `nil` if import is disabled or execution fails, and reports execution errors through `importError`. Bulk Entry replaces CSV-sourced draft rows only after the replacement validates; its saved snapshot changes when the draft is saved. [SPEC.md](SPEC.md#41-import-flow) defines the user-facing import flow.
 
-**File**: `AssetFlow/Services/ChartDataService.swift`
+`ModelFetching` and `ModelContextFetcher` isolate SwiftData reads. `fetchModels(_:from:operation:)` wraps failures in `PersistenceError.fetchFailed` with the operation name. ViewModels that publish `DataLoadState` distinguish `.failed` from `.loaded` with an empty portfolio. Ordinary model edits use the shared context's autosave; restore has its own transaction boundary below. [Architecture.md](Architecture.md#state-observation-and-refresh) owns observation, refresh, and lifetime details.
 
-```swift
-enum ChartTimeRange: String, CaseIterable, Identifiable {
-    case oneWeek = "1W"
-    case oneMonth = "1M"
-    case threeMonths = "3M"
-    case sixMonths = "6M"
-    case oneYear = "1Y"
-    case threeYears = "3Y"
-    case fiveYears = "5Y"
-    case all = "All"
+### BackupService
 
-    /// Returns the start date for this range relative to a reference date,
-    /// or nil for `.all` (no filtering)
-    func startDate(from referenceDate: Date) -> Date?
-}
+[BackupService.swift](../AssetFlow/Services/BackupService.swift) exposes three async boundaries:
 
-protocol ChartFilterable {
-    var chartDate: Date { get }
-}
+| Call                                                  | Actor and result                             | Effect                                                                                                                                 |
+| ----------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `exportBackup(to:modelContext:settingsService:)`      | `@MainActor async throws -> Void`            | Reads models and covered settings, serializes a v4 archive, then replaces or creates the destination after the archive is complete.    |
+| `validateBackup(at:)`                                 | `nonisolated async throws -> BackupManifest` | Extracts and validates a ZIP without changing app data.                                                                                |
+| `restoreFromBackup(at:modelContext:settingsService:)` | `@MainActor async throws -> Void`            | Validates first, then replaces model data and the covered settings. The source also has a defaulted checkpoint hook for restore tests. |
 
-enum ChartDataService {
-    /// Filters chart data points by time range
-    /// Uses the latest data point's date as reference, not Date.now
-    static func filter<T: ChartFilterable>(_ items: [T], range: ChartTimeRange) -> [T]
-
-    /// Rebases cumulative TWR data points so the first point in the array starts at 0%
-    /// Use after filtering by time range to show period-specific returns
-    /// Formula: (1 + C_i) / (1 + C_k) - 1, where C_k is the first point's cumulative value
-    static func rebasedTWR(_ points: [DashboardDataPoint]) -> [DashboardDataPoint]
-
-    /// Returns abbreviated string for large numeric values
-    /// Examples: 3,000,000,000 → "3B", 2,000,000 → "2M", 5,000 → "5K"
-    static func abbreviatedLabel(for value: Double) -> String
-}
-```
-
-**Usage**: Chart views use `ChartDataService.filter()` to apply time range selection before rendering. `ChartFilterable` protocol is conformed to by all chart data point types (`DashboardDataPoint`, `CategoryValueHistoryEntry`, `CategoryAllocationHistoryEntry`, `PlatformValueHistoryEntry`, `AssetValueHistoryEntry`).
-
-**Axis Labels**: Y-axis labels use `abbreviatedLabel(for:)` to format large values (K/M/B) for readability in compact chart layouts.
-
-______________________________________________________________________
+The main-actor façade turns SwiftData data into `Sendable` transfer records. CSV writing, extraction, parsing, and `/usr/bin/ditto` work run outside that actor. Archive and restore operations have cancellation checks. Errors include `BackupError` cases for archive/layout, missing files, wrong headers, unsupported versions, validation issues, and restore failure. See [Backup Interchange Format](#backup-interchange-format) for exact bytes and compatibility.
 
 ## CSV Import Format Specification
 
+User-import CSV is distinct from the internal CSV files in a ZIP backup. It is UTF-8 with an optional UTF-8 BOM, a comma delimiter, and a header row. Quoted fields can contain commas, doubled quotes, or newlines. Empty lines are ignored. Canonical headers are matched without regard to case or surrounding whitespace; unused columns produce warnings in the automatic header path and are skipped by a confirmed mapping. `CSVRecordReader` reports malformed structure with source row and column context.
+
+Amounts are parsed as `Decimal` after trimming whitespace, removing the supported currency-symbol characters and comma grouping separators. A value with commas must be quoted in CSV. Invalid or absent numbers are errors; zero and negative values are accepted with the warnings below. User-import files contain no snapshot date: the importing workflow selects the date.
+
 ### Asset CSV
 
-**Required columns** (exact header names):
+| Canonical column | Requirement | Value                                                                                                                                                                                                         |
+| ---------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Asset Name`     | Required    | Nonempty asset name.                                                                                                                                                                                          |
+| `Market Value`   | Required    | `Decimal` monetary amount; zero or negative values produce warnings.                                                                                                                                          |
+| `Platform`       | Optional    | Asset platform; an import-level platform and its apply mode can change the effective platform.                                                                                                                |
+| `Currency`       | Optional    | Asset currency code; a blank value preserves an existing asset currency or uses the display currency for a new asset's conversion. The import workflow validates nonblank codes against supported currencies. |
 
-| Column         | Description                      |
-| -------------- | -------------------------------- |
-| `Asset Name`   | Name of the asset                |
-| `Market Value` | Current market value as a number |
-
-**Optional columns**:
-
-| Column     | Description                                                          |
-| ---------- | -------------------------------------------------------------------- |
-| `Platform` | Platform/brokerage name (overridden by import-level platform if set) |
-| `Currency` | Native currency code (e.g., "USD", "TWD"). Per-row override.         |
-
-**Sample**:
+`Asset Name` and `Platform` form the normalized asset identity after platform handling. See [BusinessLogic.md](BusinessLogic.md#duplicate-and-replacement-policy) for duplicate and zero-placeholder policy.
 
 ```csv
 Asset Name,Market Value,Platform,Currency
-AAPL,15000,Interactive Brokers,USD
+AAPL,"15,000.25",Interactive Brokers,USD
 TSMC,500000,Fubon,TWD
-Bitcoin,5000,Coinbase,USD
-Savings Account,20000,Chase Bank,USD
 ```
 
 ### Cash Flow CSV
 
-**Required columns** (exact header names):
+| Canonical column | Requirement | Value                                                                                                                                                                                           |
+| ---------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Description`    | Required    | Nonempty cash-flow description.                                                                                                                                                                 |
+| `Amount`         | Required    | `Decimal` amount; positive is an external contribution, negative a withdrawal, and zero produces a warning.                                                                                     |
+| `Currency`       | Optional    | Operation currency code; blank uses the display currency for conversion. The current cash-flow import does not reject a nonblank code solely because it is absent from the app's currency list. |
 
-| Column        | Description                           |
-| ------------- | ------------------------------------- |
-| `Description` | Description of the cash flow          |
-| `Amount`      | Positive = inflow, negative = outflow |
-
-**Optional columns**:
-
-| Column     | Description                                                  |
-| ---------- | ------------------------------------------------------------ |
-| `Currency` | Native currency code (e.g., "USD", "TWD"). Per-row override. |
-
-**Sample**:
+Descriptions are checked for duplicates within the CSV and against the target snapshot. [BusinessLogic.md](BusinessLogic.md#duplicate-and-replacement-policy) owns the conflict rule.
 
 ```csv
 Description,Amount,Currency
-Salary deposit,50000,TWD
-Emergency fund transfer,-10000,USD
-Dividend reinvestment,1500,USD
+External contribution,50000,TWD
+External withdrawal,-10000,TWD
 ```
 
 ### Column Mapping
 
-Column mapping is deferred to a future version. For v1, CSV files must use the exact column names specified above. The app must display the expected schema and provide downloadable sample CSVs.
+`CSVParsingService.autoDetectMapping(headers:schema:)` matches canonical columns case-insensitively after trimming surrounding whitespace. If all required columns are found, preparation parses immediately. Otherwise it returns `.needsMapping` with raw headers, sample rows, and a partial mapping. The user confirms a `CSVColumnMapping` from canonical columns to original column indices; every required field must be assigned once. The same flow is used by Import and Bulk Entry, including Bulk Entry's `.assetWithoutPlatform` schema. Confirmation reparses the pending file with that mapping. It does not change the source CSV or make arbitrary headers canonical for later files.
 
-______________________________________________________________________
+Raw duplicate candidates and row diagnostics survive mapping. Import and Bulk Entry then validate the effective included rows using their respective platform and snapshot context. A blocking error prevents the operation; a warning alone does not.
+
+## Backup Interchange Format
+
+The current export format is **v4**. Restore accepts **v1–v4**. [BackupTypes.swift](../AssetFlow/Services/BackupTypes.swift) defines transfer records and ordered headers; [BackupService+Export.swift](../AssetFlow/Services/BackupService+Export.swift) writes them; [BackupService+Parsing.swift](../AssetFlow/Services/BackupService+Parsing.swift) chooses headers by manifest version.
+
+### Archive and Manifest
+
+The canonical ZIP places `manifest.json` and CSV files at its root. Restore also accepts one immediate enclosing directory containing the manifest. It does not recursively search deeper or choose between multiple candidate backup roots.
+
+`manifest.json` exports `formatVersion` (integer), `exportTimestamp` (ISO 8601 timestamp with timezone), and `appVersion` (nonempty string). The exporter uses `ISO8601DateFormatter`. Restore accepts valid Internet-date-time timestamps with `Z` or a numeric timezone, including fractional seconds. Missing or mistyped required JSON keys fail decoding; additional manifest keys are ignored by the decoder. An unsupported `formatVersion` is rejected.
+
+For example, a v4 manifest can contain:
+
+```json
+{"formatVersion":4,"exportTimestamp":"2026-10-14T10:30:00Z","appVersion":"0.7.1"}
+```
+
+The six portfolio and settings CSV files below are required for every supported version. `exchange_rates.csv` is exported in v4, is optional on restore for v3/v4, and is not accepted for v1/v2. An absent optional rate file restores no stored rates; it does not invent rates.
+
+### Exact Ordered CSV Headers
+
+Headers are case-sensitive and ordered. A v4 export uses these exact header lines:
+
+| File                        | v4 header                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------- |
+| `categories.csv`            | `id,name,targetAllocationPercentage,displayOrder,minimumBalanceAmount,minimumBalanceCurrency` |
+| `assets.csv`                | `id,name,platform,categoryID,currency`                                                        |
+| `snapshots.csv`             | `id,date,createdAt`                                                                           |
+| `snapshot_asset_values.csv` | `snapshotID,assetID,marketValue`                                                              |
+| `cash_flow_operations.csv`  | `id,snapshotID,description,amount,currency`                                                   |
+| `settings.csv`              | `key,value`                                                                                   |
+| `exchange_rates.csv`        | `snapshotID,baseCurrency,fetchDate,isFallback,ratesJSON`                                      |
+
+For v1–v3 restore, use the v4 header above unless the file and version appear here. These are the complete replacement header lines:
+
+| Restore version | File                       | Header instead of v4                              |
+| --------------- | -------------------------- | ------------------------------------------------- |
+| v1              | `categories.csv`           | `id,name,targetAllocationPercentage`              |
+| v2–v3           | `categories.csv`           | `id,name,targetAllocationPercentage,displayOrder` |
+| v1–v2           | `assets.csv`               | `id,name,platform,categoryID`                     |
+| v1–v2           | `cash_flow_operations.csv` | `id,snapshotID,description,amount`                |
+
+`exchange_rates.csv` is not accepted in v1/v2. In v3 it may be absent; when present, its header is the v4 header above. Thus each supported version has an exact header for every accepted file without relying on model-property names.
+
+The cash-flow backup field is `description` even though the SwiftData model property is `cashFlowDescription`. Restoring v1 categories supplies `displayOrder = 0`. Restoring pre-v4 categories supplies no minimum amount or currency. Restoring v1/v2 assets and cash flows supplies an empty currency, which retains display-currency inheritance.
+
+### Field Encoding and Settings
+
+The writer uses UTF-8 CSV with LF record separators. Text containing a comma, quote, CR, or LF is quoted, with quotes doubled. The shared reader also accepts CRLF records and a trailing empty field. UUIDs use their standard string form. Snapshot and rate dates use ISO 8601 timestamps with timezone. Monetary values, target percentages, and rates remain `Decimal` values; the CSV writer emits decimal text without display rounding, while restore accepts strict numeric decimal text, including an exponent, without currency symbols or grouping separators. `targetAllocationPercentage` is on the 0–100 scale.
+
+An empty field represents an absent optional `categoryID`, target percentage, or v4 minimum pair. Empty asset and cash-flow currency strings are meaningful inherited-currency values. The v4 minimum amount and currency must both be empty or form a valid pair. `isFallback` is the lowercase literal `true` or `false`. `ratesJSON` is base64-encoded JSON for a nonempty `[String: Decimal]` rate dictionary with positive finite values; a restored fallback flag does not itself establish an active stale-rate fallback.
+
+`settings.csv` contains exactly one row for each key:
+
+| Key               | Value                                           | Restore effect                          |
+| ----------------- | ----------------------------------------------- | --------------------------------------- |
+| `displayCurrency` | Nonempty currency string                        | Sets `SettingsService.mainCurrency`.    |
+| `dateFormat`      | `numeric`, `abbreviated`, `long`, or `complete` | Sets `SettingsService.dateFormat`.      |
+| `defaultPlatform` | String, which may be empty                      | Sets `SettingsService.defaultPlatform`. |
+
+For example, a valid `settings.csv` for an empty default platform is:
+
+```csv
+key,value
+displayCurrency,USD
+dateFormat,abbreviated
+defaultPlatform,
+```
+
+Unknown, missing, or duplicate settings keys are rejected. Other preferences, including platform order, stale-asset visibility, app-lock settings, and the cached currency list, are not exported and remain unchanged on restore. Other archive entries are not imported as model data. An exchange-rate file in v1/v2, wrong-version CSV headers, and invalid required fields are rejected; extra manifest keys do not extend the format.
+
+### Validation and Restore Boundary
+
+Restore extracts the ZIP with `/usr/bin/ditto` before parsing. It then requires each named file to be a regular, nonsymlink file, limits `manifest.json` to 1 MiB and each CSV to 128 MiB, and checks UTF-8, exact headers, record arity, scalar values, IDs, normalized identities, and cross-file references. These are **post-extraction per-file checks**; they do not impose a pre-extraction ZIP-size or total expansion limit. [SecurityAndPrivacy.md](SecurityAndPrivacy.md) owns archive threat analysis and limits.
+
+Validation produces typed transfer records. Syntax, archive, file, and header failures can stop immediately; recoverable row issues are collected with file, row, and column context. `validateBackup(at:)` returns the manifest only after the whole backup validates. It never mutates app data.
+
+`restoreFromBackup` validates before changing the live graph. It saves any already-pending `ModelContext` changes as a rollback point, suspends autosave, and replaces the graph in a main-actor transaction. A deletion, insertion, or save failure rolls the context back to that point; backed-up `UserDefaults` settings are applied only after the transaction succeeds. Thus a failed restore does not apply replacement records or backed-up settings, though the preexisting pending context changes may have been saved at the checkpoint. Export writes a temporary archive and moves or replaces the destination only after ZIP creation succeeds.
+
+## Exchange Rate Integration
+
+### ExchangeRateService
+
+[ExchangeRateService.swift](../AssetFlow/Services/ExchangeRateService.swift) is a stateful `@unchecked Sendable` service with an injectable `URLSession` and shared request coordinator. It uses these provider paths:
+
+| Request                 | URL and response                                                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Rates for date and base | `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@{YYYY-MM-DD}/v1/currencies/{base}.min.json` → JSON with `date` and a base-code object mapping target codes to numeric rates. |
+| Currency names          | `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.min.json` → JSON mapping currency codes to names.                                                       |
+
+`fetchRates(for:baseCurrency:) async throws -> [String: Decimal]` lowercases the base, formats the requested date from Gregorian calendar components in the service's current timezone, and decodes rates directly as `Decimal`. It requires a successful HTTP response, an exact response-date match, a base-code object, and nonempty positive finite rates. A 404 yields `ExchangeRateError.ratesNotFound`; other network or response failures use the service's typed errors. There is no app-specific timeout override; the injected session supplies request behavior.
+
+Requests with the same date/base key share in-flight work. Each caller retains its own cancellation: cancelling one waiter does not cancel another, and cancelling the last waiter cancels the network task. A cancelled caller checks cancellation before accepting a result.
+
+`fetchMissingRates(snapshots:displayCurrency:modelContext:) async -> [ExchangeRateFetchResult]` runs on the main actor because it reads categories and updates `ExchangeRate` models. It includes non-display asset, cash-flow, and configured goal-minimum currencies in each snapshot's requirements. A stored rate is reused only if its base currency, Gregorian snapshot date, and coverage of every required currency are valid. Otherwise snapshots are fetched sequentially and a valid record is inserted or refreshed. Each visited snapshot receives `.notNeeded`, `.cached`, `.fetched`, `.failed(message)`, or `.cancelled`. A category-fetch failure yields failed results for the input snapshots; cancellation during the loop stops it, so later snapshots have no result. The current app-shell and post-restore callers discard these result values; dependent conversions still expose missing-rate status through their own reports.
+
+`fetchCurrencyList() async throws -> [String: String]` supplies [CurrencyService.swift](../AssetFlow/Services/CurrencyService.swift). That main-actor observable service starts with a cached list or built-in fallback and keeps the existing list if loading fails; success updates the `UserDefaults` cache. Snapshot rates remain separate SwiftData records. Failed or unavailable rate requests never justify substituting another date's rate. [BusinessLogic.md](BusinessLogic.md#currency-conversion) defines the resulting calculation availability.
 
 ## Error Handling Patterns
 
-### Service Error Strategy
+The boundary determines how an error is represented:
 
-- Services throw typed errors (enums conforming to `LocalizedError`)
-- ViewModels catch errors and map to user-facing messages
-- All errors include context (which file, which row, which field)
+| Boundary                               | Failure contract                                                                                                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Synchronous user CSV parsing           | `CSVParseResult.errors` and `warnings`; malformed records and rows carry localized diagnostics.                                                                                       |
+| Async file read and CSV preparation    | Throws for file access or cancellation; ordinary parse problems remain in `CSVParseResult`.                                                                                           |
+| Model fetch                            | Throws `PersistenceError` with operation context; no-record is a successful empty result.                                                                                             |
+| Calculation and conversion             | Undefined or unavailable results use `nil` or a typed status; zero remains a valid number.                                                                                            |
+| Exchange-rate fetching                 | Individual requests throw; batch results carry per-snapshot statuses for visited snapshots.                                                                                           |
+| Backup export, validation, and restore | Throw on persistence, I/O, validation, or cancellation; backup-format failures use `BackupError`, whose validation issues identify the affected file, row, and column when available. |
 
-### User-Facing Error Display
-
-- Import errors: Inline in the import preview (per-row indicators)
-- Backup/restore errors: Alert dialog with detailed error description
-- Calculation errors: "N/A" or "Cannot calculate" inline text
-
-### Developer Logging
-
-- Log errors with `os.log` (not `print()`)
-- Include context (which service, which operation)
-- No sensitive data in logs (no financial values)
-
-______________________________________________________________________
+ViewModels translate these contracts into screen state. A persistence failure must not be treated as an empty portfolio, and a missing rate must not be treated as a zero amount. [UserInterfaceDesign.md](UserInterfaceDesign.md) owns user-facing placement and wording; [SecurityAndPrivacy.md](SecurityAndPrivacy.md) owns sensitive-data logging rules.
 
 ## App Version and Build Metadata
 
-- `version.txt` is authoritative. Release PR automation runs `scripts/release_version.py sync` and commits the app target's `MARKETING_VERSION` settings. The script resolves configurations through macOS `plutil`, preserves project formatting and verifies that only the selected settings changed before writing. It rejects malformed versions, ambiguous targets, missing required configurations and conditional version overrides. Xcode generates `CFBundleShortVersionString` normally; commit metadata injection does not override it.
-- The script's `check` command verifies all app configurations; `archive PATH` reads `Products/Applications/AssetFlow.app/Contents/Info.plist` and rejects a missing or mismatched version without modifying the archive. CI checks the finished app before packaging, detecting incorrect effective build-setting overrides. `version` prints the validated artifact filename version. See [DevelopmentGuide.md](DevelopmentGuide.md#app-version-metadata) for workflow and local usage.
-- Local builds use the numeric `CURRENT_PROJECT_VERSION` set in Xcode. The release archive workflow overrides it with `GITHUB_RUN_NUMBER`, so distributed build numbers increase across workflow runs and may have gaps between releases. Xcode generates `CFBundleVersion` from this setting.
-- The **"Inject Commit Metadata"** `PBXShellScriptBuildPhase` runs after the Resources phase on every build (not deploy-only). It writes the first eight characters of the Git revision to the built product's `Info.plist` under the custom `AppCommit` key:
-
-```bash
-#!/bin/bash
-set -e
-COMMIT=$(git -C "$SRCROOT" rev-parse HEAD 2>/dev/null || echo "unknown")
-if [ "$COMMIT" != "unknown" ]; then
-  COMMIT="${COMMIT:0:8}"
-fi
-if [ -n "$(git -C "$SRCROOT" status --porcelain 2>/dev/null)" ]; then
-  COMMIT="${COMMIT}-dirty"
-fi
-/usr/libexec/PlistBuddy -c "Set :AppCommit $COMMIT" "$BUILT_PRODUCTS_DIR/$INFOPLIST_PATH"
-```
-
-**Key details:**
-
-- The source `AssetFlow/Info.plist` contains `AppCommit = "unknown"` as a committed placeholder. The script only overwrites the **built** copy.
-- A `-dirty` suffix is appended when the working tree has uncommitted changes.
-- `ENABLE_USER_SCRIPT_SANDBOXING = NO` is set in the target-level build settings (both Debug and Release) to allow the script to invoke `git` and `/usr/libexec/PlistBuddy`.
-- `Constants.AppInfo.commit` reads this value at runtime via `Bundle.main.infoDictionary?["AppCommit"]`.
-
-______________________________________________________________________
-
-## Explicit Non-Goals (v1)
-
-The following are NOT implemented:
-
-- Real-time market price fetching
-- Brokerage API integration
-- Cloud sync / iCloud integration
-- Column mapping for CSV import
-- Data export for reporting (CSV, PDF) -- backup/restore IS supported
-- Webhooks or push notifications
-
-______________________________________________________________________
+`Constants.AppInfo` reads `CFBundleShortVersionString`, `CFBundleVersion`, and custom `AppCommit` from the built app's `Info.plist`. The backup manifest records the runtime app version as `appVersion`; its separate `formatVersion` governs archive compatibility. [DevelopmentGuide.md](DevelopmentGuide.md#app-version-metadata) owns version synchronization, build-phase injection, and release procedures.
 
 ## References
 
-- [Architecture.md](Architecture.md) - Service layer design
-- [BusinessLogic.md](BusinessLogic.md) - Calculation formulas
-- [DataModel.md](DataModel.md) - Entity definitions for CSV serialization
-- Specification: `SPEC.md` Sections 3.10, 4, 7, 13, 14, 15
-
-## Category Editing and Compact Goal Presentation
-
-`CategoryDetailViewModel.hasUnsavedChanges` compares all form fields with the saved draft; `revertChanges()` restores the persisted category and resets the draft baseline. Successful `save()` resets the baseline after validating all fields. `CategoryEditingSession` retains pending navigation until Save succeeds, Discard restores the draft, or Cancel clears only the navigation request. Validation failures retain both draft and pending navigation. `updateVisibleCategory(_:)` retains the editor for the identical visible Category instance and clears it and pending navigation when the category is replaced or no category is visible. Presenting a sheet does not replace the visible category.
-
-## Structured Rebalancing Help
-
-RebalancingHelpPresentation produces RebalancingHelpContent with structured sections, label/value rows, bullets, and notes for calculation, category, and minimum help. Category presentation receives the existing CategoryGoalAssessment alongside row inputs. It derives the final remaining allocation and percentage-weight total from feasible plan targets, including later minimum constraints and exact minimum ties; it never reruns allocation. Inputs preserve optional monetary values so unavailable conversion remains distinct from zero. RebalancingHelpRow carries optional formula text and an isResult presentation flag, preserved during currency compaction. RebalancingHelpView renders the presentation without reconstructing financial rules. GoalHelpButton can suppress its own heading for content with a title and can use an orange warning symbol; its lock-aware click and keyboard behavior is shared by all three rebalancing popovers.
-
-## Shared Currency Headings in Rebalancing Help
-
-Each popup table independently checks the intended currencies of its monetary rows. When they all match, the table heading shows that ISO code once and monetary values show localized numbers using the existing asset display precision without a currency prefix. A previously untitled minimum assessment table uses Assessment as its heading. Mixed-currency tables retain prefixes on every available monetary value. Percentage rows are excluded from the check; unavailable monetary rows still contribute their intended currency and remain an em dash. Amounts in explanatory sentences retain their codes. The currency-heading rule does not convert values or parse formatted strings. Numeric formatting follows the existing asset currency formatter; tiny nonzero amounts use bounds and signed changes use localized direction labels. Storage, arithmetic and minimum-status comparisons retain full Decimal precision.
-
-RebalancingHelpRow carries currency and exact numeric text separately from its complete formatted value. CategoryGoalPresentation.number shares the existing Decimal formatter with amount; the per-table compaction uses typed currency metadata rather than removing characters from a formatted value.
-
-## Aggregate Refresh Coordination
-
-`ObservedRefresh.perform(_:reload:)` tracks source reads, then executes closures queued with `publish(_:)` outside tracking. Calculate values before enqueueing publication. `request(reload:)` merges pending notifications; explicit `perform` cancels pending requests and advances a generation. Old callbacks are ignored, while fresh source changes request another load. Coordinators and ViewModel captures remain weak across asynchronous work. All aggregate ViewModels expose `requestRefresh()` for `.refreshOnStoreChanges`, driven by the app shell's six-model revision environment.
-
-`CategoryGoalAssessmentService.convertMinimum(amount:currency:snapshot:displayCurrency:)` returns a finite converted requirement or nil when the snapshot conversion is unavailable. Callers validate the configured amount/currency first. It shares the current-assessment conversion rules and supports historical overlays without valuation or allocation planning.
-
-### Rebalancing help sizing
-
-`GoalHelpButton.fitsContent` opts the three rebalancing popovers into intrinsic sizing; its default retains the existing 360-point help width for other screens. `RebalancingHelpView.maximumWidth` defaults to the active screen visible width minus padding/edge margins and is injectable for constrained render tests. A custom SwiftUI Layout measures title, section-heading and table blocks at their ideal width, then measures paragraphs within the bounded width. Text-only diagnostics retain a readable preferred width, capped by the screen. Grid rows place title/formula inline and align values on the first baseline. Result dividers overlay the table at the measured result-row bounds instead of introducing conditional empty grid rows. No financial calculation or localization key changes.
-
-### Percentage suffix presentation
-
-`RebalancingHelpRow.suffix` carries an optional localized unit symbol independently of the numeric display value. `RebalancingHelpPresentation.percentageRow` uses Foundation percent formatting at the existing two-decimal precision, suppresses the symbol through `NumberFormatter.percentSymbol`, and returns that symbol separately. Unavailable percentages have neither a numeric value nor a suffix. Approximation markers stay in the numeric cell. RebalancingHelpView adds a suffix column only when needed, preserving one right-aligned numeric column, compact spacing and first-baseline alignment. Currency compaction retains suffix metadata. No monetary precision or allocation arithmetic changes.
-
-## Minimum-first Suggested Moves
-
-`RebalancingTransferPlanner.calculate(targets:total:)` accepts targets from a feasible allocation plan and returns `RebalancingTransferPlan`: typed transfers (`sourceID`, `destinationID`, Decimal `amount`), actionable category IDs, and residual. Mandatory demand is the sum of actual minimum shortfalls. Large donors and, when necessary, supporting small donors fund those shortfalls before optional target increases. Transfer capacities never exceed the corresponding target differences. Repeated donor/recipient pairs are combined for display; only arithmetic noise is removed from unmatched residuals.
-
-`CategoryGoalPresentation.diagnostic(_:currency:formatAmount:bundle:)` defaults to the main app bundle and allows bundle injection for localization verification. Its interpolated percentage diagnostic uses the extracted `100%%` format key and displays one literal percent sign.
+- [SPEC.md](SPEC.md) — intended product behavior and acceptance criteria
+- [Architecture.md](Architecture.md) — service lifetimes, actor boundaries, and refresh
+- [BusinessLogic.md](BusinessLogic.md) — calculations, import policy, and rebalancing
+- [DataModel.md](DataModel.md) — stored entity definitions
+- [UserInterfaceDesign.md](UserInterfaceDesign.md) — import and presentation interactions
+- [SecurityAndPrivacy.md](SecurityAndPrivacy.md) — file and network trust boundaries
