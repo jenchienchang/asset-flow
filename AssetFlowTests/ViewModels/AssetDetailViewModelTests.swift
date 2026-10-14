@@ -75,6 +75,115 @@ struct AssetDetailViewModelTests {
 
   // MARK: - Value History
 
+  @Test("Converted chart skips missing rates and breaks the line across them")
+  func convertedChartSkipsMissingRates() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let displayCurrency = SettingsService.shared.mainCurrency.lowercased()
+    let assetCurrency = displayCurrency == "eur" ? "usd" : "eur"
+    let asset = Asset(name: "Foreign asset", platform: "Brokerage")
+    asset.currency = assetCurrency
+    context.insert(asset)
+
+    var snapshots: [Snapshot] = []
+    for (month, nativeValue) in [(1, 1000), (2, 1200), (3, 1300), (4, 1400), (5, 1600)] {
+      let snapshot = Snapshot(date: makeDate(year: 2025, month: month, day: 1))
+      context.insert(snapshot)
+      snapshots.append(snapshot)
+
+      let sav = SnapshotAssetValue(marketValue: Decimal(nativeValue))
+      sav.snapshot = snapshot
+      sav.asset = asset
+      context.insert(sav)
+
+      if month != 3 {
+        let ratesJSON = try JSONEncoder().encode([assetCurrency: Decimal(10)])
+        let rate = ExchangeRate(
+          baseCurrency: displayCurrency, ratesJSON: ratesJSON, fetchDate: snapshot.date)
+        rate.snapshot = snapshot
+        context.insert(rate)
+      }
+    }
+
+    let viewModel = AssetDetailViewModel(asset: asset, modelContext: context)
+    viewModel.loadValueHistory()
+    let chart = AssetConvertedChartData(history: viewModel.valueHistory)
+
+    #expect(viewModel.valueHistory.map(\.marketValue) == [1000, 1200, 1300, 1400, 1600])
+    #expect(viewModel.valueHistory[2].convertedMarketValue == nil)
+    #expect(chart.points.map(\.value) == [100, 120, 140, 160])
+    #expect(
+      chart.points.map(\.date)
+        == [snapshots[0], snapshots[1], snapshots[3], snapshots[4]].map(\.date))
+    #expect(chart.points.map(\.segment) == [0, 0, 1, 1])
+    #expect(chart.unavailableDates == [snapshots[2].date])
+  }
+
+  @Test("Converted chart handles unavailable rates at both ends and an empty period")
+  func convertedChartHandlesUnavailableEnds() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let displayCurrency = SettingsService.shared.mainCurrency.lowercased()
+    let assetCurrency = displayCurrency == "eur" ? "usd" : "eur"
+    let asset = Asset(name: "Foreign asset", platform: "Brokerage")
+    asset.currency = assetCurrency
+    context.insert(asset)
+
+    var snapshots: [Snapshot] = []
+    for (month, nativeValue) in [(1, 1000), (2, 2000), (3, 3000)] {
+      let snapshot = Snapshot(date: makeDate(year: 2025, month: month, day: 1))
+      context.insert(snapshot)
+      snapshots.append(snapshot)
+      let sav = SnapshotAssetValue(marketValue: Decimal(nativeValue))
+      sav.snapshot = snapshot
+      sav.asset = asset
+      context.insert(sav)
+    }
+
+    let ratesJSON = try JSONEncoder().encode([assetCurrency: Decimal(10)])
+    let validRate = ExchangeRate(
+      baseCurrency: displayCurrency, ratesJSON: ratesJSON, fetchDate: snapshots[1].date)
+    validRate.snapshot = snapshots[1]
+    context.insert(validRate)
+
+    let wrongDateRate = ExchangeRate(
+      baseCurrency: displayCurrency, ratesJSON: ratesJSON, fetchDate: snapshots[1].date)
+    wrongDateRate.snapshot = snapshots[2]
+    context.insert(wrongDateRate)
+
+    let viewModel = AssetDetailViewModel(asset: asset, modelContext: context)
+    viewModel.loadValueHistory()
+    let chart = AssetConvertedChartData(history: viewModel.valueHistory)
+
+    #expect(chart.points.map(\.value) == [200])
+    #expect(chart.unavailableDates == [snapshots[0].date, snapshots[2].date])
+    #expect(viewModel.valueHistory.map(\.marketValue) == [1000, 2000, 3000])
+
+    let noConversions = AssetConvertedChartData(
+      history: [viewModel.valueHistory[0], viewModel.valueHistory[2]])
+    #expect(noConversions.points.isEmpty)
+    #expect(noConversions.unavailableDates == [snapshots[0].date, snapshots[2].date])
+  }
+
+  @Test("Hover never selects an available value for a closer unavailable date")
+  func hoverSkipsUnavailableDates() {
+    let available = makeDate(year: 2025, month: 1, day: 1)
+    let missing = makeDate(year: 2025, month: 2, day: 1)
+    let laterMissing = makeDate(year: 2025, month: 3, day: 1)
+
+    #expect(
+      ChartHelpers.nearestAvailableDate(
+        to: missing, availableDates: [available], unavailableDates: [missing, laterMissing]) == nil)
+    #expect(
+      ChartHelpers.nearestAvailableDate(
+        to: laterMissing, availableDates: [available], unavailableDates: [missing, laterMissing])
+        == nil)
+    #expect(
+      ChartHelpers.nearestAvailableDate(
+        to: available, availableDates: [available], unavailableDates: [missing, laterMissing])
+        == available)
+  }
+
   @Test("Value history across multiple snapshots in chronological order")
   func valueHistoryAcrossMultipleSnapshotsInChronologicalOrder() throws {
     let container = TestDataManager.createInMemoryContainer()

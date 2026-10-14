@@ -145,17 +145,36 @@ extension View {
 
 /// Shared utility functions for chart interactions.
 enum ChartHelpers {
+  /// Selects the nearest available date for hover interactions.
+  static func nearestAvailableDate(
+    to date: Date, availableDates: [Date], unavailableDates: [Date]
+  ) -> Date? {
+    guard
+      let available = availableDates.min(by: {
+        abs($0.timeIntervalSince(date)) < abs($1.timeIntervalSince(date))
+      })
+    else { return nil }
+    guard
+      let unavailable = unavailableDates.min(by: {
+        abs($0.timeIntervalSince(date)) < abs($1.timeIntervalSince(date))
+      })
+    else { return available }
+
+    return abs(available.timeIntervalSince(date)) < abs(unavailable.timeIntervalSince(date))
+      ? available : nil
+  }
+
   /// Finds the nearest data point date to a cursor location in a chart.
   static func findNearestDate<T>(
     at location: CGPoint, in proxy: ChartProxy,
-    points: [T], dateKeyPath: KeyPath<T, Date>
+    points: [T], dateKeyPath: KeyPath<T, Date>, unavailableDates: [Date] = []
   ) -> Date? {
     guard let date: Date = proxy.value(atX: location.x) else { return nil }
 
-    return points.min(by: {
-      abs($0[keyPath: dateKeyPath].timeIntervalSince(date))
-        < abs($1[keyPath: dateKeyPath].timeIntervalSince(date))
-    })?[keyPath: dateKeyPath]
+    return nearestAvailableDate(
+      to: date,
+      availableDates: points.map { $0[keyPath: dateKeyPath] },
+      unavailableDates: unavailableDates)
   }
 }
 

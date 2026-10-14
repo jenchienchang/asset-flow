@@ -64,6 +64,8 @@ For routine app changes, build, run the relevant Swift tests, and exercise affec
 
 To inspect the dashboard without using a saved portfolio, add `--preview-data` to the Run scheme's **Arguments Passed On Launch** and run a Debug build. [AssetFlowApp.swift](../AssetFlow/AssetFlowApp.swift) selects an in-memory `ModelContainer` and seeds sample assets and snapshots for that mode. Remove the argument when returning to the normal store.
 
+To inspect converted asset history with a missing rate, launch a Debug build with `--preview-missing-rates`. This opens an in-memory asset on the Assets screen with converted chart mode selected and exchange-rate fetching disabled for the fixture. Remove the argument when returning to the normal store.
+
 For SwiftUI previews, follow nearby `#Preview` declarations, such as [SnapshotListView.swift](../AssetFlow/Views/SnapshotListView.swift). They use `PreviewContainer.container` rather than the normal disk-backed app store. Keep the preview container alive for the preview's lifetime. App layout, focus, and lock interactions still require interactive checks; see [UserInterfaceDesign.md](UserInterfaceDesign.md) and [TestingStrategy.md](TestingStrategy.md).
 
 ### Working with SwiftData

@@ -12,8 +12,8 @@ Use pure service and model tests for calculations and validation, ViewModel test
 
 #### Portfolio values and returns
 
-- **Automated evidence:** [CalculationServiceTests](../AssetFlowTests/Services/CalculationServiceTests.swift), [CurrencyConversionServiceTests](../AssetFlowTests/Services/CurrencyConversionServiceTests.swift), [ExchangeRateServiceTests](../AssetFlowTests/Services/ExchangeRateServiceTests.swift), and [DashboardViewModelTests](../AssetFlowTests/ViewModels/DashboardViewModelTests.swift) cover [returns and conversion](SPEC.md#10-calculation-logic), rate validity, cancellation, and unavailable display state.
-- **Manual checks and limits:** Check chart selection, hover, date labels, and unavailable messages in the running app. Service assertions do not exercise chart events.
+- **Automated evidence:** [CalculationServiceTests](../AssetFlowTests/Services/CalculationServiceTests.swift), [CurrencyConversionServiceTests](../AssetFlowTests/Services/CurrencyConversionServiceTests.swift), [ExchangeRateServiceTests](../AssetFlowTests/Services/ExchangeRateServiceTests.swift), [DashboardViewModelTests](../AssetFlowTests/ViewModels/DashboardViewModelTests.swift), and [AssetDetailViewModelTests](../AssetFlowTests/ViewModels/AssetDetailViewModelTests.swift) cover [returns and conversion](SPEC.md#10-calculation-logic), rate validity, cancellation, and unavailable display state. Asset-history fixtures check converted-only points, line gaps at missing rates, unavailable rates at either end, empty converted periods, and hover suppression near unavailable dates.
+- **Manual checks and limits:** Check chart selection, hover, gap markers, affected-date popovers, date labels, and unavailable messages in the running app. ViewModel assertions do not exercise chart or popover interactions.
 
 #### Category goals and rebalancing
 

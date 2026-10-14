@@ -926,6 +926,23 @@
         }
       }
     },
+    "Affected snapshot dates" : {
+      "comment" : "Heading in the converted asset chart's unavailable-rate popover.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Affected snapshot dates"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "受影響的快照日期"
+          }
+        }
+      }
+    },
     "All assets are missing from the latest snapshot. Toggle “Hide Stale Assets” off to see them." : {
       "localizations" : {
         "zh-Hant" : {
@@ -2503,6 +2520,23 @@
         }
       }
     },
+    "Days with unavailable exchange rates: %lld" : {
+      "comment" : "Compact converted asset chart warning. Placeholder is the number of snapshot days whose rate cannot be used; opens the affected dates on demand.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Days with unavailable exchange rates: %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯率無法使用的天數：%lld"
+          }
+        }
+      }
+    },
     "Expected 'true' or 'false'." : {
 
     },
@@ -3534,6 +3568,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無類別資料"
+          }
+        }
+      }
+    },
+    "No converted values for selected period" : {
+      "comment" : "Asset value history chart when every conversion in the selected period lacks a historical exchange rate.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No converted values for selected period"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所選期間沒有可換算的價值"
           }
         }
       }

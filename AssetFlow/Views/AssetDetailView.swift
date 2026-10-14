@@ -28,6 +28,7 @@ import SwiftUI
 /// view is recreated when a restored SwiftData instance replaces the selection,
 /// even when the restored asset keeps the same stable app-level UUID.
 struct AssetDetailView: View {
+  @Environment(\.isAppLocked) private var isAppLocked
   @State private var viewModel: AssetDetailViewModel
 
   @State private var showDeleteConfirmation = false
@@ -35,7 +36,13 @@ struct AssetDetailView: View {
   @State private var saveErrorMessage = ""
   @State private var valueChartRange: ChartTimeRange = .all
   @State private var editingAssetValue: SnapshotAssetValue?
-  @State private var showConvertedChart = false
+  @State private var showUnavailableDates = false
+  #if DEBUG
+    @State private var showConvertedChart =
+      ProcessInfo.processInfo.arguments.contains("--preview-missing-rates")
+  #else
+    @State private var showConvertedChart = false
+  #endif
 
   @State private var cachedPlatforms: [String] = []
   @State private var cachedCategories: [Category] = []
@@ -78,6 +85,9 @@ struct AssetDetailView: View {
     }
     .onChange(of: viewModel.isDifferentCurrency) { _, newValue in
       if !newValue { showConvertedChart = false }
+    }
+    .onChange(of: isAppLocked) { _, locked in
+      if locked { showUnavailableDates = false }
     }
     .alert("Save Error", isPresented: $showSaveError) {
       Button("OK") {}
@@ -192,24 +202,71 @@ struct AssetDetailView: View {
             .foregroundStyle(.secondary)
         } else if showConvertedChart && viewModel.isDifferentCurrency {
           let displayCurrency = SettingsService.shared.mainCurrency
-          SingleSeriesLineChart(
-            data: points,
-            dateKeyPath: \.date,
-            valueOf: { ($0.convertedMarketValue ?? $0.marketValue).doubleValue },
-            color: .green,
-            height: ChartConstants.standardChartHeight,
-            tooltipContent: { entry in
-              ChartTooltipView {
-                Text(entry.date.settingsFormatted())
-                  .font(.caption2)
-                Text(
-                  (entry.convertedMarketValue ?? entry.marketValue)
-                    .formatted(currency: displayCurrency)
-                )
-                .font(.caption.bold())
+          let chart = AssetConvertedChartData(history: points)
+          if chart.points.isEmpty {
+            Text("No converted values for selected period")
+              .foregroundStyle(.secondary)
+          } else {
+            let firstDate = points[0].date
+            let lastDate = points[points.count - 1].date
+            SingleSeriesLineChart(
+              data: chart.points,
+              dateKeyPath: \.date,
+              valueOf: { $0.value.doubleValue },
+              seriesOf: { $0.segment },
+              color: .green,
+              height: ChartConstants.standardChartHeight,
+              tooltipContent: { point in
+                ChartTooltipView {
+                  Text(point.date.settingsFormatted())
+                    .font(.caption2)
+                  Text(point.value.formatted(currency: displayCurrency))
+                    .font(.caption.bold())
+                }
+              },
+              xDomain: firstDate < lastDate ? firstDate...lastDate : nil,
+              unavailableDates: chart.unavailableDates,
+              extraContent: {
+                ForEach(chart.unavailableDates, id: \.self) { date in
+                  RuleMark(x: .value("Date", date))
+                    .foregroundStyle(.orange.opacity(0.6))
+                    .lineStyle(StrokeStyle(dash: [4, 4]))
+                }
+              }
+            )
+          }
+          if !chart.unavailableDates.isEmpty {
+            Button {
+              showUnavailableDates.toggle()
+            } label: {
+              Label(
+                "Days with unavailable exchange rates: \(chart.unavailableDates.count)",
+                systemImage: "exclamationmark.triangle")
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .disabled(isAppLocked)
+            .popover(isPresented: $showUnavailableDates) {
+              if !isAppLocked {
+                VStack(alignment: .leading, spacing: 8) {
+                  Text("Affected snapshot dates")
+                    .font(.headline)
+                  ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 4) {
+                      ForEach(chart.unavailableDates, id: \.self) { date in
+                        Text(date.settingsFormatted())
+                      }
+                    }
+                  }
+                  .frame(
+                    width: 200,
+                    height: min(CGFloat(chart.unavailableDates.count) * 24, 200))
+                }
+                .padding()
               }
             }
-          )
+          }
         } else {
           let effectiveCurrency =
             viewModel.asset.currency.isEmpty

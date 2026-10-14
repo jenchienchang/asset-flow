@@ -43,7 +43,7 @@ Asset detail shows name, platform, category, and native currency alongside a val
 
 When native and display currencies differ, the history table includes a Converted Value column independently of the chart mode; an unavailable conversion is an em dash. A currency-code control switches the chart between native and converted presentation. The chart and table show only recorded snapshot entries, so a missing entry is not drawn as zero. Deletion is blocked while the asset has values in any snapshot, with an explanation of how to remove those values first. Editing a recorded value uses the same Save/Cancel popover pattern as snapshot detail.
 
-**Known presentation discrepancy:** In converted chart mode, an entry without a usable rate currently falls back to its native amount while the tooltip uses the display-currency label. The table correctly shows an em dash. This chart point must not be interpreted as a converted value; [SPEC.md](SPEC.md#125-chart-empty--edge-states) requires an unavailable value or gap.
+In converted mode, only entries with usable rates are plotted. When some converted points remain, unavailable dates break the line and have dashed markers. A compact warning shows the number of affected dates and opens a scrollable date list; the popover closes when the app locks. A selected period with no converted points shows an unavailable message. Hover shows no converted value for a missing-rate date, while native mode plots every recorded amount.
 
 ## Categories Screen
 

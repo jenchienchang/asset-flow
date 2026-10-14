@@ -26,7 +26,10 @@ struct AssetFlowApp: App {
   init() {
     let schema = CurrentSchema.schema
     #if DEBUG
-      let usePreviewData = ProcessInfo.processInfo.arguments.contains("--preview-data")
+      let showMissingRatePreview =
+        ProcessInfo.processInfo.arguments.contains("--preview-missing-rates")
+      let usePreviewData =
+        showMissingRatePreview || ProcessInfo.processInfo.arguments.contains("--preview-data")
     #else
       let usePreviewData = false
     #endif
@@ -43,7 +46,11 @@ struct AssetFlowApp: App {
       )
       #if DEBUG
         if usePreviewData {
-          Self.seedPreviewData(in: sharedModelContainer.mainContext)
+          if showMissingRatePreview {
+            Self.seedMissingRatePreviewData(in: sharedModelContainer.mainContext)
+          } else {
+            Self.seedPreviewData(in: sharedModelContainer.mainContext)
+          }
         }
       #endif
     } catch {
@@ -52,6 +59,45 @@ struct AssetFlowApp: App {
   }
 
   #if DEBUG
+    /// Seeds an in-memory asset history with a missing middle exchange rate.
+    private static func seedMissingRatePreviewData(in modelContext: ModelContext) {
+      do {
+        let displayCurrency = SettingsService.shared.mainCurrency.lowercased()
+        let assetCurrency = displayCurrency == "twd" ? "eur" : "twd"
+        let asset = Asset(name: "Exchange Rate Gap", platform: "Preview Brokerage")
+        asset.currency = assetCurrency
+        modelContext.insert(asset)
+
+        for (month, value) in [(1, 1000), (2, 1200), (3, 1300), (4, 1400), (5, 1600)] {
+          guard
+            let date = Calendar.current.date(
+              from: DateComponents(year: 2026, month: month, day: 1))
+          else {
+            fatalError("Could not create missing-rate preview date.")
+          }
+          let snapshot = Snapshot(date: date)
+          modelContext.insert(snapshot)
+
+          let sav = SnapshotAssetValue(marketValue: Decimal(value))
+          sav.snapshot = snapshot
+          sav.asset = asset
+          modelContext.insert(sav)
+
+          if month != 3 {
+            let ratesJSON = try JSONEncoder().encode([assetCurrency: Decimal(10)])
+            let rate = ExchangeRate(
+              baseCurrency: displayCurrency, ratesJSON: ratesJSON, fetchDate: date)
+            rate.snapshot = snapshot
+            modelContext.insert(rate)
+          }
+        }
+
+        try modelContext.save()
+      } catch {
+        fatalError("Could not seed missing-rate preview data: \(error)")
+      }
+    }
+
     /// Seeds a disposable dashboard dataset for visual review when `--preview-data` is passed.
     private static func seedPreviewData(in modelContext: ModelContext) {
       do {
