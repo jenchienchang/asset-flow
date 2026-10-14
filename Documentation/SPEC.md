@@ -66,7 +66,7 @@ The app uses a **sidebar navigation** layout (standard macOS pattern):
 
 **Detail views:** Snapshots, Assets, Categories, and Platforms use a list beside the selected item's detail. When no item is selected, the detail area shows a prompt. Dashboard, Rebalancing, Import CSV, and an active Bulk Entry draft occupy the full content area.
 
-The File menu also opens New Snapshot and Import CSV. [UserInterfaceDesign.md](UserInterfaceDesign.md) owns navigation history, draft protection, and command details.
+The File menu also opens New Snapshot and Import CSV. [`UserInterfaceDesign.md`](UserInterfaceDesign.md) owns navigation history, draft protection, and command details.
 
 ______________________________________________________________________
 
@@ -212,7 +212,7 @@ ______________________________________________________________________
 
 ### 3.7 Rebalancing Screen
 
-Show each category's current balance and whole-portfolio share, minimum status, effective target and share, and any suggested change. Include percentage-goal, minimum-only, and protected holdings; explain unavailable or infeasible plans. Suggested moves are a read-only preview and never modify portfolio records. Section 11 defines the required outcomes; [UserInterfaceDesign.md](UserInterfaceDesign.md) owns columns and help presentation.
+Show each category's current balance and whole-portfolio share, minimum status, effective target and share, and any suggested change. Include percentage-goal, minimum-only, and protected holdings; explain unavailable or infeasible plans. Suggested moves are a read-only preview and never modify portfolio records. Section 11 defines the required outcomes; [`UserInterfaceDesign.md`](UserInterfaceDesign.md) owns columns and help presentation.
 
 ______________________________________________________________________
 
@@ -251,8 +251,8 @@ Accessible via menu bar (AssetFlow > Settings) or keyboard shortcut (Cmd+,).
 
 1. **Data Management**
 
-   - **Export Backup** — Saves application data and the settings covered by the backup format in a user-selected ZIP archive. The current archive format is version 4; its manifest and CSV contracts belong in [APIDesign.md](APIDesign.md). App-lock settings and other device preferences are outside the backed-up settings set.
-   - **Restore from Backup** — Requires confirmation before replacing application data and the backed-up settings. Formats 1 through 4 are accepted. Validate the archive before replacement; if validation or persistence fails, preserve the existing database and settings. On success, refresh views. See [APIDesign.md](APIDesign.md) for file layout and [SecurityAndPrivacy.md](SecurityAndPrivacy.md) for backup protections and limits.
+   - **Export Backup** — Saves application data and the settings covered by the backup format in a user-selected ZIP archive. The current archive format is version 4; its manifest and CSV contracts belong in [`APIDesign.md`](APIDesign.md). App-lock settings and other device preferences are outside the backed-up settings set.
+   - **Restore from Backup** — Requires confirmation before replacing application data and the backed-up settings. Formats 1 through 4 are accepted. Validate the archive before replacement; if validation or persistence fails, preserve the existing database and settings. On success, refresh views. See [`APIDesign.md`](APIDesign.md) for file layout and [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) for backup protections and limits.
 
 1. **App Lock** — Protects portfolio data behind device authentication.
 
@@ -262,7 +262,7 @@ Accessible via menu bar (AssetFlow > Settings) or keyboard shortcut (Cmd+,).
    - **Lock on Screen Lock/Sleep timeout** — configurable delay before the app re-locks after the screen locks or the Mac goes to sleep. Same options as above.
    - **Auto-disable:** Setting both timeouts to "Never" turns the Enable App Lock setting off and unlocks the app. Re-enabling app lock after that resets both timeouts to "Immediately" and requires successful authentication.
    - The lock screen offers an Unlock button. After an applicable timeout, returning to the foreground can trigger system authentication.
-   - Portfolio tooltips and hover interactions must stay hidden while the app is locked; see [SecurityAndPrivacy.md](SecurityAndPrivacy.md) for disclosure limits.
+   - Portfolio tooltips and hover interactions must stay hidden while the app is locked; see [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) for disclosure limits.
 
 ______________________________________________________________________
 
@@ -283,7 +283,7 @@ ______________________________________________________________________
 
 **Number formatting:**
 
-- Monetary values: display in the relevant currency with locale-aware grouping and currency precision. Entry, storage, and calculation retain Decimal precision. Tiny nonzero rebalancing adjustments remain distinguishable from zero; presentation rules belong in [UserInterfaceDesign.md](UserInterfaceDesign.md).
+- Monetary values: display in the relevant currency with locale-aware grouping and currency precision. Entry, storage, and calculation retain Decimal precision. Tiny nonzero rebalancing adjustments remain distinguishable from zero; presentation rules belong in [`UserInterfaceDesign.md`](UserInterfaceDesign.md).
 - Percentages: 2 decimal places (e.g., 45.23%)
 - Chart axes: Abbreviated for large values (K for thousands, M for millions, B for billions)
 
@@ -319,7 +319,7 @@ ______________________________________________________________________
 
 ### 4.2 CSV Schemas
 
-The app supports two CSV formats selected in the import screen. The following fields describe what a user must provide; [APIDesign.md](APIDesign.md) owns the exact interchange contract.
+The app supports two CSV formats selected in the import screen. The following fields describe what a user must provide; [`APIDesign.md`](APIDesign.md) owns the exact interchange contract.
 
 #### 4.2.1 Asset CSV
 
@@ -343,7 +343,7 @@ ______________________________________________________________________
 
 ### 4.3 Parsing Rules
 
-CSV files use UTF-8 (with an optional BOM) and a comma delimiter. A header row is required; empty rows are skipped. Financial numbers are parsed as Decimal values, with supported currency symbols and quoted thousands separators accepted. Negative values are allowed. See [APIDesign.md](APIDesign.md) for quoting, mapping, and parsing details.
+CSV files use UTF-8 (with an optional BOM) and a comma delimiter. A header row is required; empty rows are skipped. Financial numbers are parsed as Decimal values, with supported currency symbols and quoted thousands separators accepted. Negative values are allowed. See [`APIDesign.md`](APIDesign.md) for quoting, mapping, and parsing details.
 
 ______________________________________________________________________
 
@@ -396,7 +396,7 @@ Platform for each asset is determined by the import-level platform selection and
    1. **Override All** (default): Every row receives the selected platform, overriding CSV values
    1. **Fill Empty Only**: Only rows whose CSV platform is empty receive the selected platform; rows with existing CSV platforms keep their original values
 
-The apply-mode choice is relevant when a platform is selected and CSV rows contain both empty and non-empty platform values. [UserInterfaceDesign.md](UserInterfaceDesign.md#import-screen) owns its control.
+The apply-mode choice is relevant when a platform is selected and CSV rows contain both empty and non-empty platform values. [`UserInterfaceDesign.md`](UserInterfaceDesign.md#import-screen) owns its control.
 
 ______________________________________________________________________
 
@@ -418,7 +418,7 @@ A cash flow duplicate is detected when two records share the same Description (c
 1. **Within the CSV file:** If two rows have the same Description, the import is rejected.
 1. **Between CSV and existing snapshot:** If a cash flow operation in the CSV matches an existing CashFlowOperation in the target snapshot by Description, the import is rejected.
 
-Blocking duplicate diagnostics identify the conflicting rows or records. The user can remove rows from the preview, resolve the CSV, or edit existing records before trying again. See [BusinessLogic.md](BusinessLogic.md) for normalized identity rules.
+Blocking duplicate diagnostics identify the conflicting rows or records. The user can remove rows from the preview, resolve the CSV, or edit existing records before trying again. See [`BusinessLogic.md`](BusinessLogic.md) for normalized identity rules.
 
 ______________________________________________________________________
 
@@ -492,7 +492,7 @@ ______________________________________________________________________
 
 ## 7. Data Model
 
-These entities support the product behavior above. [DataModel.md](DataModel.md) owns field types, relationships, constraints, and migration; [APIDesign.md](APIDesign.md) owns their backup representation.
+These entities support the product behavior above. [`DataModel.md`](DataModel.md) owns field types, relationships, constraints, and migration; [`APIDesign.md`](APIDesign.md) owns their backup representation.
 
 ### 7.1 Category
 
@@ -516,7 +516,7 @@ A CashFlowOperation records an external contribution or withdrawal at its snapsh
 
 ### 7.6 ExchangeRate
 
-A snapshot may store rates for its date and a display-currency base. A usable record must match the snapshot's date and cover the currencies needed for the calculation. If rates are missing, incomplete, or for another date, the affected converted result is unavailable; a failed fetch does not substitute another date's rates. The stored rate date describes applicability to the snapshot, not the time a network request finished. See [DataModel.md](DataModel.md) and [APIDesign.md](APIDesign.md) for storage and fetching contracts.
+A snapshot may store rates for its date and a display-currency base. A usable record must match the snapshot's date and cover the currencies needed for the calculation. If rates are missing, incomplete, or for another date, the affected converted result is unavailable; a failed fetch does not substitute another date's rates. The stored rate date describes applicability to the snapshot, not the time a network request finished. See [`DataModel.md`](DataModel.md) and [`APIDesign.md`](APIDesign.md) for storage and fetching contracts.
 
 ______________________________________________________________________
 
@@ -604,7 +604,7 @@ ______________________________________________________________________
 
 ## 10. Calculation Logic
 
-All metrics derive from directly recorded snapshot values and cash flows, with currency conversion into the selected display currency where needed. They are portfolio-level in v1. [BusinessLogic.md](BusinessLogic.md) owns formulas, units, precision, and calculation edge cases.
+All metrics derive from directly recorded snapshot values and cash flows, with currency conversion into the selected display currency where needed. They are portfolio-level in v1. [`BusinessLogic.md`](BusinessLogic.md) owns formulas, units, precision, and calculation edge cases.
 
 ### 10.1 Portfolio Total Value
 
@@ -630,17 +630,17 @@ Useful for tracking how total wealth changes over time.
 
 The app uses **Modified Dietz** to estimate portfolio investment return while accounting for the amount and timing of external contributions and withdrawals. It is an estimate under the available snapshot valuations and the assumption that each cash flow occurred on its snapshot date; it does not reconstruct values at every actual transaction time. [The GIPS methodology handbook describes Modified Dietz as a day-weighted estimate](https://www.gipsstandards.org/wp-content/uploads/2021/04/gips-standards-handbook-firms.pdf). This describes the calculation method, not GIPS compliance.
 
-For a selected period, use the converted beginning and ending portfolio values and converted cash flows from `(begin, end]`. A flow on the ending date has zero time weight; a flow on the beginning date is excluded by the aggregation rule. Required rates must be available for both endpoint values and the included cash flows. Apply the same lookback and actual-date display as Section 10.3. [BusinessLogic.md](BusinessLogic.md) owns the full calculation rule.
+For a selected period, use the converted beginning and ending portfolio values and converted cash flows from `(begin, end]`. A flow on the ending date has zero time weight; a flow on the beginning date is excluded by the aggregation rule. Required rates must be available for both endpoint values and the included cash flows. Apply the same lookback and actual-date display as Section 10.3. [`BusinessLogic.md`](BusinessLogic.md) owns the full calculation rule.
 
 Only portfolio-level return is supported: category-level external flows are not recorded, so a category return would require unsupported assumptions about where contributions and withdrawals went.
 
 ### 10.5 Cumulative Time-Weighted Return (TWR)
 
-Cumulative TWR chains the app's Modified Dietz estimates for consecutive snapshot intervals. It is a portfolio-level approximation of cash-flow-adjusted performance, subject to those period estimates and their snapshot-date assumptions. If any required interval return is undefined, the all-time cumulative result is unavailable. See [BusinessLogic.md](BusinessLogic.md) for the chaining formula.
+Cumulative TWR chains the app's Modified Dietz estimates for consecutive snapshot intervals. It is a portfolio-level approximation of cash-flow-adjusted performance, subject to those period estimates and their snapshot-date assumptions. If any required interval return is undefined, the all-time cumulative result is unavailable. See [`BusinessLogic.md`](BusinessLogic.md) for the chaining formula.
 
 ### 10.6 CAGR
 
-CAGR annualizes the change between the first and latest converted portfolio totals. It includes the effect of external cash flows and is available only when both totals and the date interval permit the calculation. It is portfolio-level only in v1; [BusinessLogic.md](BusinessLogic.md) defines the formula and Decimal precision policy.
+CAGR annualizes the change between the first and latest converted portfolio totals. It includes the effect of external cash flows and is available only when both totals and the date interval permit the calculation. It is portfolio-level only in v1; [`BusinessLogic.md`](BusinessLogic.md) defines the formula and Decimal precision policy.
 
 ### 10.7 Edge Cases
 
@@ -670,7 +670,7 @@ If all minimums exceed the portfolio total, or protected funds plus percentage-c
 
 Minimums take priority. An explicit 0% target receives its minimum or zero; positive percentage targets share the remaining pool, with any minimum-bound category fixed at its minimum and the rest redistributed. Minimum-only, no-goal, and uncategorized protected balances are not treated as freely available. A feasible plan conserves the portfolio total and meets every minimum.
 
-Use Decimal values without rounding to display precision for funding decisions. If arithmetic cannot establish whether a strict funding requirement is met, make the plan unavailable rather than treating a possible deficit as zero. [BusinessLogic.md](BusinessLogic.md) owns the allocation algorithm, precision policy, and worked cases.
+Use Decimal values without rounding to display precision for funding decisions. If arithmetic cannot establish whether a strict funding requirement is met, make the plan unavailable rather than treating a possible deficit as zero. [`BusinessLogic.md`](BusinessLogic.md) owns the allocation algorithm, precision policy, and worked cases.
 
 ### Result and presentation
 
@@ -680,7 +680,7 @@ Suggestions first fund actual minimum shortfalls, including amounts below one di
 
 ### Rebalancing contextual help
 
-Users can inspect how protected balances, available allocation, minimums, and percentage preferences produced a target. Effective shares use the entire portfolio as their denominator. Explanations distinguish tiny nonzero amounts, zero, and unavailable values; identify monetary currencies; and show the source snapshot date and currency for minimum assessments. An unavailable plan explains why without presenting a calculation or transfer as valid. [UserInterfaceDesign.md](UserInterfaceDesign.md) owns help presentation, currency headings, accessibility, and lock-aware interaction.
+Users can inspect how protected balances, available allocation, minimums, and percentage preferences produced a target. Effective shares use the entire portfolio as their denominator. Explanations distinguish tiny nonzero amounts, zero, and unavailable values; identify monetary currencies; and show the source snapshot date and currency for minimum assessments. An unavailable plan explains why without presenting a calculation or transfer as valid. [`UserInterfaceDesign.md`](UserInterfaceDesign.md) owns help presentation, currency headings, accessibility, and lock-aware interaction.
 
 Historical comparisons use current goal settings and each snapshot's rates, with unavailable gaps; they do not record goal history. Value charts include the converted minimum overlay. Raw pool percentages are not plotted as whole-portfolio allocation references.
 
@@ -731,7 +731,7 @@ The category detail view also includes an allocation percentage line chart (same
 - Shows portfolio-level return over time
 - Hover shows tooltip with date and cumulative TWR percentage. No click-to-navigate behavior.
 - Time range zoom controls (see above)
-- **Rebasing:** For a selected non-"All" range, the first visible point starts at 0% and later points show the chained estimated return within that range, unless the first point's inception-based TWR is -100%. In that case, rebasing is undefined and the filtered inception-based values remain unchanged. See [BusinessLogic.md](BusinessLogic.md) for the calculation.
+- **Rebasing:** For a selected non-"All" range, the first visible point starts at 0% and later points show the chained estimated return within that range, unless the first point's inception-based TWR is -100%. In that case, rebasing is undefined and the filtered inception-based values remain unchanged. See [`BusinessLogic.md`](BusinessLogic.md) for the calculation.
 
 ### 12.5 Chart Empty & Edge States
 
@@ -747,7 +747,7 @@ The category detail view also includes an allocation percentage line chart (same
 | TWR chart (12.4)  | All returns N/A in selected range                    | "Cannot calculate returns for selected period"                             |
 | Converted charts  | Required rates missing for a snapshot                | Identify the unavailable value or gap; do not plot a mixed-currency total. |
 
-Chart values derive from stored snapshot data using the current display currency and applicable rates. Chart interaction and presentation details belong in [UserInterfaceDesign.md](UserInterfaceDesign.md).
+Chart values derive from stored snapshot data using the current display currency and applicable rates. Chart interaction and presentation details belong in [`UserInterfaceDesign.md`](UserInterfaceDesign.md).
 
 ______________________________________________________________________
 
@@ -791,7 +791,7 @@ ______________________________________________________________________
 
 - SwiftData
 - Must support efficient historical queries (fetch all snapshots, fetch asset values across snapshots)
-- SwiftData stores portfolio records using the current versioned schema and migration plan. Opening or migrating a store must preserve existing user data on failure rather than deleting it. [DataModel.md](DataModel.md) owns schema and migration details.
+- SwiftData stores portfolio records using the current versioned schema and migration plan. Opening or migrating a store must preserve existing user data on failure rather than deleting it. [`DataModel.md`](DataModel.md) owns schema and migration details.
 
 ### Window Management
 
@@ -801,8 +801,8 @@ ______________________________________________________________________
 ### Localization, Accessibility, and Privacy
 
 - Provide English and Traditional Chinese (`zh-Hant`) text for user-facing controls, validation, and unavailable states. Format dates, currencies, and percentages for the selected locale and settings.
-- Keep essential actions, state, and explanations available through accessible labels and keyboard operation. Do not rely on color alone to convey a financial warning or missing value. [UserInterfaceDesign.md](UserInterfaceDesign.md) owns interaction details.
-- Keep portfolio data local except for the currency-service requests described above. App lock must prevent portfolio tooltips and hover content from appearing over the lock screen; [SecurityAndPrivacy.md](SecurityAndPrivacy.md) owns protections and limits.
+- Keep essential actions, state, and explanations available through accessible labels and keyboard operation. Do not rely on color alone to convey a financial warning or missing value. [`UserInterfaceDesign.md`](UserInterfaceDesign.md) owns interaction details.
+- Keep portfolio data local except for the currency-service requests described above. App lock must prevent portfolio tooltips and hover content from appearing over the lock screen; [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) owns protections and limits.
 
 ______________________________________________________________________
 
@@ -873,7 +873,7 @@ Use disposable synthetic data for these checks; do not delete a personal store t
 1. Import separate platform files into one date. Confirm nonzero duplicates fail, a zero placeholder can be filled, and a partial new snapshot copies only explicitly selected prior-platform values.
 1. Switch category import between All Rows and Empty Only, then confirm existing assignments change only in the selected mode. Verify a malformed Bulk Entry CSV leaves existing draft rows unchanged and navigation protects unsaved category, Bulk Entry, and import drafts.
 1. Remove a needed rate for an asset, cash flow, or goal in separate fixtures. Confirm each affects only the relevant converted result or plan, native amounts remain distinct, and a later valid rate restores availability.
-1. Compare a synthetic return period with the worked rules in [BusinessLogic.md](BusinessLogic.md), including a dated external contribution, an excluded begin-date flow, and an undefined interval that prevents cumulative TWR.
+1. Compare a synthetic return period with the worked rules in [`BusinessLogic.md`](BusinessLogic.md), including a dated external contribution, an excluded begin-date flow, and an undefined interval that prevents cumulative TWR.
 1. Try a feasible minimum-plus-percentage goal, a minimum-only shortfall, and an infeasible funding case. Confirm tiny mandatory top-ups remain visible and no transfer is offered for an infeasible plan.
 1. Restore a valid synthetic backup, then try malformed and interrupted restore cases. Confirm the covered data and settings round-trip, failed attempts preserve the pre-restore state, and refreshed views show the restored records.
 1. Check locked and unlocked hover/help, both-Never auto-disable and re-enable, keyboard paths, empty/error/unavailable states, and English and Traditional Chinese labels with appropriate interactive verification.

@@ -1,6 +1,6 @@
 # Business Logic and Calculation Design
 
-AssetFlow derives portfolio values, performance, and allocation plans from dated snapshots. This document defines the domain rules, financial units, boundary cases, and validation decisions. [SPEC.md](SPEC.md) owns product requirements, [DataModel.md](DataModel.md) owns stored fields and relationships, [APIDesign.md](APIDesign.md) owns CSV and service contracts, and [UserInterfaceDesign.md](UserInterfaceDesign.md) owns presentation and interaction.
+AssetFlow derives portfolio values, performance, and allocation plans from dated snapshots. This document defines the domain rules, financial units, boundary cases, and validation decisions. [`SPEC.md`](SPEC.md) owns product requirements, [`DataModel.md`](DataModel.md) owns stored fields and relationships, [`APIDesign.md`](APIDesign.md) owns CSV and service contracts, and [`UserInterfaceDesign.md`](UserInterfaceDesign.md) owns presentation and interaction.
 
 ## Core Concept: Snapshot-Based Portfolio Model
 
@@ -10,7 +10,7 @@ A snapshot contains only asset values and external cash flows recorded for its d
 
 An asset's import identity is its name and platform after trimming outer whitespace, collapsing repeated internal spaces, and comparing without case. A matching asset record is reused across snapshots. Importing a different name or platform creates another asset; editing an existing asset's identity changes the same record across its history and must not collide with another asset. An asset may be deleted only when no snapshot values refer to it. Removing an asset from one snapshot removes that recorded value, not the asset record.
 
-An asset is **stale** when it has no entry in the latest snapshot. A latest value of zero is present and is not stale. The asset-list visibility control and its persistence belong in [UserInterfaceDesign.md](UserInterfaceDesign.md#assets-screen).
+An asset is **stale** when it has no entry in the latest snapshot. A latest value of zero is present and is not stale. The asset-list visibility control and its persistence belong in [`UserInterfaceDesign.md`](UserInterfaceDesign.md#assets-screen).
 
 ## Calculation Logic
 
@@ -85,7 +85,7 @@ wᵢ = (period calendar days - days since begin) / period calendar days
 
 `BMV` and `EMV` are beginning and ending converted portfolio values; each `CFᵢ` is a signed converted external flow. The period must contain a positive number of calendar days, `BMV` must be positive, and the denominator must be positive. A flow on the ending date has weight zero. The pure formula would give a day-zero flow weight one, but the app excludes beginning-date flows from this period.
 
-**Worked example:** Over 90 days, begin with 100,000, record a +100,000 contribution on day 30, and end with 215,000 in the same currency. The flow weight is `60/90 = 2/3`, so its weighted contribution is approximately 66,666.67. The numerator is 15,000; the full-precision denominator is `100,000 + (2/3 × 100,000)`. The expected return is **`0.09` (9%)**. The displayed 66,666.67 is rounded for reading, not used as the calculation input. This matches the synthetic mid-period case in [CalculationServiceTests.swift](../AssetFlowTests/Services/CalculationServiceTests.swift).
+**Worked example:** Over 90 days, begin with 100,000, record a +100,000 contribution on day 30, and end with 215,000 in the same currency. The flow weight is `60/90 = 2/3`, so its weighted contribution is approximately 66,666.67. The numerator is 15,000; the full-precision denominator is `100,000 + (2/3 × 100,000)`. The expected return is **`0.09` (9%)**. The displayed 66,666.67 is rounded for reading, not used as the calculation input. This matches the synthetic mid-period case in [`CalculationServiceTests.swift`](../AssetFlowTests/Services/CalculationServiceTests.swift).
 
 Modified Dietz estimates cash-flow-adjusted performance from available valuations and assumed flow dates. It does not reconstruct a valuation at every actual transaction time. The [GIPS Standards Handbook for Firms](https://www.gipsstandards.org/wp-content/uploads/2021/04/gips-standards-handbook-firms.pdf) describes the method as an estimate; this description does not claim GIPS compliance.
 
@@ -135,7 +135,7 @@ Both values and the interval must be positive. Fractional years are allowed, inc
 
 A category may have a percentage target, a currency-denominated minimum balance, both, or neither. Goal fields are edited as one draft and validated together on save. Category names must be nonempty and unique without case. A present percentage must be finite and within 0–100. Minimum amount and currency must be both present or both absent; a present amount must be finite and nonnegative, and zero is valid. The chosen currency must be valid for the goal editor. A newly created category has no goal unless one is supplied.
 
-The suggested minimum currency is the single currency shared by the category's assets, or the display currency when its assets are mixed or absent. The saved minimum keeps its original denomination when the display currency changes. Changing the goal currency changes what the entered amount means; it does not convert the amount. A category's persisted user order and stored fields are defined in [DataModel.md](DataModel.md#category). Infeasible goals can be saved so the assessment can explain their shortfall. Ordinary asset and cash-flow imports do not change goals.
+The suggested minimum currency is the single currency shared by the category's assets, or the display currency when its assets are mixed or absent. The saved minimum keeps its original denomination when the display currency changes. Changing the goal currency changes what the entered amount means; it does not convert the amount. A category's persisted user order and stored fields are defined in [`DataModel.md`](DataModel.md#category). Infeasible goals can be saved so the assessment can explain their shortfall. Ordinary asset and cash-flow imports do not change goals.
 
 ### Goal Assessment and Warnings
 
@@ -184,7 +184,7 @@ Distribute the remaining pool in proportion to remaining positive percentage wei
 | `V = 1,000`: minimum-only category holds 200 and requires 300; a no-goal category holds 800                                       | Total minimums fit, but protected requirements total 1,100. The plan reports insufficient available funds of 100 and gives no transfers.                  |
 | `V = 100`: current balances 40 / 20.5 / 39.5 / 0, targets 30% / 20% / 49.8% / 0.2%, last category minimum 0.2                     | Fund its mandatory 0.2 first, then use 9.8 of the same donor's reduction for the larger increase. Two optional 0.5 differences remain as a residual of 1. |
 
-The cases correspond to [RebalancingCalculatorTests.swift](../AssetFlowTests/Services/RebalancingCalculatorTests.swift) and [RebalancingTransferPlannerTests.swift](../AssetFlowTests/Services/RebalancingTransferPlannerTests.swift). Approximate figures in the table are for reading; requirements and targets are compared before display rounding.
+The cases correspond to [`RebalancingCalculatorTests.swift`](../AssetFlowTests/Services/RebalancingCalculatorTests.swift) and [`RebalancingTransferPlannerTests.swift`](../AssetFlowTests/Services/RebalancingTransferPlannerTests.swift). Approximate figures in the table are for reading; requirements and targets are compared before display rounding.
 
 ### Precision and Suggested Transfers
 
@@ -200,7 +200,7 @@ Historical goal comparisons use current goal settings with each snapshot's rates
 
 ## CSV Import System
 
-[APIDesign.md](APIDesign.md#csv-import-format-specification) owns exact headers, encoding, mapping, and interchange examples. Asset CSV requires an asset name and market value; platform and currency are optional. Cash-flow CSV requires a description and amount; currency is optional. The file contains no snapshot date: the user selects a target date no later than today. Required headers are detected without case or surrounding whitespace, and unresolved columns can be mapped before import.
+[`APIDesign.md`](APIDesign.md#csv-import-format-specification) owns exact headers, encoding, mapping, and interchange examples. Asset CSV requires an asset name and market value; platform and currency are optional. Cash-flow CSV requires a description and amount; currency is optional. The file contains no snapshot date: the user selects a target date no later than today. Required headers are detected without case or surrounding whitespace, and unresolved columns can be mapped before import.
 
 A malformed file, no data rows, missing required fields, an empty required identity, or an unparseable amount blocks import. A supplied asset currency absent from the app's supported currency list also blocks the standard asset import. The cash-flow import does not currently reject a supplied code solely because it is absent from that list; a needed but unavailable rate can later make converted cash-flow results unavailable. Zero or negative asset market values and zero cash-flow amounts are warnings in the standard import; they are not parser errors. A file with blocking errors does not partially import valid rows.
 
@@ -224,7 +224,7 @@ An import may create a snapshot or append records to one already present. Copy-f
 
 A manually created snapshot uses a unique date no later than today. An empty start has no asset values. A Bulk Entry start seeds **only assets recorded in the latest snapshot before the chosen date**, grouped by platform; the user may add further platforms and assets. It is a draft until saved. The draft starts with no cash-flow operations, even when the prior snapshot had them.
 
-Editing a saved snapshot may add, change, or remove directly recorded asset values and cash flows, subject to per-snapshot identity and value validation. Deleting a snapshot requires confirmation and removes its recorded values and cash flows; asset records remain. Category deletion requires its assets to be reassigned or removed first; asset deletion requires no recorded snapshot values. [DataModel.md](DataModel.md#relationships-and-integrity) owns the relationship and delete-rule details.
+Editing a saved snapshot may add, change, or remove directly recorded asset values and cash flows, subject to per-snapshot identity and value validation. Deleting a snapshot requires confirmation and removes its recorded values and cash flows; asset records remain. Category deletion requires its assets to be reassigned or removed first; asset deletion requires no recorded snapshot values. [`DataModel.md`](DataModel.md#relationships-and-integrity) owns the relationship and delete-rule details.
 
 ## Bulk Entry
 
@@ -236,4 +236,4 @@ Bulk Entry CSV import changes **draft** rows rather than a saved snapshot. For a
 
 ## Calculation and validation outcomes
 
-Domain results distinguish **zero** (a valid numeric value or pending placeholder), **absent** (no row or goal), **invalid** (bad input or arithmetic), **unavailable** (missing required conversion or inputs), and **stale** (asset absent from the latest snapshot). An unavailable result must not be replaced with a mixed native-currency total or a compliant-looking goal state. Imported and edited data remain the source of truth; totals, shares, returns, and plans are recomputed from it. User-facing messages and controls belong in [UserInterfaceDesign.md](UserInterfaceDesign.md), while app-lock behavior belongs in [SecurityAndPrivacy.md](SecurityAndPrivacy.md#app-lock-optional) and [Architecture.md](Architecture.md).
+Domain results distinguish **zero** (a valid numeric value or pending placeholder), **absent** (no row or goal), **invalid** (bad input or arithmetic), **unavailable** (missing required conversion or inputs), and **stale** (asset absent from the latest snapshot). An unavailable result must not be replaced with a mixed native-currency total or a compliant-looking goal state. Imported and edited data remain the source of truth; totals, shares, returns, and plans are recomputed from it. User-facing messages and controls belong in [`UserInterfaceDesign.md`](UserInterfaceDesign.md), while app-lock behavior belongs in [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md#app-lock-optional) and [`Architecture.md`](Architecture.md).

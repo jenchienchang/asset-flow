@@ -1,6 +1,6 @@
 # Documentation Editing Guidelines
 
-These instructions apply to maintained documentation in this directory and supplement the repository-level agent instructions. Read [README.md](README.md) before editing; it defines each document's purpose, audience, and ownership boundaries.
+These instructions apply to maintained documentation in this directory and supplement the repository-level agent instructions. Read [`README.md`](README.md) before editing; it defines each document's purpose, audience, and ownership boundaries.
 
 ## Conciseness and a Single Source of Truth
 
@@ -20,7 +20,7 @@ Conciseness is essential for readability and maintaining a single source of trut
 - Keep contributor procedures in DevelopmentGuide, conventions in CodeStyle, and verification design in TestingStrategy. Link to repository configuration and source rather than copying exhaustive rules or symbol inventories.
 - Separate Swift application development from Python repository tooling within DevelopmentGuide and TestingStrategy. Keep shared prerequisites and contributor workflows together; group any Python conventions separately in CodeStyle.
 - Architecture describes the shipped application. Include repository tooling there only when it affects application architecture.
-- User-facing instructions belong in `mkdocs/`; source-level model orientation belongs in `AssetFlow/Models/README.md`. Review related material for consistency without expanding the authorized editing scope.
+- User-facing instructions belong in [`mkdocs/`](../mkdocs/); source-level model orientation belongs in [`AssetFlow/Models/README.md`](../AssetFlow/Models/README.md). Review related material for consistency without expanding the authorized editing scope.
 - When assigned one document, report necessary changes to other owners rather than editing their files. When authorized to update several documents, keep the related definitions and links consistent.
 
 ## Correctness and Evidence
@@ -40,6 +40,13 @@ Conciseness is essential for readability and maintaining a single source of trut
 - Keep examples small and meaningful. Executable examples must use actual interfaces, correct actor context, Decimal financial values, valid CSV, and current project conventions. Label pseudocode explicitly.
 - Commands must identify their working directory, prerequisites, and relevant effects. Distinguish human/CI procedures from agent execution and approval rules; examples do not grant authorization.
 - Use `1.` for every ordered-list item. Do not manually align Markdown table columns or run formatting/linting after edits; pre-commit hooks handle them.
+
+### Repository Paths and Links
+
+- Format visible repository file and directory paths as inline code, regardless of location or purpose. When the reader should be able to open an existing target, link the code-formatted path, such as `` [`SPEC.md`](SPEC.md) `` or `` [`mkdocs/`](../mkdocs/) ``. Resolve link targets relative to the Markdown file, without backticks in the destination. Use the shortest unambiguous displayed path.
+- Apply the same rule in prose, lists, tables, and headings. If a path heading is a navigation entry, link its code-formatted path. If it names a section about a path, code-format the heading and put any file link in the section text. Use plain headings for topics rather than literal paths.
+- Use an unlinked code span for a path that cannot or need not be navigated to, such as a glob, proposed file, command argument, or repeated mention after a nearby link. Keep paths inside commands and code examples in code formatting.
+- Use plain link text for descriptive labels that are not paths, such as `[developer documentation index](README.md)`.
 
 ## Completion Checks
 

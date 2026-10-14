@@ -6,7 +6,7 @@ This README defines what each document should provide, based on the needs of thi
 
 ## Documentation Index
 
-### [SPEC.md](SPEC.md)
+### [`SPEC.md`](SPEC.md)
 
 **Product and technical specification**
 
@@ -26,7 +26,7 @@ Keep detailed schemas, formulas, interface contracts, and screen designs in thei
 
 ______________________________________________________________________
 
-### [Architecture.md](Architecture.md)
+### [`Architecture.md`](Architecture.md)
 
 **System design and architectural patterns**
 
@@ -46,7 +46,7 @@ Keep schema details in DataModel, interface contracts in APIDesign, and setup pr
 
 ______________________________________________________________________
 
-### [DataModel.md](DataModel.md)
+### [`DataModel.md`](DataModel.md)
 
 **Complete data model reference**
 
@@ -67,7 +67,7 @@ Use an entity relationship diagram. Keep calculation rules in BusinessLogic and 
 
 ______________________________________________________________________
 
-### [DevelopmentGuide.md](DevelopmentGuide.md)
+### [`DevelopmentGuide.md`](DevelopmentGuide.md)
 
 **Getting started and development workflow**
 
@@ -88,7 +88,7 @@ Commands should state their working directory and prerequisites and match reposi
 
 ______________________________________________________________________
 
-### [CodeStyle.md](CodeStyle.md)
+### [`CodeStyle.md`](CodeStyle.md)
 
 **Coding standards and conventions**
 
@@ -110,7 +110,7 @@ Use concise examples and rationale. Keep setup commands in DevelopmentGuide, arc
 
 ______________________________________________________________________
 
-### [TestingStrategy.md](TestingStrategy.md)
+### [`TestingStrategy.md`](TestingStrategy.md)
 
 **Risk-based testing approach**
 
@@ -131,7 +131,7 @@ Link application tests to SPEC acceptance criteria and BusinessLogic examples, a
 
 ______________________________________________________________________
 
-### [UserInterfaceDesign.md](UserInterfaceDesign.md)
+### [`UserInterfaceDesign.md`](UserInterfaceDesign.md)
 
 **User interface and interaction design**
 
@@ -152,7 +152,7 @@ Use sketches or screenshots where helpful. Link to BusinessLogic for calculation
 
 ______________________________________________________________________
 
-### [BusinessLogic.md](BusinessLogic.md)
+### [`BusinessLogic.md`](BusinessLogic.md)
 
 **Business rules and calculation logic**
 
@@ -174,7 +174,7 @@ Keep signatures and file formats in APIDesign and display formatting in UserInte
 
 ______________________________________________________________________
 
-### [SecurityAndPrivacy.md](SecurityAndPrivacy.md)
+### [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md)
 
 **Security and privacy considerations**
 
@@ -195,7 +195,7 @@ Distinguish app lock from storage encryption and implemented protections from pr
 
 ______________________________________________________________________
 
-### [APIDesign.md](APIDesign.md)
+### [`APIDesign.md`](APIDesign.md)
 
 **Internal API and integration design**
 
@@ -220,37 +220,37 @@ ______________________________________________________________________
 
 **New to the project?** Read in this order:
 
-1. [SPEC.md](SPEC.md) - Understand the product requirements
-1. [DevelopmentGuide.md](DevelopmentGuide.md) - Set up your environment
-1. [Architecture.md](Architecture.md) - Understand the system design
-1. [CodeStyle.md](CodeStyle.md) - Learn coding standards
-1. [DataModel.md](DataModel.md) - Explore the data structures
-1. [TestingStrategy.md](TestingStrategy.md) - Write quality tests
+1. [`SPEC.md`](SPEC.md) - Understand the product requirements
+1. [`DevelopmentGuide.md`](DevelopmentGuide.md) - Set up your environment
+1. [`Architecture.md`](Architecture.md) - Understand the system design
+1. [`CodeStyle.md`](CodeStyle.md) - Learn coding standards
+1. [`DataModel.md`](DataModel.md) - Explore the data structures
+1. [`TestingStrategy.md`](TestingStrategy.md) - Write quality tests
 
 **Designing a feature?**
 
-1. Start with [SPEC.md](SPEC.md) to define the intended behavior and acceptance criteria
-1. Review [UserInterfaceDesign.md](UserInterfaceDesign.md) for UI patterns and screen layouts
-1. Check [BusinessLogic.md](BusinessLogic.md) for business rules and calculations
-1. Consider [SecurityAndPrivacy.md](SecurityAndPrivacy.md) if handling sensitive data
-1. Plan [APIDesign.md](APIDesign.md) for internal service interfaces
+1. Start with [`SPEC.md`](SPEC.md) to define the intended behavior and acceptance criteria
+1. Review [`UserInterfaceDesign.md`](UserInterfaceDesign.md) for UI patterns and screen layouts
+1. Check [`BusinessLogic.md`](BusinessLogic.md) for business rules and calculations
+1. Consider [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) if handling sensitive data
+1. Plan [`APIDesign.md`](APIDesign.md) for internal service interfaces
 
 **Implementing a feature?**
 
-1. Review [Architecture.md](Architecture.md) for layer responsibilities
-1. Check [DataModel.md](DataModel.md) if modifying data models
-1. Reference [UserInterfaceDesign.md](UserInterfaceDesign.md) for UI implementation
-1. Implement logic from [BusinessLogic.md](BusinessLogic.md)
-1. Follow [CodeStyle.md](CodeStyle.md) for implementation
-1. Reference [TestingStrategy.md](TestingStrategy.md) for test coverage
+1. Review [`Architecture.md`](Architecture.md) for layer responsibilities
+1. Check [`DataModel.md`](DataModel.md) if modifying data models
+1. Reference [`UserInterfaceDesign.md`](UserInterfaceDesign.md) for UI implementation
+1. Implement logic from [`BusinessLogic.md`](BusinessLogic.md)
+1. Follow [`CodeStyle.md`](CodeStyle.md) for implementation
+1. Reference [`TestingStrategy.md`](TestingStrategy.md) for test coverage
 
 **Fixing a bug?**
 
-1. Confirm expected behavior in [SPEC.md](SPEC.md) and the relevant design document
-1. Add a regression test where appropriate ([TestingStrategy.md](TestingStrategy.md))
-1. Follow debugging tips in [DevelopmentGuide.md](DevelopmentGuide.md)
-1. Ensure code style compliance ([CodeStyle.md](CodeStyle.md))
-1. Verify fix doesn't break architecture ([Architecture.md](Architecture.md))
+1. Confirm expected behavior in [`SPEC.md`](SPEC.md) and the relevant design document
+1. Add a regression test where appropriate ([`TestingStrategy.md`](TestingStrategy.md))
+1. Follow debugging tips in [`DevelopmentGuide.md`](DevelopmentGuide.md)
+1. Ensure code style compliance ([`CodeStyle.md`](CodeStyle.md))
+1. Verify fix doesn't break architecture ([`Architecture.md`](Architecture.md))
 
 ______________________________________________________________________
 
@@ -261,7 +261,7 @@ ______________________________________________________________________
 - [`README.md`](../README.md) - Project overview
 - [`AGENTS.md`](../AGENTS.md) - Coding agent instructions
 - [`AssetFlow/Models/README.md`](../AssetFlow/Models/README.md) - Source-level model orientation
-- [`mkdocs/README.md`](../mkdocs/README.md) - Documentation-site workflow; `mkdocs/` contains user-facing guides
+- [`mkdocs/README.md`](../mkdocs/README.md) - Documentation-site workflow; [`mkdocs/`](../mkdocs/) contains user-facing guides
 - [`CHANGELOG.md`](../CHANGELOG.md) - Release history maintained by Release Please; do not edit manually
 
 ### Configuration Files
@@ -286,19 +286,19 @@ SPEC is the source of truth for intended product behavior. Design documents expl
 
 **When to update documentation:**
 
-| Change                                               | Update                                                                                                                                                           |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Add/modify model or schema                           | [DataModel.md](DataModel.md), `AssetFlow/Models/README.md`; [APIDesign.md](APIDesign.md) if backup mapping changes                                               |
-| Change component boundary or service lifetime        | [Architecture.md](Architecture.md); [APIDesign.md](APIDesign.md) if an interface changes                                                                         |
-| Change service, file, or network contract            | [APIDesign.md](APIDesign.md); [SecurityAndPrivacy.md](SecurityAndPrivacy.md) if the trust boundary changes                                                       |
-| Add/change tool, dependency, or contributor workflow | [DevelopmentGuide.md](DevelopmentGuide.md); [CodeStyle.md](CodeStyle.md) if conventions change; [TestingStrategy.md](TestingStrategy.md) if verification changes |
-| Create coding convention                             | [CodeStyle.md](CodeStyle.md)                                                                                                                                     |
-| Modify test runner or testing approach               | [DevelopmentGuide.md](DevelopmentGuide.md) for commands, [TestingStrategy.md](TestingStrategy.md) for verification design                                        |
-| New build command                                    | [DevelopmentGuide.md](DevelopmentGuide.md), [`AGENTS.md`](../AGENTS.md), applicable agent instructions                                                           |
-| Design new screen/UI                                 | [UserInterfaceDesign.md](UserInterfaceDesign.md)                                                                                                                 |
-| Add business rule/calc                               | [BusinessLogic.md](BusinessLogic.md)                                                                                                                             |
-| Security/privacy change                              | [SecurityAndPrivacy.md](SecurityAndPrivacy.md)                                                                                                                   |
-| Add/change product behavior                          | [SPEC.md](SPEC.md), affected design documents, and relevant user-guide pages                                                                                     |
+| Change                                               | Update                                                                                                                                                                 |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add/modify model or schema                           | [`DataModel.md`](DataModel.md), [`AssetFlow/Models/README.md`](../AssetFlow/Models/README.md); [`APIDesign.md`](APIDesign.md) if backup mapping changes                |
+| Change component boundary or service lifetime        | [`Architecture.md`](Architecture.md); [`APIDesign.md`](APIDesign.md) if an interface changes                                                                           |
+| Change service, file, or network contract            | [`APIDesign.md`](APIDesign.md); [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) if the trust boundary changes                                                         |
+| Add/change tool, dependency, or contributor workflow | [`DevelopmentGuide.md`](DevelopmentGuide.md); [`CodeStyle.md`](CodeStyle.md) if conventions change; [`TestingStrategy.md`](TestingStrategy.md) if verification changes |
+| Create coding convention                             | [`CodeStyle.md`](CodeStyle.md)                                                                                                                                         |
+| Modify test runner or testing approach               | [`DevelopmentGuide.md`](DevelopmentGuide.md) for commands, [`TestingStrategy.md`](TestingStrategy.md) for verification design                                          |
+| New build command                                    | [`DevelopmentGuide.md`](DevelopmentGuide.md), [`AGENTS.md`](../AGENTS.md), applicable agent instructions                                                               |
+| Design new screen/UI                                 | [`UserInterfaceDesign.md`](UserInterfaceDesign.md)                                                                                                                     |
+| Add business rule/calc                               | [`BusinessLogic.md`](BusinessLogic.md)                                                                                                                                 |
+| Security/privacy change                              | [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md)                                                                                                                       |
+| Add/change product behavior                          | [`SPEC.md`](SPEC.md), affected design documents, and relevant user-guide pages                                                                                         |
 
 Review related tests, source comments, model notes, agent instructions, and user guides when their behavior or procedures are affected. Cross-link shared definitions instead of copying them: for example, return formulas belong in BusinessLogic, interface result units in APIDesign, and presentation in UserInterfaceDesign.
 
