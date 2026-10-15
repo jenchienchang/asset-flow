@@ -1678,7 +1678,7 @@
 
 
 <h1 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h1>
-<p>AssetFlow offers an optional app lock to protect your financial data from unauthorized access. When enabled, a full-screen overlay hides all portfolio data until you authenticate.</p>
+<p>AssetFlow offers an optional app lock that covers its main and Settings windows until you authenticate. App lock does not encrypt stored records or exported backups.</p>
 <h2 id="enabling-app-lock">Enabling App Lock<a class="headerlink" href="#enabling-app-lock" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Open <strong>Settings</strong> (<span class="keys"><kbd class="key-command">Cmd</kbd><span>+</span><kbd class="key-comma">,</kbd></span>) and go to the <strong>Security</strong> section.</li>
@@ -1686,12 +1686,7 @@
 </ol>
 <p><img alt="Security settings" src="../../../assets/images/settings-security.png" /></p>
 <h2 id="authentication-methods">Authentication Methods<a class="headerlink" href="#authentication-methods" title="Permanent link">&para;</a></h2>
-<p>The available authentication methods depend on your Mac's capabilities:</p>
-<ul>
-<li><strong>Touch ID</strong> — available on MacBooks with a Touch ID sensor (MacBook Pro/Air with Touch Bar or later)</li>
-<li><strong>Apple Watch</strong> — available if you have a paired Apple Watch</li>
-<li><strong>System password</strong> — always available as a fallback on any Mac</li>
-</ul>
+<p>AssetFlow asks macOS to authenticate you using its <a href="https://developer.apple.com/documentation/localauthentication/lapolicy/deviceownerauthentication">device-owner authentication policy</a>. Depending on your Mac and its settings, the system may offer Touch ID, a nearby paired Apple Watch, or your Mac login password. macOS chooses the available methods; AssetFlow does not set their order. If authentication fails or you cancel it, the app stays locked.</p>
 <h2 id="timeout-settings">Timeout Settings<a class="headerlink" href="#timeout-settings" title="Permanent link">&para;</a></h2>
 <p>Control when AssetFlow locks itself with two independent timeout settings:</p>
 <h3 id="when-switching-apps">When Switching Apps<a class="headerlink" href="#when-switching-apps" title="Permanent link">&para;</a></h3>
@@ -1717,8 +1712,12 @@
 <td>Locks after 5 minutes away</td>
 </tr>
 <tr>
+<td><strong>15 Min</strong></td>
+<td>Locks after 15 minutes away</td>
+</tr>
+<tr>
 <td><strong>Never</strong></td>
-<td>Stays unlocked until your Mac sleeps or locks</td>
+<td>Does not lock for app switching</td>
 </tr>
 </tbody>
 </table>
@@ -1745,22 +1744,27 @@
 <td>Locks after 5 minutes of screen lock/sleep</td>
 </tr>
 <tr>
+<td><strong>15 Min</strong></td>
+<td>Locks after 15 minutes of screen lock/sleep</td>
+</tr>
+<tr>
 <td><strong>Never</strong></td>
-<td>Stays unlocked even through sleep cycles</td>
+<td>Does not lock for screen lock or sleep</td>
 </tr>
 </tbody>
 </table>
+<p>Setting both timeouts to <strong>Never</strong> turns off Require Authentication and unlocks the app. If you enable app lock again, both timeouts reset to <strong>Immediately</strong>.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>Set "When Switching Apps" to "Never" if you frequently switch between AssetFlow and a spreadsheet while updating values.</p>
 </div>
 <h2 id="lock-screen">Lock Screen<a class="headerlink" href="#lock-screen" title="Permanent link">&para;</a></h2>
-<p>When locked, a full-screen overlay completely hides all portfolio data. To unlock:</p>
+<p>When locked, an overlay covers the app's main and Settings windows. To unlock:</p>
 <ol>
 <li>Click <strong>Unlock</strong> on the lock screen.</li>
-<li>Authenticate using Touch ID, Apple Watch, or your system password.</li>
+<li>Complete the authentication prompt using a method offered by macOS.</li>
 </ol>
-<p>The app automatically attempts to unlock when it becomes active, so in many cases you just need to look at your Touch ID sensor or tap your Apple Watch.</p>
+<p>The app can open the authentication prompt automatically when it becomes active. If you cancel or fail an attempt, use <strong>Unlock</strong> to try again.</p>
 <p><img alt="Lock screen" src="../../../assets/images/lock-screen.png" /></p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1793,7 +1797,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="March 15, 2026 01:29:48 UTC">March 15, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 13:00:09 UTC">October 14, 2026</span>
   </span>
 
     

@@ -1624,7 +1624,7 @@
 <h1 id="%E5%81%8F%E5%A5%BD%E8%A8%AD%E5%AE%9A">偏好設定<a class="headerlink" href="#%E5%81%8F%E5%A5%BD%E8%A8%AD%E5%AE%9A" title="Permanent link">&para;</a></h1>
 <p>自訂 AssetFlow 顯示與處理資料的方式。從選單列的 <strong>AssetFlow &gt; 設定</strong> 開啟設定，或按 <span class="keys"><kbd class="key-command">Cmd</kbd><span>+</span><kbd class="key-comma">,</kbd></span>。</p>
 <h2 id="%E4%B8%BB%E8%A6%81%E5%B9%A3%E5%88%A5">主要幣別<a class="headerlink" href="#%E4%B8%BB%E8%A6%81%E5%B9%A3%E5%88%A5" title="Permanent link">&para;</a></h2>
-<p>選擇用來顯示所有投資組合數值的幣別。當你的投資組合包含不同幣別的資產時，AssetFlow 會使用取得的匯率將所有數值換算為此主要幣別。</p>
+<p>選擇換算後的投資組合數值所使用的顯示幣別。所需匯率可用時，AssetFlow 會將其他幣別的數值換算為此幣別；缺少必要匯率時，相關換算結果會標示為無法使用。</p>
 <p>從下拉選單中選擇你偏好的幣別。支援的完整幣別清單請參閱<a href="../../reference/currencies/">幣別與匯率</a>。</p>
 <h2 id="%E6%97%A5%E6%9C%9F%E6%A0%BC%E5%BC%8F">日期格式<a class="headerlink" href="#%E6%97%A5%E6%9C%9F%E6%A0%BC%E5%BC%8F" title="Permanent link">&para;</a></h2>
 <p>選擇整個應用程式中日期的顯示方式。提供多種格式選項，並附有即時預覽，讓你確切看到日期會如何呈現，方便你挑選最習慣的風格。</p>
@@ -1635,18 +1635,13 @@
 <ul>
 <li><strong>應用程式版本</strong>與建置編號</li>
 <li><strong>開發者資訊</strong>與授權條款</li>
-<li><strong>隱私資訊</strong>：<ul>
-<li>所有資料都儲存在你的 Mac 本機</li>
-<li>匯率從 cdn.jsdelivr.net 取得</li>
-<li>不會收集或傳輸任何個人資料</li>
-</ul>
-</li>
+<li><strong>隱私資訊</strong>：本機儲存與匯率請求的說明</li>
 <li><strong>原始碼</strong>：專案 GitHub 儲存庫的連結</li>
 </ul>
 <p><img alt="設定" src="../../../../assets/images/settings.png" /></p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p>切換主要幣別後，所有投資組合的數值與圖表會立即更新為新的幣別。換算時使用的是匯率資料，因此請確保你的快照已成功取得匯率。</p>
+<p>切換顯示幣別後，換算值與圖表會重新計算。若缺少必要匯率，相關結果會在取得可用匯率前保持無法使用。</p>
 </div>
 <h2 id="%E5%8F%A6%E8%AB%8B%E5%8F%83%E9%96%B1">另請參閱<a class="headerlink" href="#%E5%8F%A6%E8%AB%8B%E5%8F%83%E9%96%B1" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1676,7 +1671,7 @@
     <span class="md-icon" title="最後更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月15日 01:29:48 UTC">2026年3月15日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年10月14日 13:00:09 UTC">2026年10月14日</span>
   </span>
 
     

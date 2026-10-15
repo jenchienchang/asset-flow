@@ -1519,7 +1519,7 @@
 
 <h1 id="assetflow">AssetFlow<a class="headerlink" href="#assetflow" title="Permanent link">&para;</a></h1>
 <p><strong>A macOS app for snapshot-based portfolio management and asset allocation tracking.</strong></p>
-<p>AssetFlow helps you take control of your investments by recording portfolio snapshots over time. Instead of syncing with brokerage accounts, you capture the state of your portfolio whenever you choose — giving you a clear, private picture of how your assets are allocated and how they grow. Everything stays on your Mac, with no cloud accounts required.</p>
+<p>AssetFlow helps you take control of your investments by recording portfolio snapshots over time. Instead of syncing with brokerage accounts, you capture the state of your portfolio whenever you choose — giving you a clear, private picture of how your assets are allocated and how they grow. Portfolio records are stored on your Mac, no cloud account is required, and you choose where to save exported backups.</p>
 <p><img alt="AssetFlow overview" src="assets/images/app-overview.png" /></p>
 <hr />
 <h2 id="why-assetflow">Why AssetFlow?<a class="headerlink" href="#why-assetflow" title="Permanent link">&para;</a></h2>
@@ -1529,7 +1529,7 @@
 <li><strong>Allocation-first, not transaction-first.</strong> Most trackers obsess over every buy and sell. AssetFlow asks the more useful question: how is your wealth distributed, and what do you need to adjust to hit your targets? Record snapshots when it matters instead of reconciling every trade.</li>
 <li><strong>Native macOS, not phone-first.</strong> Most portfolio trackers are iOS apps with a thin web companion — but the work itself isn't phone-shaped. Broker websites are built for desktop browsers, CSV exports land in your downloads folder, and reviewing allocation needs real screen real estate. AssetFlow runs natively on macOS, on the same screen as the broker tabs you're already using.</li>
 <li><strong>CSV import beats account linking.</strong> Most brokerages already let you export CSV — and AssetFlow imports it directly. No handing your broker login to a third-party app, no fragile aggregator in the middle, no waiting on integrations that may never ship.</li>
-<li><strong>Private by design.</strong> Your portfolio data never leaves your Mac. The only network request fetches public exchange rates from a CDN — no account, no telemetry, no developer servers to trust.</li>
+<li><strong>Private by design.</strong> AssetFlow does not upload portfolio records. Its CDN requests fetch public currency names and exchange rates; you choose where exported backups are saved. The app has no account or built-in telemetry.</li>
 <li><strong>Open source and auditable.</strong> AssetFlow's source is on GitHub. You don't have to trust the privacy claim — you (or anyone) can verify it.</li>
 </ul>
 <hr />
@@ -1544,7 +1544,7 @@
 <li>
 <p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 15h2c0 1.08 1.37 2 3 2s3-.92 3-2c0-1.1-1.04-1.5-3.24-2.03C9.64 12.44 7 11.78 7 9c0-1.79 1.47-3.31 3.5-3.82V3h3v2.18C15.53 5.69 17 7.21 17 9h-2c0-1.08-1.37-2-3-2s-3 .92-3 2c0 1.1 1.04 1.5 3.24 2.03C14.36 11.56 17 12.22 17 15c0 1.79-1.47 3.31-3.5 3.82V21h-3v-2.18C8.47 18.31 7 16.79 7 15"/></svg></span> <strong>Multi-Currency Support</strong></p>
 <hr />
-<p>Track assets in multiple currencies with automatic exchange rate fetching. All values convert to your base currency for a unified view.</p>
+<p>Track assets in multiple currencies with automatic exchange rate fetching. Converted totals use your selected display currency when the required rates are available.</p>
 </li>
 <li>
 <p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m21.41 11.58-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 .59 1.42l9 9A2 2 0 0 0 13 22a2 2 0 0 0 1.41-.59l7-7A2 2 0 0 0 22 13a2 2 0 0 0-.59-1.42M13 20l-9-9V4h7l9 9M6.5 5A1.5 1.5 0 1 1 5 6.5 1.5 1.5 0 0 1 6.5 5"/></svg></span> <strong>Category &amp; Target Allocation</strong></p>
@@ -1574,7 +1574,7 @@
 <li>
 <p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 17a2 2 0 0 0 2-2 2 2 0 0 0-2-2 2 2 0 0 0-2 2 2 2 0 0 0 2 2m6-9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2h1V6a5 5 0 0 1 5-5 5 5 0 0 1 5 5v2zm-6-5a3 3 0 0 0-3 3v2h6V6a3 3 0 0 0-3-3"/></svg></span> <strong>Security</strong></p>
 <hr />
-<p>Optional app lock with Touch ID, Apple Watch, or password. Your financial data stays private.</p>
+<p>Optional app lock uses macOS authentication to cover the app while locked. Available methods depend on your Mac and its settings.</p>
 </li>
 </ul>
 </div>
@@ -1612,7 +1612,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="May 4, 2026 15:46:24 UTC">May 4, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 13:00:09 UTC">October 14, 2026</span>
   </span>
 
     

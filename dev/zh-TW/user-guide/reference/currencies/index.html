@@ -1700,16 +1700,16 @@
 
 
 <h1 id="%E5%B9%A3%E5%88%A5%E8%88%87%E5%8C%AF%E7%8E%87">幣別與匯率<a class="headerlink" href="#%E5%B9%A3%E5%88%A5%E8%88%87%E5%8C%AF%E7%8E%87" title="Permanent link">&para;</a></h1>
-<p>AssetFlow 支援多種幣別，並自動取得匯率，將所有數值換算為你的主要顯示幣別。</p>
+<p>AssetFlow 支援多種幣別，並請求匯率以顯示換算後的投資組合數值。缺少必要匯率時，相關換算結果會顯示為無法使用。</p>
 <h2 id="%E9%81%8B%E4%BD%9C%E6%96%B9%E5%BC%8F">運作方式<a class="headerlink" href="#%E9%81%8B%E4%BD%9C%E6%96%B9%E5%BC%8F" title="Permanent link">&para;</a></h2>
 <ul>
 <li>每項資產可以用自己的幣別追蹤（例如美股用 USD，台股用 TWD）。</li>
 <li>系統會自動取得每筆快照日期的匯率。</li>
-<li>所有數值會換算為你的主要幣別顯示。你可以在<strong>設定</strong>（<span class="keys"><kbd class="key-command">Cmd</kbd><span>+</span><kbd class="key-comma">,</kbd></span>）<strong>&gt; 偏好設定</strong>中變更主要幣別。</li>
+<li>所需匯率可用時，換算值會以你選擇的顯示幣別呈現。你可以在<strong>設定</strong>（<span class="keys"><kbd class="key-command">Cmd</kbd><span>+</span><kbd class="key-comma">,</kbd></span>）<strong>&gt; 偏好設定</strong>中變更顯示幣別。</li>
 <li><strong>資料來源</strong>：匯率從 cdn.jsdelivr.net 取得，提供開放原始碼的匯率資料。</li>
 </ul>
 <h2 id="%E6%94%AF%E6%8F%B4%E7%9A%84%E5%B9%A3%E5%88%A5">支援的幣別<a class="headerlink" href="#%E6%94%AF%E6%8F%B4%E7%9A%84%E5%B9%A3%E5%88%A5" title="Permanent link">&para;</a></h2>
-<p>AssetFlow 內建一組常用幣別清單。首次啟動時（以及之後定期更新），應用程式會從匯率 API 取得擴充的幣別清單，並快取在本機供離線使用。</p>
+<p>AssetFlow 內建一組常用幣別清單。應用程式載入時會向匯率 API 請求擴充的幣別清單，並將成功取得的結果快取在本機供離線使用。</p>
 <h3 id="%E5%85%A7%E5%BB%BA%E5%B9%A3%E5%88%A5">內建幣別<a class="headerlink" href="#%E5%85%A7%E5%BB%BA%E5%B9%A3%E5%88%A5" title="Permanent link">&para;</a></h3>
 <p>以下幣別即使沒有網路連線也隨時可用：</p>
 <table>
@@ -1838,25 +1838,25 @@
 </tbody>
 </table>
 <h3 id="%E5%AE%8C%E6%95%B4%E5%B9%A3%E5%88%A5%E6%B8%85%E5%96%AE">完整幣別清單<a class="headerlink" href="#%E5%AE%8C%E6%95%B4%E5%B9%A3%E5%88%A5%E6%B8%85%E5%96%AE" title="Permanent link">&para;</a></h3>
-<p>首次成功連線後，AssetFlow 會從<a href="https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.json">匯率 API</a> 取得完整的可用幣別清單，並快取在本機。這包含了數百種法定貨幣與加密貨幣，遠超上方的內建清單。</p>
+<p>成功取得幣別清單後，AssetFlow 會在本機快取<a href="https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.json">匯率 API</a>提供的可用幣別。這包含了數百種法定貨幣與加密貨幣，遠超上方的內建清單。</p>
 <p>你可以在瀏覽器中開啟 <a href="https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.json">API 端點</a>查看完整的支援幣別代碼清單。</p>
 <h2 id="%E8%87%AA%E5%8B%95%E5%8F%96%E5%BE%97%E8%A1%8C%E7%82%BA">自動取得行為<a class="headerlink" href="#%E8%87%AA%E5%8B%95%E5%8F%96%E5%BE%97%E8%A1%8C%E7%82%BA" title="Permanent link">&para;</a></h2>
 <p>匯率在以下幾種情況下會自動取得：</p>
 <ul>
-<li><strong>建立新快照時</strong>：當你建立的快照包含多種幣別的資產時，該日期的匯率會立即取得。</li>
-<li><strong>啟動應用程式時</strong>：任何現有快照缺少的匯率會在背景中取得。</li>
-<li><strong>還原備份後</strong>：從備份還原時，系統會重新取得所有快照的匯率。</li>
+<li><strong>建立或匯入快照時</strong>：應用程式會請求資產、現金流與目標幣別所需的匯率。</li>
+<li><strong>啟動應用程式或還原備份後</strong>：應用程式會檢查現有快照，並請求缺少或無法涵蓋所需幣別的匯率。</li>
+<li><strong>幣別變更時</strong>：變更顯示幣別、已記錄的幣別或目標幣別，可能需要新的匯率。</li>
 </ul>
 <h2 id="%E7%84%A1%E6%B3%95%E5%8F%96%E5%BE%97%E5%8C%AF%E7%8E%87%E6%99%82">無法取得匯率時<a class="headerlink" href="#%E7%84%A1%E6%B3%95%E5%8F%96%E5%BE%97%E5%8C%AF%E7%8E%87%E6%99%82" title="Permanent link">&para;</a></h2>
 <p>如果你處於離線狀態或遇到網路問題：</p>
 <ul>
 <li>快照詳細檢視中會顯示<strong>重試</strong>按鈕，讓你稍後再試。</li>
-<li>數值會以原始幣別顯示，不進行換算。</li>
-<li>應用程式的其他功能完全可以離線使用，匯率是唯一需要網路的功能。</li>
+<li>提供原始幣別金額的畫面仍會顯示這些金額；換算後的總額與依賴匯率的計算結果會標示為無法使用。</li>
+<li>你仍可離線記錄和查看投資組合資料。取得擴充的幣別清單或缺少的匯率需要網路。</li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>AssetFlow 會將取得的匯率儲存在本機。一旦某筆快照的匯率已成功取得，即使離線也不需要重新取得。</p>
+<p>AssetFlow 會將取得的匯率儲存在本機。匯率若符合快照日期與顯示幣別，且涵蓋結果所需的所有幣別，就可以離線重複使用。</p>
 </div>
 <h2 id="%E6%9C%80%E4%BD%8E%E9%A4%98%E9%A1%8D%E5%B9%A3%E5%88%A5">最低餘額幣別<a class="headerlink" href="#%E6%9C%80%E4%BD%8E%E9%A4%98%E9%A1%8D%E5%B9%A3%E5%88%A5" title="Permanent link">&para;</a></h2>
 <p>每個類別最低餘額都保留明確的原始幣別；變更顯示幣別不會改變它。類別資產和最低餘額使用各快照儲存的匯率比較。即使沒有資產使用目標幣別，也可能需要取得該幣別匯率；離線或缺少目標匯率時，目標比較與再平衡會無法使用，但有效的資產統計仍會顯示。</p>
@@ -1888,7 +1888,7 @@
     <span class="md-icon" title="最後更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年10月5日 10:09:44 UTC">2026年10月5日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年10月14日 13:00:09 UTC">2026年10月14日</span>
   </span>
 
     

@@ -1727,8 +1727,9 @@
 <ul>
 <li><strong>Time range selector</strong> — choose from <strong>All</strong>, <strong>1Y</strong>, <strong>3M</strong>, or <strong>1M</strong> to zoom in on a specific period.</li>
 <li><strong>Line chart</strong> — a visual plot of the asset's value over time. Hover over any point to see a tooltip with the exact date and value.</li>
-<li><strong>Show Converted Value</strong> toggle — this only appears for assets in a currency different from your main currency. When enabled, the chart shows values converted using each snapshot's exchange rate. If a rate is unavailable, that date has no converted point; a dashed marker identifies it, and the line stops across the gap. A compact warning shows the number of days with unavailable exchange rates; click it to see their dates. If no values can be converted in the selected period, the chart shows an unavailable message. Switch back to see the complete history in the asset's original currency.</li>
-<li><strong>Value history table</strong> — below the chart, a table lists every recorded value with columns for Date, Market Value, and Converted Value when applicable. A dash (—) in Converted Value means the historical rate is unavailable. Double-click or right-click any row to edit the value for that snapshot.</li>
+<li><strong>Show Converted Value</strong> toggle — appears when the asset currency differs from your display currency. Converted mode plots only values with usable rates; switch back to see the complete recorded history in the asset's currency.</li>
+<li><strong>Missing exchange rates</strong> — when some converted points are available, missing-rate dates have dashed markers and split the line. A warning shows the number of affected dates and opens their list. If no values can be converted in the selected period, an unavailable message replaces the chart.</li>
+<li><strong>Value history table</strong> — lists every recorded value with Date and Market Value, plus Converted Value when the currencies differ. An unavailable conversion appears as an em dash. Double-click or right-click a row to edit the value for that snapshot.</li>
 </ul>
 <p><img alt="Asset detail" src="../../../assets/images/asset-detail.png" /></p>
 <h2 id="deleting-assets">Deleting Assets<a class="headerlink" href="#deleting-assets" title="Permanent link">&para;</a></h2>

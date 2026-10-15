@@ -1700,16 +1700,16 @@
 
 
 <h1 id="currencies--exchange-rates">Currencies &amp; Exchange Rates<a class="headerlink" href="#currencies--exchange-rates" title="Permanent link">&para;</a></h1>
-<p>AssetFlow supports multiple currencies and automatically fetches exchange rates to convert all values to your main display currency.</p>
+<p>AssetFlow supports multiple currencies and requests exchange rates for converted portfolio values. A converted result is unavailable when a required rate is missing.</p>
 <h2 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Each asset can be tracked in its own currency (e.g., US stocks in USD, Taiwanese stocks in TWD).</li>
 <li>Exchange rates are fetched automatically for each snapshot date.</li>
-<li>All values are converted to your main currency for display. You can change your main currency in <strong>Settings</strong> (<span class="keys"><kbd class="key-command">Cmd</kbd><span>+</span><kbd class="key-comma">,</kbd></span>) <strong>&gt; Preferences</strong>.</li>
+<li>Converted values use your selected display currency when the required rates are available. You can change that currency in <strong>Settings</strong> (<span class="keys"><kbd class="key-command">Cmd</kbd><span>+</span><kbd class="key-comma">,</kbd></span>) <strong>&gt; Preferences</strong>.</li>
 <li><strong>Source</strong>: Exchange rates are fetched from cdn.jsdelivr.net, which provides open-source rate data.</li>
 </ul>
 <h2 id="supported-currencies">Supported Currencies<a class="headerlink" href="#supported-currencies" title="Permanent link">&para;</a></h2>
-<p>AssetFlow ships with a built-in list of common currencies. On first launch (and periodically thereafter), the app fetches an expanded currency list from the exchange rate API and caches it locally for offline use.</p>
+<p>AssetFlow ships with a built-in list of common currencies. When the app loads, it requests an expanded currency list from the exchange rate API and caches successful results for offline use.</p>
 <h3 id="built-in-currencies">Built-in Currencies<a class="headerlink" href="#built-in-currencies" title="Permanent link">&para;</a></h3>
 <p>These currencies are always available, even without an internet connection:</p>
 <table>
@@ -1838,25 +1838,25 @@
 </tbody>
 </table>
 <h3 id="full-currency-list">Full Currency List<a class="headerlink" href="#full-currency-list" title="Permanent link">&para;</a></h3>
-<p>After the first successful network connection, AssetFlow fetches the complete list of available currencies from the <a href="https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.json">exchange rate API</a> and caches it locally. This includes hundreds of fiat and crypto currencies beyond the built-in list above.</p>
+<p>After a successful currency-list request, AssetFlow caches the provider's list of available currencies from the <a href="https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.json">exchange rate API</a>. This includes hundreds of fiat and crypto currencies beyond the built-in list above.</p>
 <p>You can view the full list of supported currency codes by opening the <a href="https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies.json">API endpoint</a> in your browser.</p>
 <h2 id="auto-fetch-behavior">Auto-Fetch Behavior<a class="headerlink" href="#auto-fetch-behavior" title="Permanent link">&para;</a></h2>
 <p>Exchange rates are fetched automatically in several situations:</p>
 <ul>
-<li><strong>New snapshot</strong> — when you create a snapshot that includes assets in multiple currencies, rates for that date are fetched immediately.</li>
-<li><strong>App launch</strong> — any missing rates for existing snapshots are fetched in the background.</li>
-<li><strong>After restore</strong> — when you restore from a backup, rates are re-fetched for all snapshots.</li>
+<li><strong>New or imported snapshot</strong> — the app requests rates needed for its asset, cash-flow, and goal currencies.</li>
+<li><strong>App launch and restore</strong> — the app checks existing snapshots and requests rates that are missing or no longer cover the required currencies.</li>
+<li><strong>Currency changes</strong> — changing the display currency or a recorded or goal currency can require new rates.</li>
 </ul>
 <h2 id="when-rates-cant-be-fetched">When Rates Can't Be Fetched<a class="headerlink" href="#when-rates-cant-be-fetched" title="Permanent link">&para;</a></h2>
 <p>If you're offline or experiencing network issues:</p>
 <ul>
 <li>The app shows a <strong>Retry</strong> button in the snapshot detail view so you can try again later.</li>
-<li>Values are shown unconverted, in their original currencies.</li>
-<li>Everything else in the app works fully offline — exchange rates are the only network feature.</li>
+<li>Native amounts remain available where the screen shows them; converted totals and rate-dependent calculations are marked unavailable.</li>
+<li>You can keep recording and reviewing portfolio data offline. Fetching the expanded currency list or missing rates requires a connection.</li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>AssetFlow stores fetched exchange rates locally. Once rates are fetched for a snapshot, they don't need to be re-fetched even when offline.</p>
+<p>AssetFlow stores fetched rates locally. It can reuse them offline when they match the snapshot date and display currency and cover every currency needed for the result.</p>
 </div>
 <h2 id="minimum-balance-currencies">Minimum balance currencies<a class="headerlink" href="#minimum-balance-currencies" title="Permanent link">&para;</a></h2>
 <p>Each category minimum retains an explicit original currency. Changing display currency preserves it. Compare category holdings and minimums using each snapshot's stored rates. A goal currency may need fetching even when no asset uses it; offline or missing goal-only rates make goal comparisons/rebalancing unavailable while valid asset statistics remain visible.</p>
@@ -1888,7 +1888,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 5, 2026 10:09:44 UTC">October 5, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 14, 2026 13:00:09 UTC">October 14, 2026</span>
   </span>
 
     

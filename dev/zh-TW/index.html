@@ -1524,7 +1524,7 @@
 
 <h1 id="assetflow">AssetFlow<a class="headerlink" href="#assetflow" title="Permanent link">&para;</a></h1>
 <p><strong>一款用於快照式投資組合管理與資產配置追蹤的 macOS 應用程式。</strong></p>
-<p>AssetFlow 讓你透過定期記錄投資組合快照，掌握自己的投資狀況。不需要串接券商帳戶，只要在你方便的時候擷取投資組合的當下狀態，就能清楚了解資產配置與成長趨勢。所有資料都存放在你的 Mac 上，不需要任何雲端帳號。</p>
+<p>AssetFlow 讓你透過定期記錄投資組合快照，掌握自己的投資狀況。不需要串接券商帳戶，只要在你方便的時候擷取投資組合的當下狀態，就能清楚了解資產配置與成長趨勢。投資組合紀錄儲存在你的 Mac 上，不需要雲端帳號；匯出的備份則由你選擇儲存位置。</p>
 <p><img alt="AssetFlow 總覽" src="../assets/images/app-overview.png" /></p>
 <hr />
 <h2 id="%E7%82%BA%E4%BB%80%E9%BA%BC%E9%81%B8%E6%93%87-assetflow">為什麼選擇 AssetFlow？<a class="headerlink" href="#%E7%82%BA%E4%BB%80%E9%BA%BC%E9%81%B8%E6%93%87-assetflow" title="Permanent link">&para;</a></h2>
@@ -1534,7 +1534,7 @@
 <li><strong>聚焦資產配置，而非交易明細</strong>：多數工具執著於記錄每一筆買賣。AssetFlow 關心更實用的問題：你的資產如何分布？要達到目標配置需要做什麼調整？只在關鍵時刻記錄快照，不必逐筆對帳。</li>
 <li><strong>macOS 原生應用，而非以手機為主</strong>：多數投資組合追蹤工具都是 iOS App 加上一個陽春的網頁版——但這份工作本身就不適合在手機上做。券商網站普遍只為桌面瀏覽器優化，CSV 匯出後也是落在電腦的下載資料夾，檢視配置更需要足夠的螢幕空間。AssetFlow 原生運行於 macOS，與你正在使用的券商分頁同在一個螢幕上。</li>
 <li><strong>CSV 匯入勝過帳戶串接</strong>：多數券商都支援匯出 CSV，AssetFlow 直接匯入即可。不需把券商登入資訊交給第三方應用，不需仰賴脆弱的聚合服務，也不必等待可能永遠不會推出的整合。</li>
-<li><strong>隱私優先</strong>：你的投資組合資料完全留在 Mac 上。唯一的網路請求是從 CDN 取得公開匯率資料——沒有帳號、沒有遙測、沒有需要信任的開發者伺服器。</li>
+<li><strong>隱私優先</strong>：AssetFlow 不會上傳投資組合紀錄。它會向 CDN 取得公開的幣別名稱與匯率；匯出的備份由你選擇儲存位置。不需要帳號，也沒有內建遙測功能。</li>
 <li><strong>開源且可稽核</strong>：AssetFlow 的原始碼公開在 GitHub 上。你不必選擇相信我們的隱私聲明，你（或任何人）都可以親自驗證。</li>
 </ul>
 <hr />
@@ -1549,7 +1549,7 @@
 <li>
 <p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 15h2c0 1.08 1.37 2 3 2s3-.92 3-2c0-1.1-1.04-1.5-3.24-2.03C9.64 12.44 7 11.78 7 9c0-1.79 1.47-3.31 3.5-3.82V3h3v2.18C15.53 5.69 17 7.21 17 9h-2c0-1.08-1.37-2-3-2s-3 .92-3 2c0 1.1 1.04 1.5 3.24 2.03C14.36 11.56 17 12.22 17 15c0 1.79-1.47 3.31-3.5 3.82V21h-3v-2.18C8.47 18.31 7 16.79 7 15"/></svg></span> <strong>多幣別支援</strong></p>
 <hr />
-<p>支援以多種貨幣追蹤資產，並自動取得匯率。所有數值統一換算為你的主要幣別，一目了然。</p>
+<p>支援以多種貨幣追蹤資產，並自動取得匯率。所需匯率可用時，換算後的總額會以你選擇的顯示幣別呈現。</p>
 </li>
 <li>
 <p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m21.41 11.58-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 .59 1.42l9 9A2 2 0 0 0 13 22a2 2 0 0 0 1.41-.59l7-7A2 2 0 0 0 22 13a2 2 0 0 0-.59-1.42M13 20l-9-9V4h7l9 9M6.5 5A1.5 1.5 0 1 1 5 6.5 1.5 1.5 0 0 1 6.5 5"/></svg></span> <strong>類別與目標配置</strong></p>
@@ -1579,7 +1579,7 @@
 <li>
 <p><span class="twemoji lg middle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 17a2 2 0 0 0 2-2 2 2 0 0 0-2-2 2 2 0 0 0-2 2 2 2 0 0 0 2 2m6-9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2h1V6a5 5 0 0 1 5-5 5 5 0 0 1 5 5v2zm-6-5a3 3 0 0 0-3 3v2h6V6a3 3 0 0 0-3-3"/></svg></span> <strong>安全防護</strong></p>
 <hr />
-<p>可選的應用程式鎖定功能，支援 Touch ID、Apple Watch 或密碼驗證，守護你的財務隱私。</p>
+<p>可選的應用程式鎖定功能透過 macOS 驗證，在鎖定時遮蔽應用程式。可用的驗證方式取決於你的 Mac 與系統設定。</p>
 </li>
 </ul>
 </div>
@@ -1617,7 +1617,7 @@
     <span class="md-icon" title="最後更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年5月4日 15:46:24 UTC">2026年5月4日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年10月14日 13:00:09 UTC">2026年10月14日</span>
   </span>
 
     
