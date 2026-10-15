@@ -2,7 +2,7 @@
 
 This directory contains the core SwiftData models for AssetFlow.
 
-**For comprehensive documentation, see [Documentation/DataModel.md](../../Documentation/DataModel.md)**
+**For comprehensive documentation, see [`Documentation/DataModel.md`](../../Documentation/DataModel.md)**
 
 ## Models Overview
 
@@ -140,7 +140,7 @@ var marketValue: Double   // Never do this
 
 ### Schema Registration
 
-All models are registered via `SchemaV2` (versioned schema) in `Models/SchemaVersioning.swift`:
+All models are registered via `SchemaV2` (versioned schema) in [`SchemaVersioning.swift`](SchemaVersioning.swift):
 
 ```swift
 let schema = CurrentSchema.schema
@@ -151,9 +151,9 @@ let schema = CurrentSchema.schema
 ### When Adding/Modifying Models
 
 1. Update the model file
-1. Register in `SchemaV2.models` (`Models/SchemaVersioning.swift`) if new
+1. Register in `SchemaV2.models` ([`SchemaVersioning.swift`](SchemaVersioning.swift)) if new
 1. Update this README
-1. Update [Documentation/DataModel.md](../../Documentation/DataModel.md)
+1. Update [`Documentation/DataModel.md`](../../Documentation/DataModel.md)
 1. Consider migration strategy if changing existing models
 
 ## Quick Links
@@ -192,7 +192,7 @@ For detailed information on:
 - Migration strategies
 - Usage examples
 
-See the comprehensive [DataModel.md](../../Documentation/DataModel.md) documentation.
+See the comprehensive [`Documentation/DataModel.md`](../../Documentation/DataModel.md) documentation.
 
 ## Category Minimum Balances
 

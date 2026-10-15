@@ -1,6 +1,6 @@
 # Security
 
-AssetFlow offers an optional app lock to protect your financial data from unauthorized access. When enabled, a full-screen overlay hides all portfolio data until you authenticate.
+AssetFlow offers an optional app lock that covers its main and Settings windows until you authenticate. App lock does not encrypt stored records or exported backups.
 
 ## Enabling App Lock
 
@@ -11,11 +11,7 @@ AssetFlow offers an optional app lock to protect your financial data from unauth
 
 ## Authentication Methods
 
-The available authentication methods depend on your Mac's capabilities:
-
-- **Touch ID** — available on MacBooks with a Touch ID sensor (MacBook Pro/Air with Touch Bar or later)
-- **Apple Watch** — available if you have a paired Apple Watch
-- **System password** — always available as a fallback on any Mac
+AssetFlow asks macOS to authenticate you using its [device-owner authentication policy](https://developer.apple.com/documentation/localauthentication/lapolicy/deviceownerauthentication). Depending on your Mac and its settings, the system may offer Touch ID, a nearby paired Apple Watch, or your Mac login password. macOS chooses the available methods; AssetFlow does not set their order. If authentication fails or you cancel it, the app stays locked.
 
 ## Timeout Settings
 
@@ -25,12 +21,13 @@ Control when AssetFlow locks itself with two independent timeout settings:
 
 How quickly the app locks after you switch away (e.g., ++cmd+tab++ to another app).
 
-| Option          | Behavior                                      |
-| --------------- | --------------------------------------------- |
-| **Immediately** | Locks the moment you leave AssetFlow          |
-| **1 Min**       | Locks after 1 minute away                     |
-| **5 Min**       | Locks after 5 minutes away                    |
-| **Never**       | Stays unlocked until your Mac sleeps or locks |
+| Option          | Behavior                             |
+| --------------- | ------------------------------------ |
+| **Immediately** | Locks the moment you leave AssetFlow |
+| **1 Min**       | Locks after 1 minute away            |
+| **5 Min**       | Locks after 5 minutes away           |
+| **15 Min**      | Locks after 15 minutes away          |
+| **Never**       | Does not lock for app switching      |
 
 ### When Locked or Sleeping
 
@@ -41,7 +38,10 @@ How quickly the app locks when your Mac's screen locks or enters sleep mode.
 | **Immediately** | Locks as soon as the screen locks or sleeps |
 | **1 Min**       | Locks after 1 minute of screen lock/sleep   |
 | **5 Min**       | Locks after 5 minutes of screen lock/sleep  |
-| **Never**       | Stays unlocked even through sleep cycles    |
+| **15 Min**      | Locks after 15 minutes of screen lock/sleep |
+| **Never**       | Does not lock for screen lock or sleep      |
+
+Setting both timeouts to **Never** turns off Require Authentication and unlocks the app. If you enable app lock again, both timeouts reset to **Immediately**.
 
 !!! tip
 
@@ -49,12 +49,12 @@ How quickly the app locks when your Mac's screen locks or enters sleep mode.
 
 ## Lock Screen
 
-When locked, a full-screen overlay completely hides all portfolio data. To unlock:
+When locked, an overlay covers the app's main and Settings windows. To unlock:
 
 1. Click **Unlock** on the lock screen.
-1. Authenticate using Touch ID, Apple Watch, or your system password.
+1. Complete the authentication prompt using a method offered by macOS.
 
-The app automatically attempts to unlock when it becomes active, so in many cases you just need to look at your Touch ID sensor or tap your Apple Watch.
+The app can open the authentication prompt automatically when it becomes active. If you cancel or fail an attempt, use **Unlock** to try again.
 
 ![Lock screen](../../assets/images/lock-screen.png)
 

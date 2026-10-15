@@ -4,7 +4,7 @@ Customize how AssetFlow displays and handles your data. Open Settings from the m
 
 ## Main Currency
 
-Choose the currency used to display all portfolio values across the app. When your portfolio includes assets in different currencies, AssetFlow converts everything to this main currency using fetched exchange rates.
+Choose the currency used for converted portfolio values. When required exchange rates are available, AssetFlow converts values from other currencies into this display currency. A converted result remains unavailable if a required rate is missing.
 
 Select your preferred currency from the dropdown. See [Currencies & Exchange Rates](../reference/currencies.md) for the full list of supported currencies.
 
@@ -22,17 +22,14 @@ The About section shows:
 
 - **App version** and build number
 - **Developer info** and license
-- **Privacy information**:
-    - All data is stored locally on your Mac
-    - Exchange rates are fetched from cdn.jsdelivr.net
-    - No personal data is collected or transmitted
+- **Privacy information** about local storage and exchange-rate requests
 - **Source code** — a link to the project's GitHub repository
 
 ![Settings](../../assets/images/settings.png)
 
 !!! tip
 
-    If you switch your main currency, all portfolio values and charts update immediately to reflect the new currency. Exchange rates are used for the conversion, so make sure rates have been fetched for your snapshots.
+    Switching the display currency recalculates converted values and charts. Results that need a missing rate remain unavailable until a usable rate is fetched.
 
 ## See also
 

@@ -1,449 +1,105 @@
 # AssetFlow Architecture
 
-## Overview
+## System Context
 
-AssetFlow is a macOS desktop application (macOS 15.0+) for snapshot-based portfolio management and asset allocation tracking. It is built with SwiftUI, SwiftData, and Swift Charts, following a local-first architecture with optional network access limited to exchange rate fetching.
+AssetFlow is a macOS 15.0+ application for snapshot-based portfolio management. SwiftUI presents the interface, SwiftData stores portfolio records, and Swift Charts visualizes derived data. The app works with local data and makes network requests to `cdn.jsdelivr.net` for the supported currency list and exchange rates.
 
-The project uses the Swift 6 language mode and the Swift 6.4 compiler supplied by Xcode 27. The app target uses default MainActor isolation with approachable concurrency enabled. Pure value-only helpers that are used from nonisolated contexts are explicitly marked `nonisolated`; SwiftData models and model contexts remain on the main actor.
-
-## Architecture Pattern
-
-### MVVM (Model-View-ViewModel)
-
-The application follows the MVVM architectural pattern to separate concerns and improve testability:
-
-```
-+--------------+
-|     View     | <- SwiftUI Views (UI Layer)
-+------+-------+
-       | observes
-       v
-+--------------+
-|  ViewModel   | <- Business Logic & State
-+------+-------+
-       | uses
-       v
-+--------------+
-|    Model     | <- SwiftData Models (Data Layer)
-+------+-------+
-       |
-       v
-+--------------+
-|   Services   | <- Stateless Calculations & Utilities
-+--------------+
+```text
+[User] <--------------------> [AssetFlow macOS app]
+                                   |-- read/write --> [SwiftData portfolio store]
+                                   |-- read/write --> [UserDefaults settings and currency cache]
+                                   |-- read/write --> [User-selected CSV and ZIP files]
+                                   |-- authenticate <--> [macOS LocalAuthentication]
+                                   +-- HTTPS <------> [cdn.jsdelivr.net currency API]
 ```
 
-### Layer Responsibilities
+The file boundary is used for imports and backups. Rate requests include currency codes and dates needed to choose provider data; the app does not upload portfolio records or backup contents as part of that flow. [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) owns the privacy claims and limits, while [`APIDesign.md`](APIDesign.md) owns the file and network contracts.
 
-#### View Layer (SwiftUI)
+## Component Boundaries
 
-- **Purpose**: Presentation and user interaction
-- **Location**: `AssetFlow/Views/`
-- **Characteristics**:
-  - Declarative UI with SwiftUI
-  - Observes ViewModel state changes
-  - Minimal business logic
-  - macOS-optimized layouts (sidebar navigation, list-detail split)
-  - Shared animation constants (`AnimationConstants`) with Reduce Motion support
-  - Reusable components
+The app uses Model-View-ViewModel (MVVM), with direct app-shell coordination where SwiftUI owns a lifecycle or navigation task.
 
-**Example Structure**:
+```text
+[SwiftUI Views / ContentView]
+    |-- observe/call --> [@Observable ViewModels]
+    |-- @Query -------> [ModelContext and @Model objects]
+    +-- shell tasks --> [Stateful app services]
 
-```swift
-struct DashboardView: View {
-    @State private var viewModel: DashboardViewModel
+[@Observable ViewModels]
+    |-- read/write ---> [ModelContext and @Model objects]
+    |-- use ----------> [Stateful app services]
+    +-- call ---------> [Calculation, import, backup services]
 
-    var body: some View {
-        // UI declaration
-    }
-}
+[Services needing persistence] -- main-actor access --> [ModelContext and @Model objects]
+[ModelContext and @Model objects] -- persist -------> [SwiftData store]
 ```
 
-#### ViewModel Layer
-
-- **Purpose**: Business logic and state management
-- **Location**: `AssetFlow/ViewModels/`
-- **Characteristics**:
-  - Uses `@Observable` macro for automatic change tracking
-  - `@MainActor` isolation for UI thread safety
-  - Coordinates between Views and Models/Services
-  - Handles data transformation and validation
-  - Form validation with real-time feedback
-
-**ViewModels** (all 12 implemented and tested):
-
-1. **DashboardViewModel**: Portfolio overview metrics, summary cards, chart data
-1. **SnapshotListViewModel**: Snapshot listing, creation, deletion
-1. **SnapshotDetailViewModel**: Snapshot detail, asset breakdown, cash flow management
-1. **AssetListViewModel**: Asset listing, grouping (by platform or category)
-1. **AssetDetailViewModel**: Asset value history, editing, deletion validation
-1. **CategoryListViewModel**: Category listing, creation, deletion
-1. **CategoryDetailViewModel**: Category detail, value and allocation history
-1. **PlatformListViewModel**: Platform listing, rename operations
-1. **PlatformDetailViewModel**: Platform detail and rename, assets on platform with latest values, platform value history across snapshots
-1. **RebalancingViewModel**: Rebalancing calculations, current vs. target allocation
-1. **ImportViewModel**: CSV parsing, validation, preview, import execution
-1. **SettingsViewModel**: Display currency, date format, default platform
-
-**Views** (all 14 implemented — navigation shell, all sections, all detail views):
-
-1. **ContentView**: Full sidebar navigation with `SidebarSection` enum, list-detail splits, discard confirmation, post-import navigation
-1. **DashboardView**: Summary cards, period performance (1M/3M/1Y), chart placeholders, recent snapshots
-1. **SnapshotListView**: Throwing ViewModel-backed snapshot list, query-driven invalidation, New Snapshot sheet
-1. **SnapshotDetailView**: Asset breakdown, category allocation, cash flow CRUD
-1. **AssetListView**: Platform/category grouping, selection binding
-1. **AssetDetailView**: Edit fields, sparkline chart, value history, delete validation
-1. **CategoryListView**: Add sheet, target allocation warning, delete validation
-1. **CategoryDetailView**: Value/allocation history charts, delete validation
-1. **PlatformListView**: Rename sheet, empty state
-1. **PlatformDetailView**: Editable platform name field, asset table with latest values, value history chart across snapshots
-1. **RebalancingView**: Suggestions table, no-target section, summary
-1. **ImportView**: CSV import (accepts shared ViewModel from ContentView)
-1. **SettingsView**: Currency, date format, default platform
-1. **LockScreenView**: Full-window opaque overlay displayed when the app is locked; triggers `AuthenticationService` authentication via system `LAContext` dialog
+Views can also read SwiftData through `@Query` and the environment's `ModelContext`. Some services accept a `ModelContext` for a specific main-actor operation; model objects do not call services. The arrows show use and data flow, not a requirement that every feature pass through every box.
 
-**Example Structure**:
+- **Views** in [`AssetFlow/Views/`](../AssetFlow/Views/) own presentation, navigation, local form controls, and user actions. `ContentView` owns the sidebar, selected records, app-level query projection, import and Bulk Entry sessions, and rate-fetch tasks. The app root owns the shared container and lock overlay.
+- **ViewModels** in [`AssetFlow/ViewModels/`](../AssetFlow/ViewModels/) are observable, main-actor coordinators for screen state, validation, persistence operations, and derived results. They receive a `ModelContext` or focused dependencies as needed. Editors that support drafts keep them separate from saved models until a save action.
+- **Models** in [`AssetFlow/Models/`](../AssetFlow/Models/) represent stored entities and relationships. A snapshot contains only directly recorded values; derived portfolio statistics are recomputed. [`DataModel.md`](DataModel.md) owns fields, schema, relationships, and migration details.
+- **Services and utilities** in [`AssetFlow/Services/`](../AssetFlow/Services/) and [`AssetFlow/Utilities/`](../AssetFlow/Utilities/) provide calculations, data preparation, persistence helpers, networking, and app-wide state. Their lifetimes and actor boundaries depend on the work they perform.
 
-```swift
-@Observable
-@MainActor
-class ImportViewModel {
-    var importType: ImportType = .assets
-    var selectedFile: URL?
-    var snapshotDate: Date = .now
-    var selectedPlatform: String?
-    var selectedCategory: Category?
-    var previewRows: [PreviewRow] = []
-    var validationErrors: [ValidationError] = []
-    var validationWarnings: [ValidationWarning] = []
+Pure, value-oriented services such as `CalculationService` and `RebalancingCalculator` are distinct from observable, main-actor `SettingsService`, `AuthenticationService`, and `CurrencyService`. `ExchangeRateService` owns network requests and shares a request coordinator so concurrent callers can reuse a date/base-currency fetch. `SnapshotSummaryService` and `CategoryGoalAssessmentService` read model data on the main actor. Service declarations do not imply statelessness or freedom from actor isolation.
 
-    var isImportDisabled: Bool {
-        !validationErrors.isEmpty || previewRows.isEmpty
-    }
+## Persistence and Concurrency
 
-    func parseCSV(_ url: URL) { /* Parse and validate */ }
-    func executeImport() { /* Create/update snapshot */ }
-}
-```
+[`AssetFlowApp.swift`](../AssetFlow/AssetFlowApp.swift) creates one `ModelContainer` with `CurrentSchema.schema` and `AssetFlowMigrationPlan`, then injects it into the app scene. A store-opening or migration failure shows an error and exits without deleting the existing store. The active schema is V2; [`DataModel.md`](DataModel.md) owns the versioned model contract.
 
-##### Automatic Data Reload
+The app target uses default main-actor isolation. Views, observable ViewModels, and access to the shared SwiftData `ModelContext` stay on the main actor. Work that does not need SwiftData can cross into explicitly nonisolated workers: security-scoped file reads, CSV preparation, backup serialization and validation, and ZIP operations. These workers exchange value records or `Sendable` results with main-actor coordinators. `CSVRecordReader` delegates record parsing to Apple's TabularData framework; `BackupService` invokes the macOS `/usr/bin/ditto` utility through `Process` for ZIP work. Neither task is implemented by Foundation alone.
 
-Aggregate ViewModels use `ObservedRefresh` to separate source observation from display publication. Fetch and calculate into local values inside tracking, then publish derived properties outside tracking. Private dashboard caches do not participate in source observation; public cache readers observe a publication revision to invalidate UI consumers. No derived value may trigger its own reload.
+Ordinary editing paths change or insert models in the shared context and rely on its autosave. Restore has deliberate persistence boundaries: `BackupService` saves any pending context changes as a rollback checkpoint, disables autosave during replacement, and performs the graph replacement in a main-actor transaction. It applies restored settings only after that transaction succeeds. The Debug-only disposable preview-data seed also calls `save()` explicitly.
 
-1. Model observation detects edits to existing dependencies and settings. Its callback requests a coalesced main-actor refresh after the mutation completes.
-1. Each explicit load advances a generation, cancels pending work, and supersedes old registrations. Callbacks from old generations cannot refresh the screen. Changes during result publication or while a request is pending remain covered by a subsequent refresh using the latest source values.
-1. `ContentView` projects all six persisted types into `ModelQueryRevision` and publishes it through the `storeRevision` environment. All ten aggregate screens call `.refreshOnStoreChanges` and their ViewModel's `requestRefresh()`. This covers membership, child records, reordered snapshot dates and replacement stores, even when changed records were outside the last observation dependency set.
-1. Local queries remain for standalone screens and selection reconciliation. Explicit mutation handlers retain synchronous loads; notifications from observation and queries share the pending request queue.
-1. Store reconciliation re-resolves retained selections by stable UUID. Detail panes use `ObjectIdentifier(model)` so replacement records create ViewModels bound to live instances. Background category refreshes preserve unsaved drafts; asset editor options update without resetting edited values.
+Dependencies are supplied at the boundary where they matter: ViewModels can receive a `ModelContext` and `ModelFetching` for persistence reads, `ExchangeRateService` accepts a `URLSession`, and `AuthenticationService` accepts an `LAContext` factory for isolated tests. Production uses shared settings, authentication, and currency services where app-wide state is intended. [`APIDesign.md`](APIDesign.md) owns their detailed interfaces.
 
-**Coordinated aggregate loaders:** `DashboardViewModel`, `SnapshotDetailViewModel`, `SnapshotListViewModel`, `CategoryListViewModel`, `CategoryDetailViewModel`, `PlatformListViewModel`, `PlatformDetailViewModel`, `AssetListViewModel`, `AssetDetailViewModel`, and `RebalancingViewModel`.
+## State, Observation, and Refresh
 
-`ImportViewModel` and `BulkEntryViewModel` use explicit Query-driven refresh behavior because they cache picker/validation state and an editable draft, respectively. `BulkEntryViewModel` keeps `private(set)` rows with centralized mutation methods and a stored `toolbarStats` property maintained via O(1) delta updates. `SettingsViewModel` does not display persisted aggregate values and does not require a data query.
+Stored portfolio records live in SwiftData; preferences and the cached currency list live in UserDefaults. SwiftUI `@State` owns navigation, selected objects, sheets, and temporary editing sessions. ViewModels own screen-specific load, validation, and derived state. A calculation cache is an optimization, never the stored source of truth.
 
-##### Operation-Scoped Persistence Lookups
+Aggregate ViewModels use [`ObservedRefresh.swift`](../AssetFlow/Utilities/ObservedRefresh.swift) to track reads of source models and settings while computing into local values, then publish observable results outside that tracking. An explicit load remains synchronous and supersedes queued callbacks from older generations. Coalesced refresh requests handle observation changes without a derived output repeatedly triggering its own reload. The Dashboard keeps internal caches outside source observation and exposes a publication revision so chart and period readers still refresh.
 
-Multi-row CSV work uses short-lived lookup indexes in `Utilities/ModelResolutionLookup.swift`. `ImportViewModel` builds asset and snapshot-value indexes once per preview rebuild, validation pass, or import execution. `BulkEntryViewModel` builds asset and category indexes once per save only when new records require them. The indexes are updated immediately after inserting records, preserve first-match behavior for unexpected duplicate normalized identities, and are discarded when the operation finishes. The shared `ModelContext` resolution helpers remain available for isolated single-record operations and do not retain process-wide caches.
+`ContentView` projects queries for the six persisted model types into [`ModelQueryRevision.swift`](../AssetFlow/Utilities/ModelQueryRevision.swift). Aggregate screens use [`StoreRevisionRefresh.swift`](../AssetFlow/Utilities/StoreRevisionRefresh.swift) to request reloads when membership, relevant fields, or the store changes, including records outside the last observed dependency set. Screen-local queries remain useful for standalone views. Import and Bulk Entry use their own query reconciliation because they maintain preview, picker, or draft state.
 
-#### Model Layer (SwiftData)
+After a store replacement, the shell resolves selected snapshots, assets, and categories against live queried instances by stable UUID. Detail panes use the selected object's `ObjectIdentifier` as view identity so a replacement instance creates a fresh ViewModel.
 
-- **Purpose**: Data structure and persistence
-- **Location**: `AssetFlow/Models/`
-- **Characteristics**:
-  - SwiftData `@Model` classes
-  - Business entities with relationships
-  - Type-safe data structures
-  - Computed properties for derived values
-  - Schema versioning support
+`CategoryEditingSession` remains transient UI state. The active category detail registers its editor with the session, which guards navigation away from an unsaved draft and releases the editor when the visible category changes. A background refresh adopts changed saved fields into a clean editor while preserving one with unsaved changes. Bulk Entry and import drafts retain their own discard and staleness handling. [`UserInterfaceDesign.md`](UserInterfaceDesign.md) owns the interaction details.
 
-**Core Models**:
-
-- `Category` - Asset categorization with target allocation
-- `Asset` - Individual investments identified by (name, platform) with native currency
-- `Snapshot` - Portfolio state at a specific date
-- `SnapshotAssetValue` - Market value of an asset within a snapshot
-- `CashFlowOperation` - External cash flow event associated with a snapshot
-- `ExchangeRate` - Exchange rate data for currency conversion (1:1 with Snapshot)
+## Main Data Flows
 
-See [DataModel.md](DataModel.md) for detailed model documentation.
+### Load and Conversion
 
-#### Service Layer
+A screen's ViewModel fetches the required models through the main-actor context, uses calculation services to derive results, and publishes a load state. Snapshots contain directly recorded values; an absent asset value is distinct from a recorded zero. Bounded snapshot helpers avoid repeated full-history fetches when a latest, prior, or date-specific snapshot is enough. Read failures are reported as failures rather than converted into an empty portfolio.
 
-- **Purpose**: Stateless calculations, data operations, and utility functions
-- **Location**: `AssetFlow/Services/`
-- **Characteristics**:
-  - Business logic separated from models and ViewModels
-  - NOT marked as `@MainActor` (pure functions where possible)
-  - Minimal external network access (exchange rate fetching only)
-  - Stateless calculations
-  - Error handling and validation
+Conversion uses rates applicable to a snapshot's date and the selected display currency. [`CurrencyConversionService.swift`](../AssetFlow/Services/CurrencyConversionService.swift) returns an unavailable converted total when a required rate is missing or unusable and retains native totals separately by currency. An asset-rate failure need not disable a result that depends only on cash-flow rates, and a missing goal rate can disable rebalancing while valid portfolio statistics remain available. [`BusinessLogic.md`](BusinessLogic.md) defines the calculation and availability rules.
 
-**Services**:
+### Import and Bulk Entry
 
-1. **CalculationService** (`enum`): Unified calculation engine providing growth rate, Modified Dietz return, cumulative time-weighted return (TWR), compound annual growth rate (CAGR), and category allocation percentage calculations. All methods are pure functions operating on `Decimal` values.
+A selected file is read by a nonisolated worker. `CSVImportPreparationService` and `CSVRecordReader` prepare parsed rows or a column-mapping request away from the main actor, with cancellation checks. The main-actor `ImportViewModel` owns preview state, effective-platform duplicate validation, checks against an existing snapshot, and the eventual model changes. Bulk Entry keeps an editable draft and validates a CSV replacement before replacing draft rows.
 
-1. **CSVParsingService** (`nonisolated enum`): Parses asset CSV and cash flow CSV files according to the schemas defined in SPEC Section 4.2. Uses the shared `CSVRecordReader`, backed by Apple’s `TabularData` CSV reader, for UTF-8/BOM handling, quoted fields, escaped quotes, embedded newlines, and structural errors. It then applies AssetFlow-specific string trimming, `Decimal` number parsing (strip currency symbols and thousand separators), validation, and raw **within-CSV duplicate diagnostics**. Parsed asset and cash-flow rows retain their source CSV row numbers so diagnostics remain accurate when invalid rows are omitted from the parsed result. Import workflows finalize duplicates after applying their effective platform rules. Returns `Sendable` structured results with separate parsing and duplicate errors. File reading and CSV preparation are performed by nonisolated async workers before results return to the main-actor ViewModels.
+For multi-row mutations, [`ModelResolutionLookup.swift`](../AssetFlow/Utilities/ModelResolutionLookup.swift) provides operation-scoped indexes for assets, categories, and snapshot values. They are built for a preview, validation, import, or save operation, updated after insertions, and then discarded. The shared `ModelContext` lookup helpers remain for single-record work. [`BusinessLogic.md`](BusinessLogic.md) owns duplicate and zero-placeholder policy; [`APIDesign.md`](APIDesign.md) owns CSV syntax and column contracts.
 
-1. **RebalancingCalculator** (`enum`): Computes target vs. current allocation differences and suggested buy/sell adjustment amounts for each category. Returns signed `Decimal` values (positive = buy, negative = sell).
+### Exchange Rates and Rebalancing
 
-1. **BackupService** (`nonisolated enum` with `@MainActor` façade methods): Exports all application data to a ZIP archive (via `/usr/bin/ditto`) containing CSV files and a manifest.json. SwiftData values are first captured as `Sendable` records on the main actor; serialization, extraction, validation, and ZIP operations run asynchronously outside it. Restore accepts the canonical root-level layout or one immediate enclosing folder, then uses a two-phase pipeline: the complete archive is parsed into typed transfer records and validated without side effects, then the live SwiftData graph is replaced in one main-actor transaction. Settings are applied only after the transaction succeeds. Archive tasks support cancellation and atomic destination replacement.
+When it appears, `ContentView` requests the currency list and starts a cancellable rate task. A currency-list failure leaves the cached or built-in list in place. The rate task is keyed by snapshot identity and date, display currency, goal currencies, and recorded asset and cash-flow currencies, so relevant changes can request missing rates again. `ExchangeRateService` reuses a valid stored rate when it covers the needed currencies and coalesces concurrent requests for the same provider date and base currency. Failed requests leave dependent converted results unavailable until usable rates exist.
 
-1. **SettingsService** (`@Observable @MainActor class`): Manages app-wide user preferences (display currency, date format, default platform) via UserDefaults. Observable for reactive UI updates when settings change.
+`CategoryGoalAssessmentService` provides a shared assessment for category list/detail and rebalancing, separating asset conversion from goal-currency conversion. The category list reuses an assessment across rows; category detail computes the current plan once and converts only the selected minimum for historical overlays. Missing historical conversions leave gaps rather than fabricated values.
 
-1. **AuthenticationService** (`@Observable @MainActor class`): Manages optional app lock using macOS LocalAuthentication framework. Persists lock settings (enabled, re-lock timeout) via UserDefaults. Handles authentication via `LAContext.evaluatePolicy(.deviceOwnerAuthentication)` supporting Touch ID, Apple Watch, and system password fallback. Injectable `LAContext` factory for test isolation.
+For a feasible plan, `RebalancingTransferPlanner` funds mandatory minimum shortfalls before optional percentage adjustments; `RebalancingViewModel` uses that result for actionable rows and suggested moves. `RebalancingHelpPresentation` turns assessment data into view-facing help without creating another calculation path. Rebalancing does not change stored holdings or create cash flows.
 
-1. **CurrencyService** (`@Observable @MainActor class` with `static let shared` singleton): Provides currency information (codes, names, flag emojis). Loads from a hardcoded fallback list (~30 common currencies) on init, then can fetch the full list (~480 currencies) from the exchange rate API via `loadFromAPI()`.
+### Backup and Restore
 
-1. **ExchangeRateService** (`final class`): Fetches exchange rates from the `@fawazahmed0/currency-api` CDN. Provides `fetchRates(for:baseCurrency:)`, `fetchCurrencyList()`, and `fetchMissingRates(snapshots:displayCurrency:modelContext:)` for batch-fetching missing rates across all snapshots. Date-specific requests are coalesced by date/base currency, with caller-aware cancellation and validation before cache mutation. Accepts a `URLSession` for testability. Throws `ExchangeRateError` on failure.
+Export captures SwiftData records and settings on the main actor as transfer values, then serializes and archives them outside it. Restore extracts, parses, and validates the archive before changing the live graph. After the save checkpoint, its main-actor transaction replaces records; on failure it rolls back and leaves settings unapplied. Successful replacement triggers the query and selection reconciliation described above. [`APIDesign.md`](APIDesign.md) owns archive format and validation contracts; [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) owns the protections and limits of ZIP files and extraction.
 
-1. **CurrencyConversionService** (`enum`): Stateless conversion logic used by ViewModels. Provides date-validated `convert(value:from:to:using:forSnapshotDate:)` and `canConvert(from:to:using:forSnapshotDate:)`, plus `totalValue(for:displayCurrency:exchangeRate:)`, `netCashFlow(for:displayCurrency:exchangeRate:)`, and `categoryValues(for:displayCurrency:exchangeRate:)`. Conversion is unavailable when the exchange rate is missing, incomplete, or does not match the snapshot date; callers can then present native-currency values.
+### App Lock
 
-1. **SnapshotSummaryService** (`@MainActor enum`): Provides bounded, throwing snapshot fetch helpers (latest, latest prior, date lookup, chronological history, and newest-first list history) and one-pass converted snapshot summaries containing total value, asset count, category totals, and platform totals. ViewModels use this to avoid repeated full-table fetches and duplicate aggregate traversal logic. `ModelFetching`/`ModelContextFetcher` provide dependency injection for persistence-read failures.
+`AssetFlowApp` observes app activation and screen-lock events and passes them to `AuthenticationService`, which owns lock state and timeouts and requests macOS `LocalAuthentication` with `.deviceOwnerAuthentication`. The app root displays a lock overlay over the main and Settings scenes and publishes lock state through the environment. Failed or cancelled authentication leaves the app locked; lock-aware help and hover modifiers suppress content. The app does not choose a fixed authentication-method sequence. [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) owns authentication guarantees and storage-protection limits.
 
-**Duplicate Detection**: AssetFlow handles duplicate detection in two layers:
+## Failure Boundaries and Design Choices
 
-- **CSV-internal duplicates**: Raw candidates are detected by `CSVParsingService`; `ImportViewModel` and `BulkEntryViewModel` finalize them after effective platform handling (same name+platform within file, or same description within cash flow CSV)
-- **CSV-vs-snapshot duplicates**: Detected by `ImportViewModel` when loading preview (checks CSV rows against existing snapshot data)
+- `DataLoadState` distinguishes idle, loading, loaded, and failed reads; a failed fetch is not an empty data set.
+- Import, rate, and restore failures remain with their coordinating ViewModel or service. A missing conversion produces an unavailable result rather than a mixed-currency value.
+- Local records remain authoritative. Rates, converted aggregates, chart data, assessments, and transfer suggestions are derived or fetched data with explicit availability rules.
+- The shared `ModelContainer` and main-actor context access keep model identity and observation in one application graph. ViewModels and bounded services use SwiftData directly, with `ModelFetching` as a narrow read seam; this avoids a second repository layer while keeping graph access on the main actor. Nonisolated workers handle file and archive preparation, and short-lived lookup indexes limit repeated work without a persistent calculation store.
 
-**Supporting Types**: `DateFormatStyle`, `BackupTypes`, `CSVParsingTypes` (result types), `SnapshotSummary` (converted snapshot aggregates), `ChartDataService` (chart data filtering and axis formatting). Domain error enums (`AssetError`, `CategoryError`, `PlatformError`) are in `Models/`.
-
-**Design Principles**:
-
-- Services perform pure calculations without requiring MainActor where possible
-- Services that accept `ModelContext` are `@MainActor` and use bounded fetch descriptors when the caller only needs the latest, latest-prior, or date-specific snapshot
-- Models remain simple data containers
-- ViewModels coordinate between services and UI
-- Testability: mock data can be passed to services without side effects
-- All service data types (structs used as inputs/outputs, such as `CSVParseResult`, `RebalancingAction`) should conform to `Sendable` for Swift 6 strict concurrency compatibility
-- Using `enum` for stateless services naturally avoids actor isolation issues
-
-## Localization
-
-AssetFlow uses Apple's **String Catalogs** (`.xcstrings`) with feature-scoped tables for organization:
-
-- **View Layer**: String literals in SwiftUI (`Text()`, `Label()`, etc.) are auto-extracted into `Localizable.xcstrings` at build time. No manual wrapping needed.
-- **ViewModel/Service Layer**: All user-facing strings use `String(localized:table:)` with feature-specific tables (e.g., `Snapshot`, `Asset`, `Category`, `Import`, `Services`).
-- **Enum Display Names**: Enums with user-facing values have a `localizedName` computed property for UI display. The `rawValue` is reserved for SwiftData persistence and must never be shown to users.
-
-## Data Flow
-
-### Unidirectional Data Flow
-
-```
-User Action -> View -> ViewModel -> Service/Model -> SwiftData
-                ^                                      |
-                +-------- State Update <---------------+
-```
-
-1. **User Interaction**: User interacts with View
-1. **Action Dispatch**: View calls ViewModel method
-1. **Business Logic**: ViewModel processes request (may use Services)
-1. **Data Operation**: Model updates SwiftData
-1. **State Update**: Changes propagate back to ViewModel
-1. **UI Refresh**: View automatically re-renders
-
-### SwiftData Integration
-
-- **Single ModelContainer**: Shared container injected at app root in `AssetFlowApp.swift`
-- **Automatic Persistence**: No manual `save()` calls required
-- **SwiftUI Integration**: `@Query` property wrapper for reactive data binding
-- **Schema Registration**: All models registered in `SchemaV2` (`Models/SchemaVersioning.swift`)
-
-```swift
-@main
-struct AssetFlowApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = CurrentSchema.schema
-        // Container configuration
-    }()
-}
-```
-
-## Platform Support
-
-### macOS Only (v1)
-
-**Platform**: macOS 15.0+
-
-- Full-featured desktop application
-- Sidebar navigation with list-detail split views
-- Minimum window size: 900 x 600 points
-- Collapsible sidebar (default width: 220 points)
-- Supports system appearance (light and dark mode)
-- Menu bar integration (Settings via Cmd+,)
-- Keyboard shortcuts for common actions
-
-**No iOS or iPadOS support** in v1. No platform-specific compiler directives are needed.
-
-## Dependency Management
-
-### Current Dependencies
-
-- **SwiftData**: First-party persistence framework
-- **SwiftUI**: UI framework
-- **Swift Charts**: Data visualization (pie charts, line charts)
-- **Foundation**: Core utilities (including CSV parsing, ZIP handling)
-
-### Minimal External Dependencies
-
-AssetFlow is primarily a local application with one optional network dependency:
-
-- **Exchange Rate API**: Fetches currency rates from `cdn.jsdelivr.net/npm/@fawazahmed0/currency-api` (free, no API key required)
-- Network access is optional — the app works offline with graceful degradation (no currency conversion, raw sums displayed)
-- `com.apple.security.network.client` entitlement is required for exchange rate fetching
-- No third-party packages
-
-### Dependency Injection
-
-ViewModels and Services use dependency injection for testability:
-
-```swift
-@Observable
-@MainActor
-class SnapshotDetailViewModel {
-    init(
-        snapshot: Snapshot,
-        modelContext: ModelContext
-    ) {
-        // ...
-    }
-}
-```
-
-## State Management
-
-### View State
-
-- `@State`: Local view state
-- `@Binding`: Two-way bindings
-- `@Environment(\.modelContext)`: Access to persistence context
-
-### Data State
-
-- `@Query`: SwiftData reactive queries
-- `@Observable` ViewModels: Business logic state
-
-### App State
-
-- `@AppStorage`: User preferences (display currency, date format)
-- Custom environment values for configuration
-
-## Error Handling
-
-### Strategy
-
-- Typed errors with custom `Error` conformances
-- Error propagation via `throws`; failed SwiftData reads are never converted to empty collections
-- User-facing error messages (localized)
-- Logging for debugging via `os.log` (no `print()` statements)
-
-Read-oriented ViewModels expose `DataLoadState` (`idle`, `loading`, `loaded`, or `failed`) so the UI distinguishes a valid empty data set from an unavailable store. `DataLoadErrorView` presents the localized failure and a retry action.
-
-```swift
-enum ImportError: LocalizedError {
-    case missingRequiredColumns([String])
-    case duplicateAssetsInCSV([(row1: Int, row2: Int, name: String)])
-    case duplicateAssetsInSnapshot([(name: String, platform: String)])
-    case emptyFile
-
-    var errorDescription: String? {
-        // Localized descriptions
-    }
-}
-```
-
-### Calculation Error Handling
-
-- Division by zero: Display "N/A" or "Cannot calculate" with explanation
-- Insufficient snapshots for TWR/CAGR: Display "Insufficient data (need at least 2 snapshots)"
-- Beginning value \<= 0: Display "Cannot calculate"
-- Denominator (BMV + weighted CF) \<= 0: Display "Cannot calculate"
-- No snapshot within lookback window: Period metric = N/A
-
-## Performance and Scalability
-
-### General Optimization Strategies
-
-- **Lazy Loading**: SwiftData automatically lazy loads relationships
-- **Efficient Queries**: Use specific, filtered predicates in `@Query`
-- **Batch Operations**: Use batch processing for CSV imports (insert all SnapshotAssetValues at once)
-- **Background Processing**: Consider background tasks for large CSV imports
-- **Actor boundaries**: File reads, CSV preparation, serialization, archive extraction, and ZIP commands run in nonisolated async workers. SwiftData access and observable UI state remain on the main actor.
-
-### Memory Management
-
-- **ARC**: Swift's Automatic Reference Counting is the primary mechanism
-- **SwiftUI**: SwiftUI's struct-based views minimize memory footprint
-- **Chart Data**: Compute chart data points lazily as needed for the visible time range
-
-## Security Considerations
-
-### Data Protection
-
-- SwiftData encrypted storage (via file system encryption)
-- All data stored locally (no network transmission)
-- Backup files are unencrypted ZIP archives (user responsibility to store securely)
-
-### Privacy
-
-- No data collection or telemetry
-- Network access limited to fetching exchange rates from a public CDN (no authentication, no user data sent)
-- User owns 100% of their data
-- Local-first architecture
-
-See [SecurityAndPrivacy.md](SecurityAndPrivacy.md) for comprehensive security documentation.
-
-## Testing Strategy
-
-See [TestingStrategy.md](TestingStrategy.md) for comprehensive testing approach.
-
-## Build Configuration
-
-### Targets
-
-- **AssetFlow (macOS)**: Desktop application (macOS 15.0+)
-
-### Build Schemes
-
-- **Debug**: Development builds with logging
-- **Release**: Optimized production builds
-
-### Configuration Files
-
-- `.swift-format`: Code formatting rules
-- `.swiftlint.yml`: Linting configuration
-- `.editorconfig`: Editor settings
-- `.pre-commit-config.yaml`: Git hooks
-
-## Future Architecture Considerations
-
-### Potential Enhancements
-
-1. **Modular Architecture**: Extract features into Swift Packages
-1. **Repository Pattern**: Abstract data persistence layer
-1. **iOS/iPadOS Support**: Platform expansion in future versions
-1. **Column Mapping**: Configurable CSV column mapping (future version)
-1. **Category-Level Cash Flows**: Per-category cash flow tracking (future version)
-
-## Category Goal Assessment
-
-The app opens CurrentSchema.schema (V2) using AssetFlowMigrationPlan; historical V1 definitions are frozen. RebalancingCalculator is a pure Decimal active-set allocation service with structured feasibility results. CategoryGoalAssessmentService maps snapshot values by UUID and handles original goal currencies separately from asset valuation. Category list/detail and Rebalancing reuse this assessment rather than duplicating allocation rules. Missing goal rates disable dependent comparisons/plans without disabling valid portfolio statistics.
-
-Rate fetching includes goal currencies after successful configuration changes; ContentView uses a cancellable task keyed by required goal currencies, snapshot identities/dates, display currency, and asset/cash-flow currencies. Background requests reuse existing rate caching and endpoint policies. Rebalancing never changes stored assets or creates cash flows.
-
-## Category Editing and Compact Goal Presentation
-
-`ContentView` owns a CategoryEditingSession registered by the active CategoryDetailView. Category selection, sidebar changes, history navigation, and New Snapshot navigation guard unsaved drafts before replacing the editor. Opening the sidebar New Snapshot sheet retains the active editor. Cancelling that sheet leaves subsequent edits guarded. Session cleanup follows actual visible category/section replacement, including category identity changes after store replacement. The session is UI state only and does not persist goals. Category detail uses field-scoped Return submission and Command-S; no default Return shortcut is assigned to Save Changes.
-
-## Structured Rebalancing Help
-
-Structured rebalancing help uses RebalancingHelpPresentation (view-facing data and localization) plus RebalancingHelpView (section/grid/bullet layout). The existing assessment remains the source of converted balances, minimum status, and feasibility. No new calculations, persisted fields, or network requests are introduced.
-
-### Category goal calculation work
-
-The category list reuses one `CategoryGoalAssessment` for valuations, availability, minimum status and effective targets, indexed by category UUID. Category detail calculates the current plan once and converts only the selected category's configured minimum for each historical overlay point. It skips minimum history when disabled; missing conversions retain segmented gaps. Historical overlays never invoke the full rebalancing calculator. No persistent calculation cache is introduced.
-
-Clean category editors adopt externally updated saved fields after a data refresh; editors with unsaved changes retain every draft field. Saved-field source reads are tracked even for empty categories.
-
-### Minimum-first transfer planning
-
-`RebalancingTransferPlanner` consumes feasible `CategoryGoalTarget` values and produces typed category-ID/Decimal transfers, actionable row IDs, and the omitted/unmatched residual. It reserves donor capacity for all minimum shortfalls before optional percentage demand. `RebalancingViewModel` uses this single result for action eligibility and localized Suggested Moves, keeping financial planning independent of presentation.
+For required product behavior, see [`SPEC.md`](SPEC.md). For screen design and localization, see [`UserInterfaceDesign.md`](UserInterfaceDesign.md). For contributor setup, configurations, commands, and tests, see [`DevelopmentGuide.md`](DevelopmentGuide.md) and [`TestingStrategy.md`](TestingStrategy.md).

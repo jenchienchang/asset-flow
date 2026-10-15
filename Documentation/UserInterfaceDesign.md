@@ -1,1040 +1,146 @@
 # User Interface Design
 
-## Preface
+AssetFlow uses a macOS sidebar to move between dated portfolio snapshots, asset and category details, rebalancing, and CSV import. This document describes the visible controls and interaction states. [`SPEC.md`](SPEC.md) owns product requirements, [`BusinessLogic.md`](BusinessLogic.md) owns calculations and availability rules, [`APIDesign.md`](APIDesign.md) owns CSV and backup formats, and [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) owns app-lock protections and limits.
 
-**Purpose of this Document**
+## Navigation and Windows
 
-This document describes the user interface design for AssetFlow -- **what** users see and **how** they interact with the macOS desktop application. It is separated into two main parts:
+The sidebar shows Dashboard, Snapshots, Assets, Categories, Platforms, Rebalancing, New Snapshot, and Import CSV. Choosing New Snapshot opens the date-and-starting-point sheet; choosing Bulk Entry there then fills the content pane with its draft. Dashboard, Rebalancing, and Import fill the content pane. Snapshots, Assets, Categories, and Platforms show a list beside the selected item's detail; an unselected list shows a prompt in the detail pane. Settings opens in a separate macOS Settings scene.
 
-1. **Design Specification** -- Visual design, user experience, and interaction patterns
-1. **Implementation Guide** -- Technical notes for building the designs in SwiftUI
+The main window has a 900 × 600 point minimum size, a hidden title bar, and a unified toolbar. The sidebar's ideal width is 220 points. The list-detail screens use a list and detail pane inside the main navigation content area.
 
-**Design Philosophy**
+Back and Forward toolbar buttons traverse sidebar and programmatic navigation history, including chart selections and post-import navigation. A new destination clears forward history. File > New Snapshot (Command-N) opens the snapshot date sheet; File > Import CSV (Command-I) opens Import. The commands and navigation buttons are disabled while locked. Help offers the version- and locale-aware AssetFlow User Guide and Report an Issue links.
 
-- **Iterate in code**: Use Xcode previews instead of separate mockup tools
-- **Leverage platform defaults**: Start with native SwiftUI components
-- **macOS-native**: Follow Apple's Human Interface Guidelines for macOS
-- **Prioritize functionality**: Working features before visual polish
+After a successful restore, selected snapshots, assets, and categories are matched to live records by their stable IDs. A removed selection clears; a replacement instance recreates its detail editor so old in-memory form state does not survive the restore. Category navigation first resolves an unsaved editor draft as described under [Categories Screen](#categories-screen).
 
-**Related Documentation**
+## Dashboard
 
-- [BusinessLogic.md](BusinessLogic.md) - Calculations and business rules
-- [DataModel.md](DataModel.md) - Data structures
-- [Architecture.md](Architecture.md) - MVVM layer responsibilities
+The Dashboard presents the latest snapshot and portfolio-level history.
 
-**Implementation Status (Current)**
+- The prominent Total Portfolio Value card shows one converted display-currency amount when all required asset rates are available. If conversion is incomplete, it shows separate native-currency totals and explains the missing rates; it does not add unlike currencies.
+- Secondary cards show the latest snapshot date, asset count, Cumulative TWR (All Time), and CAGR. The 1M, 3M, and 1Y controls on Growth Rate and Return Rate select independent periods; available rates show the actual covered dates. Insufficient history shows "N/A". Metric help explains the measures and their snapshot and cash-flow assumptions.
+- The first chart row contains category allocation at a selected snapshot date and portfolio value history. The second contains cumulative TWR and category value history. Chart interactions are specified under [Charts and Historical Views](#charts-and-historical-views).
+- Recent Snapshots shows up to five newest entries with date, asset count, and a converted total or separate native amounts. A row opens snapshot detail; View All opens Snapshots.
 
-All core screens and features are **implemented**:
-
-- ✅ All 12 Views: Dashboard, Snapshots (list + detail), Assets (list + detail), Categories (list + detail), Platforms, Rebalancing, Import, Settings
-- ✅ All 7 chart components with interactive features (hover tooltips, click-to-navigate, time range selectors, empty states)
-- ✅ Empty states use `ContentUnavailableView` for consistent macOS-native appearance
-- ✅ Metric card explanations via `.helpWhenUnlocked()` tooltips (SPEC 3.2)
-- ✅ Keyboard shortcuts (Delete key for deletion confirmations)
-- ✅ Menu bar commands: File > New Snapshot (Cmd+N), File > Import CSV (Cmd+I), Help > User Guide, Help > Report an Issue
-- ✅ Sheet standardization: all sheets use `NavigationStack` + toolbar placements
-- ✅ `@FocusState` auto-focus in all sheets and popovers
-- ✅ `.helpWhenUnlocked()` tooltips on toolbar buttons and interactive controls
-- ✅ Accessibility labels on charts, metric cards, and Bulk Entry rows (assets and cash flows)
-- ✅ Dashboard portfolio-total hero card uses a system-adaptive surface with a subtle tint
-- ✅ Glass card material on secondary metrics, performance, and chart cards adapts to Reduce Transparency accessibility setting
-- ✅ Animations with Reduce Motion support via `AnimationConstants`
-
-______________________________________________________________________
-
-# Part 1: Design Specification
-
-## Navigation Structure
-
-The app uses a **sidebar navigation** layout (standard macOS pattern):
-
-**Sidebar items**:
-
-1. **Dashboard** -- Portfolio overview (default/home screen)
-1. **Snapshots** -- Chronological snapshot management
-1. **Assets** -- Asset registry and category assignment
-1. **Categories** -- Category management with target allocations
-1. **Platforms** -- Platform management (rename)
-1. **Rebalancing** -- Rebalancing calculator
-1. **Import** -- CSV import workflow
-
-**Detail views**: Each sidebar section with a list-detail pattern (Snapshots, Assets, Categories, Platforms) uses a **list-detail split** within the content area. The list appears on the leading side and the detail view on the trailing side. When no item is selected, the detail area shows a placeholder prompt (e.g., "Select a snapshot to view details").
-
-**Dashboard, Rebalancing, and Import** occupy the full content area without a list-detail split.
-
-**Toolbar**:
-
-- **Back button** (chevron.left) -- navigates to the previous sidebar section in history; disabled when no history exists or app is locked
-- **Forward button** (chevron.right) -- navigates to the next sidebar section in forward history; disabled when at the latest entry or app is locked
-- Navigation history is tracked for all sidebar selection changes and programmatic navigation (chart click-to-navigate, post-import redirect). Forward history is truncated when navigating to a new section from a non-tail position.
-
-______________________________________________________________________
-
-## Dashboard (Home Screen)
-
-The dashboard provides a portfolio overview using the latest snapshot.
-
-**Layout**:
-
-1. **Summary cards row**:
-
-   - Total Portfolio Value (one display-currency value when all required rates are available; otherwise native totals grouped by currency)
-   - Latest Snapshot Date
-   - Number of Assets
-   - Cumulative TWR (All Time) (since first snapshot)
-   - CAGR (since first snapshot) -- shown alongside Cumulative TWR (All Time), with a tooltip: "CAGR is the annualized rate at which the portfolio's total value has grown since inception, including the effect of deposits and withdrawals. TWR measures pure investment performance by removing cash flow effects."
-   - Metric cards use a `helpText: LocalizedStringKey?` parameter on `MetricCard` to display a tooltip via `.helpWhenUnlocked()` (suppressed when app is locked)
-   - Secondary summary cards use the glass-card treatment; the portfolio total uses a system-adaptive surface with a 9% tint fill and a 22% tint border for emphasis
-
-1. **Period performance cards**:
-
-   - **Growth Rate** card -- simple percentage change with 1M / 3M / 1Y segmented control. Shows "N/A" if insufficient history.
-   - **Return Rate** card -- Modified Dietz return with 1M / 3M / 1Y segmented control. Shows "N/A" if insufficient history.
-   - Each card displays a date range subtitle (e.g., "Jan 24 – Feb 14") below the rate value when a rate is available, showing the actual period covered.
-   - Each card uses the same `helpText` parameter on `MetricCard` for its `.helpWhenUnlocked()` tooltip
-
-1. **Allocation pie chart**:
-
-   - Category allocation with a **snapshot date picker** (defaults to latest snapshot)
-   - Shows percentage and value for each category
-   - Clicking a category navigates to category detail
-
-1. **Portfolio value line chart**:
-
-   - Total portfolio value over all snapshots
-   - Time axis with snapshot dates
-   - Time range zoom controls
-
-1. **Cumulative TWR line chart**:
-
-   - Portfolio-level cumulative time-weighted return over time
-   - Shows "Insufficient data (need at least 2 snapshots)" when fewer than 2 snapshots
-
-1. **Recent snapshots list**:
-
-   - Last 5 snapshots (newest first) with date, total value, and import summary
-   - "View all" link navigates to Snapshots screen
-   - Each row is clickable and navigates to snapshot detail
-
-**Currency availability:** When a required exchange rate is missing, native totals remain visible by currency. Currency-dependent metric cards and charts remain visible with a blur/material overlay that says which rates are missing and, for historical metrics, which snapshots are affected.
-
-**Implementation notes (Charts)**:
-
-- **DashboardView** (`AssetFlow/Views/DashboardView.swift`): Replaced chart placeholders with 2x2 grid of interactive charts. Row 1: `CategoryAllocationPieChart` (with snapshot date picker, click-to-navigate to category) + `PortfolioValueLineChart` (with click-to-navigate to snapshot). Row 2: `CumulativeTWRLineChart` + `CategoryValueLineChart` (multi-line with legend toggle). Each line chart has an independent `ChartTimeRange` `@State` that defaults to `.all` and resets on navigation via `dashboardRefreshID`.
-- **`CategoryAllocationPieChart`**: HStack layout with pie chart (fixed square, centered) and dynamic multi-column legend panel (right-aligned). Legend uses `LazyVGrid` with column count adapting to both category count and available width — uses the fewest columns needed to display all categories without scrolling. Column width is measured dynamically from the widest legend item (capped at 180pt). Total content width is measured via `onGeometryChange` to derive available legend space.
-- **DashboardViewModel** (`AssetFlow/ViewModels/DashboardViewModel.swift`): Provides `snapshotDates`, `categoryValueHistory` (per-category `[DashboardDataPoint]`), `categoryAllocations(forSnapshotDate:)`, and `categoryAllocationConversionStatus(forSnapshotDate:)` for historical pie chart data and availability. The pie chart overlay uses the selected snapshot's status, not only the latest snapshot's status. It uses `SnapshotSummaryService` to build converted total/category caches in one pass per snapshot.
-- **ChartDataService** (`AssetFlow/Services/ChartDataService.swift`): Stateless `enum` with `ChartTimeRange` (8 cases: 1W/1M/3M/6M/1Y/3Y/5Y/All), generic `filter()` for `ChartFilterable` data, `rebasedTWR()`, and `abbreviatedLabel(for:)` for K/M/B Y-axis formatting. Filtering uses latest data point's date as reference (not `Date.now`).
-- **Shared chart components** in `AssetFlow/Views/Charts/`: `ChartTimeRangeSelector` (segmented picker), `ChartStyles` (constants and color palette), and 5 chart views. All charts handle empty/edge states per SPEC 12.5.
-- **ContentView** (`AssetFlow/Views/ContentView.swift`): Added `navigateToCategoryByName(_:)` to wire pie chart click → sidebar Categories selection. Guards against "Uncategorized" (not a real Category).
-
-______________________________________________________________________
+Conversion-dependent cards and charts retain their place in the layout but show an unavailable message over obscured content when their required rates are missing. Historical messages identify affected snapshot dates. A missing cash-flow rate can make return metrics unavailable while an asset-only total remains available; a missing asset rate can affect value charts independently. A failed data read shows a retryable error; a successfully loaded portfolio without snapshots shows the welcome state and an Import your first CSV action.
 
 ## Snapshots Screen
 
-**List view**:
+The list orders snapshots newest first in collapsible relative-date groups. Each row identifies its date, total, included platforms, and asset count. A failed list read shows Unable to load data with Retry; an empty successful read offers New Snapshot and Import CSV.
 
-- Chronological list of all snapshots (newest first), grouped into collapsible relative time buckets
-- Time buckets: **This Month**, **Previous 3 Months**, **Previous 6 Months**, **Previous Year**, **Older** — boundaries based on calendar month starts relative to today; empty buckets are hidden
-- Collapsible `Section(isExpanded:)` disclosure triangles; all sections expanded by default
-- Each row: date, total value, platforms included, number of assets
-- "New Snapshot" button
+### Create and inspect
 
-**New Snapshot creation flow**:
+New Snapshot opens a date sheet with future dates disabled. The user chooses Bulk Entry (the default) or an empty snapshot. A date already used by a snapshot produces a validation error and does not silently replace that snapshot. Cancelling the sheet leaves the prior selection and any category editor that remained visible in place. [Bulk Entry](#bulk-entry) covers its draft.
 
-1. User clicks "New Snapshot"
-1. Date picker appears (future dates disabled)
-1. If the selected date already has a snapshot, show validation error: "A snapshot already exists for [date]. Go to the Snapshots screen to view and edit it."
-1. Starting point selector:
-   - **Empty Snapshot**: Creates snapshot with no asset entries
-   - **Bulk Entry**: Opens `BulkEntryView` for full-screen bulk value entry. Shows an empty state with "Add Platform" action when no prior snapshots exist.
-1. On creation, user is taken to the snapshot detail view for editing
+Snapshot detail groups asset rows by platform and asset name. Each row shows the recorded market value in its asset currency; a differing currency can also show an approximate converted amount. The screen includes category allocation, cash-flow operations, per-currency net cash flow, and exchange rates used by the snapshot. A converted total or allocation is marked unavailable when required rates are missing. The total and net cash flow then appear as separate native-currency amounts where available, without a display-currency label on a mixed sum. Multi-currency snapshots identify unavailable rates; the app may fetch applicable rates after creation, restore, or display-currency changes.
 
-**Snapshot detail view** (on selection):
-
-- Full asset breakdown sorted by platform (alphabetical), then by asset name (alphabetical), rendered as `ForEach` rows with `HStack` layout (not a `Table`)
-- Each row shows: Asset Name (with Platform and Category as secondary caption), and Market Value aligned trailing; multi-currency assets also show the currency badge and an approximate converted value below the market value
-- Category allocation summary for this snapshot (marked unavailable when required rates are missing)
-- Exchange rates section (only for multi-currency snapshots): shows every used currency, its "1 foreign = X base" rate when available, and an explicit unavailable state otherwise; auto-fetches when missing or when display currency changes
-- When conversion is incomplete, total value and net cash flow are shown as native-currency groups rather than being labelled as the display currency
-- Cash flow operations table: Description, Amount
-- Per-currency net cash flow summary (one line per currency, showing the net total for included rows)
-- Actions: Add asset, Edit values, Remove asset, Delete snapshot, Add cash flow, Edit cash flow, Remove cash flow
-
-**Add asset to snapshot**: Two paths:
-
-1. **Select existing asset**: Autocomplete search by name. When selected, platform and category are read-only (inherited from asset record). Rejected if the asset already exists in this snapshot.
-1. **Create new asset**: Enter name, select platform (picker includes a "New Platform..." option), select category (picker includes a "New Category..." option). Creates the asset record and adds it to the snapshot.
-
-**Edit value**: Right-click an asset row and select "Edit Value" to open an inline popover anchored to the row. The popover contains a single text field and Save/Cancel buttons. Changes are saved immediately on Save.
-
-**Remove asset from snapshot**: Confirmation dialog: "Remove [Asset Name] from this snapshot? The asset record itself will not be deleted."
-
-**Delete snapshot**: Confirmation dialog: "Delete snapshot from [date]? This will remove all [N] asset values and [M] cash flow operations. This action cannot be undone."
-
-______________________________________________________________________
+Users can select an existing asset or create one when adding a value. Existing asset identity and assignments are inherited, and an asset already present in the snapshot is rejected. New assets take a name, platform, category, and currency. The row context menu's Edit Value action opens a value-edit popover; Save commits a valid amount and Cancel leaves the value unchanged. Cash-flow actions add, edit, and remove operations. The Remove from Snapshot action removes the recorded value without a separate confirmation and leaves the asset record intact. Deleting a snapshot requires confirmation and states that its asset values and cash flows will be removed. [`BusinessLogic.md`](BusinessLogic.md) defines snapshot membership and value rules.
 
 ## Assets Screen
 
-**List view**:
+The list groups assets by platform or category through a segmented control and sorts names within each group. "(No Platform)" and "(Uncategorized)" groups appear last. Each row shows the latest recorded value where one exists. An asset absent from the latest snapshot is **stale**; a recorded zero is present and is not stale. The Hide Stale Assets toolbar toggle is on by default and persists across sessions. It filters this list only. If records exist but all are hidden, "All Assets Are Stale" explains the filter; if there are no asset records, the ordinary No Assets state appears. A failed read instead shows Retry.
 
-- All known assets, grouped by platform (default) or category, switchable via **segmented control**
-- Sort order: alphabetical by asset name within each group
-- When grouped by platform, assets without a platform appear under "(No Platform)" at the end
-- When grouped by category, assets without a category appear under "(Uncategorized)" at the end
-- Each row: Asset Name, Platform, Category, Latest Value
-- Latest value comes from the most recent snapshot
-- Assets with no snapshot values show "\\u{2014}" for value
-- A toolbar **Hide Stale Assets** toggle button (`eye.slash` icon, rendered with `.toggleStyle(.button)`) hides assets with no value in the latest snapshot. Default ON, persisted via `SettingsService.hideStaleAssets`. The button highlights while the filter is active. When the filter hides every asset, the list shows an "All Assets Are Stale" empty state instead of the default "No Assets" message.
+Asset detail shows name, platform, category, and native currency alongside a value-history chart and newest-first table. Name commits on Return; the currency picker saves through its selection binding; platform and category pickers commit through their own selection or inline-creation actions. Validation errors remain visible if a save fails. A rename updates the one asset record used across snapshots. Duplicate asset identity uses the normalized name and platform rules in [`BusinessLogic.md`](BusinessLogic.md).
 
-**Asset detail view**:
+When native and display currencies differ, the history table includes a Converted Value column independently of the chart mode; an unavailable conversion is an em dash. A currency-code control switches the chart between native and converted presentation. The chart and table show only recorded snapshot entries, so a missing entry is not drawn as zero. Deletion is blocked while the asset has values in any snapshot, with an explanation of how to remove those values first. Editing a recorded value uses the same Save/Cancel popover pattern as snapshot detail.
 
-- Value history across snapshots (newest first in the table; chronological in the interactive 250pt line chart with hover tooltips and a `ChartTimeRangeSelector` for filtering by time range)
-- Value history shows all recorded values across snapshots
-- Asset name (editable)
-- Platform (editable via picker with existing platforms + "New Platform..." option)
-- Category assignment (editable via picker with existing categories + "None" option)
-- Changes save immediately on field change
-- Renaming an asset updates it retroactively across all snapshots (single record update)
-- Duplicate identity validation: (name, platform) must be unique (case-insensitive, trimmed, collapsed)
-- Delete action: **only enabled when asset has no SnapshotAssetValue records**. When disabled, shows: "This asset cannot be deleted because it has values in snapshot(s). Remove the asset from all snapshots first."
-
-### Implementation Notes
-
-- **AssetListView** (`AssetFlow/Views/AssetListView.swift`): Uses `AssetListViewModel` with `@State`. Segmented control binds to `viewModel.groupingMode`. List sections iterate over `viewModel.groups`. Context menu on rows provides delete action for eligible assets.
-- **AssetDetailView** (`AssetFlow/Views/AssetDetailView.swift`): Uses `AssetDetailViewModel` with `@State`. Form with `.grouped` style. Platform picker is provided by `PlatformPickerField`. Value history section shows a `ChartTimeRangeSelector` and an interactive 250pt line chart (`ChartConstants.standardChartHeight`) with hover tooltips via `.onContinuousHoverWhenUnlocked`. When the asset currency differs from the display currency, a `showConvertedChart` toggle button appears next to the range selector; activating it switches the chart to available values converted to the display currency (in green) and adds a "Converted Value" column to the value history table. Unavailable historical rates produce no converted point or tooltip value: the line breaks across the date, a dashed marker identifies it, a compact day count opens a scrollable affected-date popover, and the table shows an em dash. The popover closes when the app locks. If all conversions in the selected range are unavailable, an empty state replaces the converted chart. The original-currency chart still plots every recorded value. The value history table uses its intrinsic height so it fits its rows without an estimated row-height formula. Delete confirmation dialog before deletion. Value history table supports inline editing: double-click a market value or right-click and choose "Edit Value" to open a popover for editing the value in place.
-- **AssetListViewModel** (`AssetFlow/ViewModels/AssetListViewModel.swift`): Groups assets by platform or category. Computes latest values from the most recent snapshot using a bounded latest-snapshot fetch. "(No Platform)" and "(Uncategorized)" groups always sorted last. Reads `SettingsService.hideStaleAssets` inside `withObservationTracking` so toggling the filter automatically reloads. `hasHiddenStaleAssets` is true when the filter dropped at least one asset; the View uses it to swap the empty-state message. Persistence failures are represented by `DataLoadState.failed` and shown with a retry action.
-- **AssetDetailViewModel** (`AssetFlow/ViewModels/AssetDetailViewModel.swift`): Editable fields (`editedName`, `editedPlatform`, `editedCategory`) initialized from asset. `save()` validates normalized identity uniqueness. `loadValueHistory()` returns direct SAVs sorted chronologically for chart data, while `valueHistoryNewestFirst` provides the table presentation order. `editAssetValue(_:newValue:)` mutates the `SnapshotAssetValue` market value and refreshes the history.
-
-______________________________________________________________________
+In converted mode, only entries with usable rates are plotted. When some converted points remain, unavailable dates break the line and have dashed markers. A compact warning shows the number of affected dates and opens a scrollable date list; the popover closes when the app locks. A selected period with no converted points shows an unavailable message. Hover shows no converted value for a missing-rate date, while native mode plots every recorded amount.
 
 ## Categories Screen
 
-**List view**:
+The list follows the user's saved order and supports drag reordering. Rows show the category name, configured percentage or minimum, current portfolio share and value, feasible effective share when available, asset count, and goal status. Current and effective percentages are shares of the **whole portfolio**; the configured percentage is a preference for the available allocation pool. A single warning indicator covers a significant effective-target deviation or a positive minimum shortfall. Minimum-only surplus remains protected and does not itself produce a sell warning. A no-goal category has no effective target. An infeasible plan, unavailable conversion, or zero portfolio total shows an em dash for an unavailable effective share; a separately determinable shortfall may still warn. No Categories offers Create Category; a failed read shows Retry instead.
 
-- All categories listed by user-defined display order (drag-to-reorder supported)
-- Each row: name, requested pool percentage, current allocation %, current value, asset count, original minimum and status when set
-- Visual indicator when current allocation deviates significantly from a feasible effective target
-- Add/edit/delete category actions
-- Drag-and-drop reordering via `.onMove` modifier persists order via `displayOrder` property
+Category detail contains an editable name, optional percentage target, and independently enabled minimum amount and currency. Minimum amount and currency have separate labeled rows. Save Changes commits the form together; Revert restores saved fields. Return from a text field and Command-S can save; Save and Revert are disabled when no edits exist. The saved-minimum assessment identifies its snapshot date and warns when unsaved edits have not entered that assessment.
 
-**Category detail view**:
+Selecting another category, changing section, or opening New Snapshot while a draft exists offers Save Changes, Discard, and Cancel. Cancel keeps the editor and its draft. If the date sheet is later cancelled, the same editor remains available. A clean editor can adopt refreshed saved fields; an unsaved draft is preserved until the user resolves it. The detail is recreated when the selected SwiftData instance changes after restore.
 
-- Assets in this category
-- Value history over snapshots (line chart)
-- Allocation percentage history over snapshots (line chart)
-
-**Cross-section navigation**: Clicking a category in the dashboard pie chart navigates to the Categories section in the sidebar and selects the clicked category, showing its detail view. This is a cross-section navigation action (Dashboard -> Categories).
-
-**Implementation notes:**
-
-- **CategoryListView** (`AssetFlow/Views/CategoryListView.swift`): Takes `modelContext` and `selectedCategory: Binding<Category?>`. Uses `@State private var viewModel: CategoryListViewModel`. List selection drives the binding. Toolbar "+" button opens add category sheet. Percentage sum warning shown when percentage targets do not total 100%. Rows label Current and Effective target shares of the whole portfolio. One indicator explains an allocation deviation above 5 percentage points and/or any positive minimum shortfall. Minimum-only categories show feasible effective shares while protecting surplus; no-goal categories omit the target. Empty state uses folder icon.
-- **CategoryListViewModel** (`AssetFlow/ViewModels/CategoryListViewModel.swift`): `CategoryRowData` struct bundles category, target/current allocation, value, and asset count. `loadCategories()` computes values from a bounded latest-snapshot fetch. `createCategory`/`editCategory`/`deleteCategory` with validation via `CategoryError`. `moveCategories(from:to:)` handles drag-to-reorder by updating `displayOrder` on each category. On first load, if all categories have the same `displayOrder` (migration scenario), they are normalized alphabetically. Failed reads use the retryable load-error state rather than the empty state.
-- **CategoryDetailView** (`AssetFlow/Views/CategoryDetailView.swift`): Takes `category`, `modelContext`, `onDelete`. Parent must apply `.id(category.id)` for proper state reset. Form sections: Category Settings (name, percentage, independent minimum amount/currency, Save Changes/Revert; saved minimum status in the footer), Assets in Category (`AssetTableView` with "Platform" second column), Value History (LineMark + PointMark chart), Allocation History (LineMark + PointMark chart), Danger Zone (delete button).
-- **CategoryDetailViewModel** (`AssetFlow/ViewModels/CategoryDetailViewModel.swift`): Initializes editable name, percentage, minimum amount and currency from the category. Save validates complete locale-aware input before mutation. `loadData()` computes the asset list, historical values, and current-minimum overlays using each snapshot's exchange rates; missing conversions break the overlay into separate segments. Single snapshot renders as PointMark only.
-
-**Implementation notes (Charts):**
-
-- Value history chart now uses `ChartTimeRangeSelector` with `ChartDataService.filter()` for time range zoom. Y-axis uses abbreviated labels (K/M/B).
-- Allocation history chart replaced with reusable `CategoryAllocationLineChart` component from `Views/Charts/`, which includes time range selector and hover tooltips.
-- Both chart time ranges default to `.all` and reset when the selected category changes (via `.id(category.id)` on the parent).
-
-______________________________________________________________________
+The detail also lists assigned assets and shows value and allocation history. The value chart overlays the current minimum converted at each snapshot date; missing rates interrupt that comparison and are explained. Allocation history shows the actual whole-portfolio share without a pool-target reference line. A category with assigned assets cannot be deleted; eligible deletion requires confirmation. Selecting a slice in Dashboard's allocation chart opens the matching category detail. Goal feasibility and allocation rules belong in [`BusinessLogic.md`](BusinessLogic.md).
 
 ## Platforms Screen
 
-**List view**:
+Platforms are derived from nonempty asset platform names. The list follows saved user order; newly encountered names follow in name order. Dragging reorders the list. Rows show the platform name, asset count, and latest converted total when rates permit it; an unavailable total is shown as such. An asset without a platform belongs to the Assets screen's "(No Platform)" group. The No Platforms state explains how creating or importing assets creates platform names.
 
-- All platforms listed alphabetically
-- Each row: Platform name, number of assets, total latest value
-
-**Platform detail view** (on selection):
-
-- List of all assets on this platform with their latest market values
-- Total value across all assets on this platform
-- Platform name (editable)
-
-**Actions**:
-
-- **Rename**: Change platform name. Updates all assets. New name must not conflict (case-insensitive).
-- **Delete**: Implicit -- when all assets are moved away, platform no longer appears.
-
-Assets with no platform are NOT shown on the Platforms screen.
-
-### Implementation Notes
-
-**Layout**: 3-column split (sidebar | platform list | platform detail), consistent with Snapshots, Assets, and Categories. `ContentView` uses a `GeometryReader` wrapping an `HStack(spacing: 0)` with `PlatformListView` (30% width, 250pt minimum), a `Divider`, and `PlatformDetailView` (or a "Select a platform" placeholder when nothing is selected). Categories use the same 3:7 ratio; Snapshots use 4:6. `PlatformDetailView` uses `.id(platform)` for forced recreation on rename.
-
-**Rename-propagation flow**:
-
-1. User edits name in `PlatformDetailView` → hits Return
-1. `PlatformDetailViewModel.save()` validates and renames all matching `Asset.platform` values
-1. `save()` updates internal `platformName` state
-1. Detail view calls `onRename(newName)` callback
-1. `ContentView` sets `selectedPlatform = newName` (triggers `.id()` recreation of detail view)
-1. `PlatformListView.onChange(of: selectedPlatform)` fires → `viewModel.loadPlatforms()` refreshes list
-
-**Platforms are not SwiftData model objects** — they are derived from distinct non-empty `Asset.platform` string values. Selection binding is `String?` (not a model ID), and rename mutates all `Asset` records with the old platform name.
-
-- **PlatformListView** (`AssetFlow/Views/PlatformListView.swift`): List-detail split with `List(selection: $selectedPlatform)`. Row context menu retains rename popover for quick renaming. `.onChange(of: selectedPlatform)` reloads platforms after rename propagation. Empty state with `building.columns` icon.
-- **PlatformDetailView** (`AssetFlow/Views/PlatformDetailView.swift`): `Form(.grouped)` with three sections: Platform Details (editable name `TextField`), Assets on Platform (`AssetTableView` with "Category" second column), and Value History (line chart with `ChartTimeRangeSelector` and hover tooltip). No delete section — platforms disappear when all assets are reassigned.
-- **PlatformListViewModel** (`AssetFlow/ViewModels/PlatformListViewModel.swift`): Derives platforms from `Asset.platform` values. `loadPlatforms()` computes totals from a bounded latest-snapshot fetch. `renamePlatform(from:to:)` validates uniqueness (case-insensitive), trims and normalizes whitespace, then updates all matching assets.
-- **PlatformDetailViewModel** (`AssetFlow/ViewModels/PlatformDetailViewModel.swift`): Tracks `platformName` (updated after rename), `assets` (filtered to this platform, sorted alphabetically), `totalValue` (sum of latest values), and `valueHistory` (platform total per snapshot via `SnapshotSummaryService`). `save()` validates and renames all matching Asset records.
-
-______________________________________________________________________
+Platform detail shows its assets, total, value history, and an editable name. Rename commits on Return or through the row's quick-edit popover, validates case-insensitive uniqueness, and updates assets using that platform. The selection follows the new name. A platform disappears when no assets use its name; there is no independent platform record to delete. List and detail read failures show an error with Retry.
 
 ## Rebalancing Screen
 
-- Current allocation vs. effective target table
-- For each category: current balance/share of total, requested pool percentage/minimum, effective target, difference, and action/status
-- Sort order: by absolute adjustment magnitude (largest deviation first)
-- Summary of suggested moves
-- Read-only/preview -- no data modification occurs
-- Categories with a percentage or minimum are included; protected categories appear separately
-- Uncategorized assets are protected and displayed separately
+Rebalancing uses the latest snapshot for a read-only preview. It displays a portfolio total, source snapshot date, calculation help, a category table, and Suggested Moves. Without a snapshot, the No Rebalancing Data state asks the user to add one. A failed read shows Retry. The preview never changes portfolio records. [`BusinessLogic.md`](BusinessLogic.md) defines protection, minimum funding, feasibility, and transfer calculations.
 
-### Implementation Notes
+The table has these columns, in order: **Category**, **Current balance**, **Current %**, **Effective target balance**, **Effective target %**, **Change**, **Action**, and **Minimum**. Current and effective percentages use the whole portfolio as denominator. Configured percentages remain in category settings and contextual help. Rows are divided into Categories with Targets, No Target Set, and Uncategorized. The latter two retain protected holdings. Narrow windows can scroll the one-line columns horizontally.
 
-- **RebalancingView** (`AssetFlow/Views/RebalancingView.swift`): Native Table with one line per category and separate percentage, minimum and effective balance columns. Contextual information popovers provide detailed assessments. Three sections: "Categories with Targets" (main suggestions), "No Target Set", and "Uncategorized". Summary section shows suggested moves. Action text color-coded: green (Buy), red (Sell), gray (No action needed). Empty state with `chart.bar.doc.horizontal` icon.
-- **RebalancingViewModel** (`AssetFlow/ViewModels/RebalancingViewModel.swift`): Loads values from a bounded latest-snapshot fetch. Groups by category, uses `CategoryGoalAssessmentService` and `RebalancingCalculator.calculate()`, maps actions to display rows with localized action text. Nonmandatory subunit differences display a small-adjustment status; mandatory minimum top-ups and supporting reductions remain actionable. Infeasible/unavailable plans clear suggestions.
+Action cells use the localized Buy, Sell, Protected, Small adjustment, and No action states, as applicable. Buy and Sell use filled directional icons; Protected uses the filled minus-circle icon and a text label. Nonzero adjustments too small to round to a display unit remain distinguishable from zero. Invalid, infeasible, or conversion-unavailable plans show diagnostics and no actionable transfers. Suggested Moves funds minimum shortfalls before optional percentage adjustments and shows any unresolved residual.
 
-______________________________________________________________________
+### Rebalancing help and amount display
 
-## Bulk Entry View
+Category help shows the selected category's lettered inputs and formula result rows. Calculation details shows the aggregate portfolio total, protected funds, available allocation, and conditional minimum-fixed and remainder amounts, followed by concise rules. Minimum help shows its focused comparison, source snapshot date, and currency. Unavailable help explains the reason without presenting an invalid calculation. Popovers close or suppress help when locked.
 
-Full-screen view for entering asset values across all platforms in a single session. Presented when the user selects "Bulk Entry" in the New Snapshot sheet.
+Within each help table, a shared currency heading appears once when all monetary rows have the same intended currency, including unavailable monetary rows. The minimum comparison uses an Assessment heading. Mixed-currency rows retain each currency code; percentage rows do not determine the heading, and explanatory sentences retain their currency codes. Values align with tabular digits. A percentage suffix is read with its value by accessibility technology; its separate visual cell is decorative. Result rows are separated visually, and an approximate marker identifies a displayed formula result when its displayed inputs or result were rounded. Tables set a natural popover width; explanations wrap within the available screen width.
 
-**Layout**:
+Amounts use the asset currency formatter's locale grouping and currency fraction precision. Actual zero displays as zero, unavailable values as an em dash, and a nonzero magnitude below one display unit as a bound such as `<0.01` with the applicable currency; tiny signed changes use localized Increase or Decrease wording. These are presentation rules: stored Decimal amounts and funding comparisons remain unrounded.
 
-- Toolbar with snapshot date title, progress stats, validation warnings, "Add Platform" button, and "Save Snapshot" button
-- Assets grouped by platform in sections (alphabetical order)
-- Each section header includes an "Add Asset" button and a "CSV Import" button
-- Empty state (no prior snapshots): `ContentUnavailableView` with "Add Platform" action
+## Bulk Entry
 
-**Columns**:
+Bulk Entry is a full-content draft for a new snapshot date. It seeds asset rows from the latest earlier snapshot and groups them by platform. Its toolbar shows the date, progress and validation information, Add Platform, and Save Snapshot. With no prior rows, an empty state offers Add Platform; a failed seed-data read shows Retry.
 
-- **Include checkbox**: Controls whether the row is saved to the snapshot
-- **Asset Name**: Read-only for existing assets; editable `TextField` for new rows (`.manualNew`), with "NEW" green badge or "CSV" blue badge
-- **Category**: Static text for existing assets; `CategoryNamePicker` dropdown for new assets (deferred DB creation)
-- **Currency**: Static text for existing assets; `Picker` for new rows
-- **Previous Value**: Value from the most recent prior snapshot with full decimal precision (or "\\u{2014}" if none). Hover reveals a fill button (`arrow.right.circle.fill`) that copies the value to the New Value field.
-- **New Value**: Editable text field for the new market value
+Each asset row has an Include control, name, category, currency, previous value, and editable new value. Existing asset identity fields are read-only; newly added rows can set them before saving. A previous value can be copied into the new field. Included rows without entered values become zero only after a pending-row confirmation; excluded rows are omitted. New names and duplicate identities are validated before saving. Add Platform starts a group with an editable asset row.
 
-**Row states**:
+Each platform has an Import CSV action. A valid import fills matching draft rows; validation or parser failure leaves the prior CSV values intact and reports the outcome. While preparation runs, progress and Cancel are shown. Cancellation leaves rows and earlier feedback unchanged. The separate Cash Flow Operations section starts empty for each new snapshot. It supports manual rows and CSV import, inclusion controls, description, signed amount, currency, a per-currency net summary, and validation of descriptions and amounts. A valid replacement of CSV-sourced cash-flow rows occurs only after the new CSV passes validation.
 
-- **Updated** (green accent): Value has been entered or imported
-- **Pending** (normal): Included but no value entered yet (saves as 0)
-- **Excluded** (dimmed): Checkbox unchecked, row is omitted from the snapshot
-
-If the underlying snapshots, assets, categories, or prior snapshot values used to seed a Bulk Entry draft change, the view shows a stale-data banner, disables editing and saving, and offers **Discard Draft and Reload**. The app shell also marks a retained draft stale if one of its source models changes while another section is selected. Reloading creates a fresh draft from the latest snapshot; drafts are never silently overwritten.
-
-**Inline asset creation**: Each platform header has an "Add Asset" button that appends an editable row with empty name, default currency, and a category picker. New rows have a delete (trash) button. New rows require a non-empty name to save.
-
-**Add Platform**: Toolbar button opens a popover with a text field for the platform name. Validates against empty names and case-insensitive duplicates. Creates a new platform group with one empty asset row.
-
-**Keyboard navigation**: Enter advances focus to the next included row's value field (assets) or amount field (cash flows). In cash flow rows, Enter on the description field moves to the same row's amount field. Adding a new asset or cash flow row auto-focuses the appropriate field (name or description).
-
-**Per-platform CSV import**: Each platform section has an import button that opens a file picker filtered to `.csv`. Parsed values are matched to assets by name (including manually-added rows) and populate the New Value fields. Every outcome displays an import feedback alert: success, warnings for skipped rows, or errors for malformed/unreadable files. Any parser or row-validation error leaves the previous CSV values unchanged, including when the file also contains valid rows.
-
-While a file is being read or prepared, Bulk Entry shows an indeterminate progress indicator and a Cancel action. Cancellation leaves the existing rows and CSV feedback unchanged.
-
-**Validation warnings** (toolbar):
-
-- Zero-value assets: "N assets have a value of 0. Exclude them or enter a non-zero value."
-- Empty names: "Some new assets are missing a name."
-- Duplicate asset names within a platform are validated at save time (not shown as a toolbar warning).
-
-**Cash Flow Operations section** (below asset table, separated by a divider):
-
-- **Section header**: "Cash Flow Operations" title with a count badge showing the number of included cash flow rows, an "Add Cash Flow" button for manual entry, and an "Import CSV" button for CSV import
-- Cash flows are portfolio-level (not grouped by platform)
-- The section starts empty each time (no carry-forward from previous snapshots)
-
-**Cash flow columns**:
-
-- **Include** (toggle): Controls whether the row is saved to the snapshot
-- **Description** (text field): Required; identifies the cash flow operation
-- **Amount** (text field): Monetary value; positive = inflow, negative = outflow
-- **Currency** (picker): Currency for the cash flow operation
-- **Delete** (trash button): Only available for manually-added rows (`.manualNew`)
-
-**Cash flow row badges**: CSV-imported rows display a blue "CSV" source badge next to the description field.
-
-**Cash flow keyboard navigation**: Enter on a description field advances to the same row's amount field. Enter on an amount field advances to the next included row (description field for new rows, amount field for existing/CSV rows). Adding a new cash flow row auto-focuses the description field.
-
-**Cash flow net summary**: Below the cash flow rows, a per-currency net cash flow summary displays the total of all included rows' amounts, grouped by currency. Hidden when no cash flow rows exist.
-
-**Cash flow accessibility**: Each row has a composite `.accessibilityLabel` including description, amount, and included/excluded status.
-
-**Cash flow CSV import**: The "Import CSV" button opens a file picker filtered to `.csv`. Uses the `.cashFlow` schema with auto-detect column mapping (required: Description, Amount; optional: Currency). Re-importing CSV clears all previous CSV-sourced rows only after the replacement has validated successfully; any parser or row-validation error shows feedback and leaves the previous CSV rows unchanged, including when the file also contains valid rows.
-
-**Cash flow validation warnings** (displayed in the toolbar popover alongside asset warnings):
-
-- Empty descriptions: "Some cash flows are missing a description."
-- Duplicate descriptions: Case-insensitive duplicate detection blocks save
-- Invalid amount text: Unparseable amount values block save
-
-**Confirmation alerts**:
-
-- **Save with pending rows**: Warning that N assets will be saved with a value of 0, with options to proceed or cancel.
-
-______________________________________________________________________
+Return moves focus through included value and amount fields; new rows focus their first editable field. Cash-flow descriptions move to their row's amount field before advancing. Asset-row accessibility labels identify the asset, platform, and updated, pending, or excluded state; cash-flow labels include description, amount, and included or excluded state. If source snapshots, assets, categories, or seed values change, a stale-data banner disables edits and Save and offers Discard Draft and Reload. Navigation away from an unsaved draft asks whether to discard it. No draft is silently overwritten. CSV syntax and matching rules belong in [`APIDesign.md`](APIDesign.md) and [`BusinessLogic.md`](BusinessLogic.md).
 
 ## Import Screen
 
-See [BusinessLogic.md](BusinessLogic.md) for the detailed CSV import flow.
+Import offers an Assets/Cash Flows selector, a CSV drop zone and Browse button, and an expected-column hint for the selected type. The view does not provide a sample-download control. A selected file can be changed before commit. Loading shows progress and Cancel while retaining the prior preview until preparation completes; a cancelled task does not replace it.
 
-**Layout**:
+When headers need mapping, a sheet previews rows and lets the user map each column or skip it. Recognized headers skip the sheet. After file preparation, the screen shows the snapshot date, relevant asset platform and category controls, validation messages, a row preview, and Import. Asset imports can choose how selected platform or category values apply: All Rows overrides existing values; the other mode fills empty assignments. Leaving a category unselected retains existing assignments. Mixed input rows expose the applicable All Rows control.
 
-- **Import type selector**: Segmented control (Assets | Cash Flows), defaults to Assets
-- **File selector**: Drag-and-drop zone or "Browse" button (filtered to `.csv`). Dropped file URLs and raw CSV data are both supported; read and parse failures remain visible in the validation area.
-- **Loading state**: While a file is being read or prepared, the screen shows an indeterminate progress indicator and keeps the existing preview state unchanged until preparation completes. Cancellation is honored by the owning task, and cancelled work does not replace the preview.
-- **Column mapping sheet** (shown automatically when CSV headers don't match expected columns): A full CSV table preview with per-column dropdowns allowing the user to assign each CSV column to a canonical field (e.g., `Asset Name`, `Market Value`) or skip it. Auto-detected matches are pre-selected. Skipped entirely when headers already match (case-insensitive). Shared between Import Screen and Bulk Entry per-platform CSV import. Uses `NavigationStack` with toolbar (Cancel/Confirm) for macOS Liquid Glass integration.
-- **Expected schema display**: Show the expected CSV column names for the selected import type and provide downloadable sample CSVs
-- **Configuration** (after file selected or column mapping confirmed):
-  - Asset import: Snapshot date picker (future dates disabled), Platform picker (with "All Rows" toggle when mixed platforms), Category picker (with "All Rows" toggle when mixed categories)
-  - Cash flow import: Snapshot date picker (future dates disabled)
-  - Platform and Category pickers use pill-style background (`.fill.quaternary` with rounded corners). The "All Rows" checkbox toggle appears when the CSV contains a mix of values that make the apply mode meaningful.
-  - Category apply mode: "All Rows" checked (default) = override all assets with the selected category; unchecked = only assign category to assets that don't already have one.
-- **Preview table**: Parsed data with validation indicators and per-row remove buttons.
-  - Asset preview columns: Asset Name, Market Value, Currency, Platform, Category
-  - Currency column shows the effective currency (CSV value, or existing asset currency as fallback)
-  - Category column shows the effective post-import category based on apply mode
-  - **Per-row error/warning popovers** (hover to reveal):
-    - Within-CSV duplicate errors (red circle) — shown next to asset name
-    - Snapshot duplicate errors (red circle) — shown next to asset name
-    - Category reassignment warnings (yellow triangle) — shown next to asset name (only in "All Rows" mode)
-    - Market value warnings (zero/negative, yellow triangle) — shown next to market value
-    - Currency errors (unsupported code, red circle) — shown next to currency cell
-    - Currency change warnings (yellow triangle) — shown next to currency cell
-  - Cash flow preview shows duplicate/snapshot-duplicate popovers next to description
-- **Validation summary**: File-level parsing errors (red) and warnings (yellow) only; row-level issues are shown as per-row popovers
-- **Import button**: Disabled if validation errors or per-row errors exist on included rows
-- **On successful import**: Snapshot is created (or updated if one exists for that date); user is navigated to the snapshot detail view
+For an asset import into a new snapshot, eligible platforms from the latest prior snapshot appear under an Enable copy-forward toggle. When enabled, per-platform selections show asset counts and source dates; selected platforms are copied into the new snapshot. Platforms already represented by included import rows are excluded.
 
-If user navigates away (including sidebar navigation) with file loaded but not imported, confirmation dialog: "Discard import? The selected file has not been imported yet."
+Preview rows show effective values and row-level error or warning indicators for duplicates, reassignment, value, and currency issues; their explanations open beside the affected row. File-level errors appear in the validation summary. An error on an included row blocks Import; warnings remain visible for review. A matching nonzero value already in the selected snapshot is a conflict, while the existing zero-value placeholder exception may be filled. Successful import creates or appends to the selected-date snapshot and opens its detail. Navigating away with an uncommitted file asks for discard confirmation. [`APIDesign.md`](APIDesign.md) defines accepted columns and file parsing; [`BusinessLogic.md`](BusinessLogic.md) defines duplicate and category-application rules.
 
-______________________________________________________________________
+## Settings and App Lock
 
-## Empty States
+Settings opens with Command-Comma or AssetFlow > Settings. Preferences save when changed.
 
-All empty states use `ContentUnavailableView` (macOS 14.0+), which provides a consistent native macOS layout with `Label` (icon + title), `description` text, and optional `actions`. This replaced the custom `EmptyStateView` component for better platform consistency.
+- **Display Currency** selects the currency used for converted portfolio values. Changing it recomputes affected displays using rates applicable to each snapshot; a required missing rate leaves that converted result unavailable. Recorded native amounts are unchanged.
+- **Date Format** chooses numeric, abbreviated, long, or complete presentation. The default is abbreviated, formatted in the current locale.
+- **Default Platform** pre-fills the import platform field and may be overridden; it starts empty.
+- **Require Authentication** starts off. Enabling it first asks for system authentication. When Switching Apps and When Locked or Sleeping each offer Immediately, 1, 5, or 15 minutes, or Never. Setting both to Never turns the setting off; enabling it again resets both to Immediately. The app uses the macOS authentication dialog; available methods depend on device and system state, and no fixed fallback order is promised.
+- **Data Management** exports to a user-selected ZIP file and confirms before restoring a backup that replaces existing data. It shows progress, cancellation, and a result or error. A failed validation or replacement preserves existing portfolio data as described in [`APIDesign.md`](APIDesign.md). Backup protections and limits belong in [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md).
+- **About** presents selectable version, build, and commit metadata, developer, license, privacy text, and links to the source and User Guide. The About window presents the same identity metadata.
 
-Read failures are not empty states: list and detail screens show an `Unable to load data` error with the localized persistence message and a `Retry` action. The empty state is shown only after a successful load with no matching records.
+When locked, the main and Settings scenes place `LockScreenView` above their content, with an Unlock button and system authentication prompt when the app is active. The view uses a full-window system material background. Tooltip and hover content use lock-aware modifiers, and affected commands and controls are disabled; [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md#app-lock-optional) describes the protection boundary and remaining interactive-verification needs. A failed or cancelled authentication leaves the app locked. Lock appearance should be immediate; the unlock transition may animate.
 
-| Screen      | Icon                       | Title                | Message                                                                                          | Actions                         |
-| ----------- | -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------- |
-| Dashboard   | `chart.bar`                | Welcome to AssetFlow | Start tracking your portfolio by importing CSV data or creating a snapshot.                      | Import your first CSV (primary) |
-| Snapshots   | `calendar`                 | No Snapshots         | No snapshots yet. Create your first snapshot or import a CSV to get started.                     | New Snapshot, Import CSV        |
-| Assets      | `tray`                     | No Assets            | No assets yet. Assets are created automatically when you import CSV data.                        | —                               |
-| Categories  | `folder`                   | No Categories        | No categories yet. Create categories to organize your assets and set target allocations.         | Create Category                 |
-| Platforms   | `building.columns`         | No Platforms         | No platforms yet. Platforms are created automatically when you import CSV data or create assets. | —                               |
-| Rebalancing | `chart.bar.doc.horizontal` | No Rebalancing Data  | Add a snapshot to calculate rebalancing from your category goals.                                | —                               |
+## Charts and Historical Views
 
-______________________________________________________________________
+The Dashboard pie chart selects a snapshot date, defaults to the latest, and shows category shares with a legend beside the pie whose columns adapt to the available width. Clicking a category or its legend entry opens that category, except Uncategorized, which has no category detail. The portfolio-value chart opens snapshot detail on click. The multi-category value chart lets users toggle categories in its legend and shows values for a hovered date, ordered by value with aligned currency numbers. The TWR chart has no click navigation. Category, platform, and asset details have their own historical charts and tooltips.
 
-## Settings
+Line charts offer 1W, 1M, 3M, 6M, 1Y, 3Y, 5Y, and All. They start at All for a new view instance; a new selected detail recreates that detail's range state. Filtering is relative to the latest data point rather than the current day. A non-All TWR range rebases its first visible point to 0% unless that point's inception-based TWR is -100%; then rebasing is undefined and the filtered inception-based values remain unchanged. The all-time card remains inception-based. Chart axes abbreviate large values with K, M, and B. Hover marks should not shift the plot domain. [`ChartTimeRangeSelector.swift`](../AssetFlow/Views/Charts/ChartTimeRangeSelector.swift) and [`SingleSeriesLineChart.swift`](../AssetFlow/Views/Charts/SingleSeriesLineChart.swift) show the implemented controls and single-series interactions.
 
-Accessible via menu bar (AssetFlow > Settings) or Cmd+,.
+| Condition                                   | Presentation                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Positive total entirely uncategorized       | One Uncategorized pie slice at 100%                                                   |
+| No asset data for the selected pie snapshot | No asset data placeholder                                                             |
+| One portfolio snapshot                      | One point without a connecting line                                                   |
+| No points in selected range                 | No data for selected period                                                           |
+| No categories or all-zero category history  | Category guidance or a no-data legend entry                                           |
+| Fewer than two snapshots for TWR            | Insufficient data message                                                             |
+| No calculable returns in range              | Cannot calculate returns message                                                      |
+| Required historical exchange rate missing   | Explain the unavailable result or gap; do not label a mixed-currency sum as converted |
 
-**Settings options**:
+Currency-dependent charts show the unavailable overlay where their source status is incomplete. The overlay explains missing rates and replaces the chart's accessible content with its message. Hover tooltips use `.onHoverWhenUnlocked()` or `.onContinuousHoverWhenUnlocked()`; ordinary help uses `.helpWhenUnlocked()`. Chart appearance and controls should remain usable in light and dark mode and with Reduce Transparency.
 
-1. **Display currency**: Currency code (e.g., USD, TWD, EUR). Display-only, no FX conversion.
-1. **Date format**: Picker with Swift `Date.FormatStyle` options (`.numeric`, `.abbreviated`, `.long`, `.complete`). Default: system locale or `.abbreviated`.
-1. **Default platform**: Pre-filled platform value during import (can be overridden per import). Default: empty.
-1. **Security**:
-   - **Require Authentication** toggle: Enables/disables app lock. Off by default. When toggling on, the system authentication dialog is presented first to verify identity (prevents accidental lockout). When toggling off, the app unlocks immediately.
-   - **When Switching Apps** picker (shown only when toggle is on): Configures re-lock timeout for app switch events (Cmd+Tab, click another window, minimize) — Immediately, After 1 Minute, After 5 Minutes, After 15 Minutes, Never.
-   - **When Locked or Sleeping** picker (shown only when toggle is on): Configures re-lock timeout for screen lock / sleep events — Immediately, After 1 Minute, After 5 Minutes, After 15 Minutes, Never.
-   - **Auto-disable**: When both pickers are set to "Never", the Require Authentication toggle is automatically turned off.
-   - **Footer text**: Three variants based on state — when disabled: explains what enabling does; when enabled with Touch ID: explains the two trigger conditions, "Never" option, and auth methods; when enabled without Touch ID: same but notes system password only.
-1. **Data Management**:
-   - **Export Backup**: Exports all data to ZIP archive. User selects save location. Default filename: `AssetFlow-Backup-YYYY-MM-DD.zip`.
-   - **Restore from Backup**: Imports backup archive. Confirmation: "Restoring from backup will replace ALL existing data. This cannot be undone. Continue?" Validates file integrity (CSV presence, headers, foreign key references). On failure, shows detailed error. On success, SwiftData `@Query` invalidation and model query fingerprints reload active screens; retained selections are rebound by stable model ID, while deleted selections are cleared. Query-backed caches also refresh after relevant edits to existing records, not only after restore.
-1. **About**: App identity and legal information at the bottom of Settings.
-   - **App identity row**: App icon (64×64), app name (headline), and a borderless three-row metadata grid for version, build number, and commit hash, in that order. The icon matches the combined height of the app name and metadata. The commit hash is eight characters and includes a `-dirty` suffix when built from a dirty working tree. The values can be selected for copying.
-   - **Developer**: Static field showing the developer name.
-   - **License**: Static field showing the license (GNU General Public License v3.0).
-   - **Privacy**: States that data is stored locally, exchange rates come from cdn.jsdelivr.net, and no personal data is collected or transmitted.
-   - **GitHub link**: Tappable `Link` that opens the source repository in the browser.
-   - **User Guide link**: Tappable `Link` that opens the documentation site, version- and locale-aware (see Help menu below).
+## Shared States and Interaction Patterns
 
-**Lock screen overlay**: When app lock is enabled and the app is locked (on launch or after returning from background beyond the timeout), a full-window opaque overlay (`LockScreenView`) is displayed in a `ZStack` above `ContentView`. It shows the app icon (128×128), "AssetFlow is Locked" title, and an "Unlock" button. The system authentication dialog is triggered automatically on appear. The overlay uses `.regularMaterial` background to fully obscure content. No custom biometric UI — the system `LAContext.evaluatePolicy` dialog handles Touch ID, Apple Watch, and password fallback. Background-date recording is suppressed while authentication is in progress (`isAuthenticating`) to prevent the system auth dialog from triggering a re-lock loop.
+A successful load with no matching records is an empty state, commonly using `ContentUnavailableView` with a direct next action. A persistence read failure instead shows Unable to load data and Retry. Import and Bulk Entry use visible progress and Cancel while files are prepared. Currency availability is separate from read failure: native amounts can remain visible while converted values, goals, or returns explain their own unavailable inputs. A stale draft is separate from an empty or failed load and requires explicit reload or resolution.
 
-**Consistent lock overlays**: Both the main `WindowGroup` and the `Settings` scene use the same `ZStack` + `LockScreenView` pattern. When `authService.isLocked` is `true`, each window independently shows a full opaque material overlay with an Unlock button. No windows are closed when locking — this avoids bugs caused by `NSApplication.shared.mainWindow` returning the wrong window.
+Quick value edits and platform rename use anchored popovers with Save and Cancel. Longer creation forms use sheets with a clear cancellation and commit action; the first useful field receives focus where implemented. Destructive snapshot, category, and restore actions require confirmation. The Delete key in supported lists follows the same screen-specific guard or confirmation as its visible delete action. Do not infer that every list, sheet, or popover has identical keyboard routing; verify native focus and VoiceOver behavior interactively.
 
-**About window** (App menu → About AssetFlow): Opens a custom SwiftUI window from `CommandGroup(replacing: .appInfo)` in `AssetFlowApp.swift`. It uses the same reusable, selectable, borderless metadata grid as Settings to show version, build number, and commit hash in that order. The window width follows the widest natural content group: app identity, copyright and developer/license credits, or guide/source links. The privacy statement wraps to that width below the credits; the links follow the privacy statement. All elements share 24 pt horizontal and 20 pt vertical outer padding.
+## Visual Style, Localization, and Accessibility
 
-**File menu commands**: Replaced via `CommandGroup(replacing: .newItem)`. Includes "New Snapshot..." (Cmd+N) and "Import CSV..." (Cmd+I). Uses `@FocusedValue` to bridge actions from the menu bar to `ContentView`. Both commands are disabled when `authService.isLocked` is `true`.
+The main window follows the system light or dark appearance. Dashboard's portfolio total uses a prominent system-adaptive surface; secondary cards use a quieter glass or material treatment that adapts to Reduce Transparency. Use system title, section, body, and caption roles to keep hierarchy clear. Align financial values with tabular digits. Monetary labels carry the relevant currency with locale grouping and currency fraction precision; percentages display two decimal places. Chart axes may abbreviate large values with K, M, and B.
 
-**Help menu** (Help → AssetFlow User Guide / Report an Issue): Replaced via `CommandGroup(replacing: .help)` in `AssetFlowApp.swift`. Two items:
+Use semantic color for positive, negative, and neutral values, and distinct category colors in charts. Icons and words identify actions and warnings alongside color. The selected, empty, zero, unavailable, and invalid states need distinct text and accessible labels. English and Traditional Chinese (`zh-Hant`) UI strings use String Catalogs; dates follow the selected format and current locale.
 
-- **AssetFlow User Guide** -- opens the documentation site at the correct version and locale. Debug builds link to `/dev/`; Release builds link to `/v{version}/`. Locale is auto-detected: Chinese → `/zh-TW/`, otherwise root (English is the default, no locale prefix).
-- **Report an Issue** -- opens the GitHub Issues page.
+Shared animations come from [`AnimationConstants.swift`](../AssetFlow/Utilities/AnimationConstants.swift) and respect Reduce Motion. User actions can animate list changes, chart changes, and numeric text. Avoid prescribing an empty/content transition on ViewModel initial loads; [`CodeStyle.md`](CodeStyle.md#animating-emptycontent-transitions) explains the flash this can cause. Locking exposes the covering view immediately.
 
-The macOS Help menu's built-in search field (which searches menu items) is preserved -- `CommandGroup(replacing:)` only replaces the menu items, not the search field.
-
-______________________________________________________________________
-
-## Keyboard Shortcuts
-
-| Shortcut | Context                       | Action                                                           |
-| -------- | ----------------------------- | ---------------------------------------------------------------- |
-| Delete   | Snapshot list (item selected) | Delete selected snapshot (confirmation dialog)                   |
-| Delete   | Asset list (item selected)    | Delete selected asset (error alert if it has snapshot values)    |
-| Delete   | Category list (item selected) | Delete selected category (error alert if it has assigned assets) |
-| Cmd+,    | Global                        | Open Settings window (standard macOS `Settings` scene)           |
-
-**Implementation**: Delete key uses `.onDeleteCommand` on each List view, delegating to the same ViewModel delete methods as the context menu. The Settings shortcut is provided automatically by the SwiftUI `Settings` scene in `AssetFlowApp.swift`.
-
-______________________________________________________________________
-
-## Localization
-
-AssetFlow uses Apple String Catalogs (`.xcstrings`) with **English** as the development language and **Traditional Chinese (zh-Hant)** as the additional supported language.
-
-**String catalog organization by feature:**
-
-| Catalog                 | Scope                                           |
-| ----------------------- | ----------------------------------------------- |
-| `Localizable.xcstrings` | All SwiftUI view-level strings (auto-extracted) |
-| `Asset.xcstrings`       | Asset validation and error messages             |
-| `Category.xcstrings`    | Category validation and error messages          |
-| `Platform.xcstrings`    | Platform operation messages                     |
-| `Snapshot.xcstrings`    | Snapshot validation and error messages          |
-| `Import.xcstrings`      | Import workflow messages                        |
-| `Rebalancing.xcstrings` | Rebalancing action text                         |
-| `Services.xcstrings`    | Backup/restore messages                         |
-| `Settings.xcstrings`    | Settings display strings                        |
-
-**Conventions:**
-
-- SwiftUI view strings (in `Text()`, `Label()`, etc.) are auto-extracted into `Localizable.xcstrings`
-- ViewModel and Service strings use `String(localized:table:)` with the appropriate feature table
-- Enum display names use `localizedName` computed properties — never display `rawValue` directly
-- Translation style: idiomatic Traditional Chinese matching Taiwan usage (e.g., 資產, 快照, 類別, 平台, 再平衡, 儀表板, 匯入, 備份)
-
-______________________________________________________________________
-
-## Window and Appearance
-
-- **Window style**: `.windowStyle(.hiddenTitleBar)` with `.windowToolbarStyle(.unified)` for modern macOS Tahoe Liquid Glass integration
-- **Minimum window size**: 900 x 600 points
-- **Sidebar**: Collapsible via toolbar button or drag. Default width: 220 points.
-- **Appearance**: Supports system appearance (light and dark mode). All custom colors and chart colors adapt to both modes.
-
-**Number formatting**:
-
-- Monetary values: ordinary asset displays use the existing currency formatter with locale grouping and Foundation currency fraction defaults (for example, $1,234.50). Entry, storage and calculation retain full Decimal precision. Rebalancing help follows asset display precision and keeps tiny nonzero amounts visible as bounds; see Shared Currency Headings in Rebalancing Help.
-- Percentages: 2 decimal places (e.g., 45.23%)
-- Chart axes: Abbreviated for large values (K, M, B)
-
-Allocation percentage totals display actual sum (no forced normalization to 100%).
-
-______________________________________________________________________
-
-## Visualizations
-
-### Time Range Controls
-
-All line charts include a zoom selector:
-
-- 1W, 1M, 3M, 6M, 1Y, 3Y, 5Y, All
-- Default: All
-- Shows only snapshots within selected range
-- "No data for selected period" if empty
-- Range resets to "All" when navigating away (not persisted)
-
-### Pie Chart -- Category Allocation (Section 12.1)
-
-- Shows allocation at a selected snapshot (default: latest)
-- Each slice = one category
-- Slices sorted by value (largest first, clockwise from 12 o'clock)
-- Uncategorized shown as distinct slice (uses a neutral/gray tone to indicate it is not a user-defined category)
-- Labels: category name, percentage, value
-- Legend is displayed as a dynamic multi-column grid to the right of the pie chart, showing color swatch, category name, and percentage for each category. The number of columns adapts to both the category count and the available width — using the fewest columns needed to fit all categories without scrolling. Column width is measured from the widest item content (capped at 180pt). The pie chart is fixed to a square aspect ratio and centered in the remaining space, with the legend right-aligned. Legend items are interactive: hovering highlights the corresponding slice, and clicking navigates to category detail.
-- Hover: tooltip with details. Click: navigates to category detail.
-
-### Line Chart -- Portfolio Value Over Time (Section 12.2)
-
-- X-axis: snapshot dates. Y-axis: portfolio total value.
-- Data points at each snapshot
-- Hover: tooltip with date and value. Click: navigates to snapshot detail.
-- Time range zoom controls
-
-### Line Chart -- Category Value Over Time (Section 12.3)
-
-- Multiple lines, one per category
-- Legend with category names
-- Toggle individual categories on/off
-- Hover: tooltip with the date and category values at that date, sorted from highest to lowest (ties alphabetically). Currency values are right-aligned in a shared column with tabular digits. No click-to-navigate.
-- Time range zoom controls
-
-Category detail also includes allocation percentage line chart (same format, single category).
-
-### Cumulative TWR Chart (Section 12.4)
-
-- X-axis: snapshot dates. Y-axis: cumulative TWR (%)
-- Portfolio-level return over time
-- Hover: tooltip with date and TWR percentage. No click-to-navigate.
-- Time range zoom controls
-- **Rebasing:** When a non-"All" time range is selected, TWR values are rebased so the first visible point starts at 0%, showing period-specific returns. The "All" range shows inception-based values unchanged.
-- The metric card is labeled "Cumulative TWR (All Time)" to distinguish it from the chart's period-rebased values.
-
-### Chart Axis Stability
-
-All interactive charts (those with hover tooltips or click-to-navigate) must pin both X and Y axis domains explicitly using `.chartXScale(domain:)` and `.chartYScale(domain:)`. This prevents axis recalculation and visual shifts when conditional marks (e.g., `RuleMark` annotations) are added or removed during hover/tap interactions.
-
-### Chart Empty and Edge States
-
-| Chart                  | Condition                                | Display                                         |
-| ---------------------- | ---------------------------------------- | ----------------------------------------------- |
-| Pie chart              | All assets uncategorized                 | Single slice "Uncategorized" 100%               |
-| Pie chart              | No assets in latest snapshot             | "No asset data available"                       |
-| Line chart (portfolio) | Only one snapshot                        | Single data point with label, no line           |
-| Line chart (portfolio) | No snapshots in range                    | "No data for selected period"                   |
-| Line chart (category)  | No categories defined                    | "Create categories to see allocation trends"    |
-| Line chart (category)  | Category has zero value in all snapshots | Omit from chart, show "(no data)" in legend     |
-| TWR chart              | Fewer than 2 snapshots                   | "Insufficient data (need at least 2 snapshots)" |
-| TWR chart              | All returns N/A in range                 | "Cannot calculate returns for selected period"  |
-
-______________________________________________________________________
-
-## Visual Style
-
-### Color Usage
-
-**Semantic Colors** (leverage system defaults):
-
-- **Accent**: Primary actions and highlights (system blue)
-- **Positive**: Value increases (green)
-- **Negative**: Value decreases (red)
-- **Neutral**: Informational (gray)
-
-**Automatic Dark Mode**: Use semantic color names, test all screens in both modes.
-
-### Typography
-
-- **Screen Titles**: `.title` or `.largeTitle`
-- **Section Headers**: `.title2` or `.title3`
-- **Primary Content**: `.body`
-- **Secondary Info**: `.subheadline` or `.caption`
-- **Financial Values**: Monospaced digits for alignment
-
-**Formatting**:
-
-- Currency: Use `Decimal` with `.formatted(currency:)` extension
-- Percentages: Use `.formattedPercentage()` extension
-- Large numbers: K, M, B suffixes in chart axes
-
-### Iconography
-
-**SF Symbols**:
-
-- Add: `plus.circle.fill`
-- Edit: `pencil`
-- Delete: `trash`
-- Import: `square.and.arrow.down`
-- Export: `square.and.arrow.up`
-- Info: `info.circle`
-- Chart: `chart.pie.fill`, `chart.xyaxis.line`
-
-### Spacing and Layout
-
-- 8pt base unit (small: 8pt, medium: 16pt, large: 24pt)
-- Cards: Secondary background, 16pt padding, 10-12pt corner radius
-- Lists: Full width within safe areas
-
-### Component Patterns
-
-- **Empty States**: Centered icon, brief message, call-to-action button
-- **Loading States**: Progress spinner with text
-- **Error States**: Error icon, clear message, suggested action
-- **Confirmation Dialogs**: For all destructive actions (delete snapshot, delete asset from snapshot, restore from backup)
-
-______________________________________________________________________
-
-## Accessibility Considerations
-
-### Visual Accessibility
-
-- Use semantic colors (WCAG AA contrast)
-- Support Dynamic Type
-- Respect Reduce Motion via `AnimationConstants` (near-instant fallback durations)
-
-### Screen Reader (VoiceOver)
-
-- All interactive elements have clear labels
-- Logical reading order
-- Actionable items clearly identified
-
-### Keyboard Navigation
-
-- Full keyboard navigation on macOS
-- Logical tab order
-- Visible focus indicators
-
-______________________________________________________________________
-
-# Part 2: Implementation Guide
-
-## SwiftUI Implementation Patterns
-
-### Navigation Structure
-
-```swift
-NavigationSplitView {
-    // Sidebar
-    List(selection: $selectedSection) {
-        NavigationLink(value: Section.dashboard) {
-            Label("Dashboard", systemImage: "chart.bar")
-        }
-        NavigationLink(value: Section.snapshots) {
-            Label("Snapshots", systemImage: "calendar")
-        }
-        // ... other items
-    }
-    .navigationSplitViewColumnWidth(min: 180, ideal: 220)
-} detail: {
-    switch selectedSection {
-    case .dashboard:
-        DashboardView()
-    case .snapshots:
-        SnapshotsSplitView()
-    // ... other sections
-    }
-}
-.frame(minWidth: 900, minHeight: 600)
-```
-
-### List-Detail Split Pattern
-
-For sections with list-detail (Snapshots, Assets, Categories, Platforms), the outer `NavigationSplitView` provides the sidebar+detail layout, and each inner split view provides the list+detail layout within the detail column. This creates a 3-column layout on macOS (sidebar | list | detail). Use `NavigationSplitView(columnVisibility:)` with `.all` to ensure the 3-column mode is available:
-
-```swift
-struct SnapshotsSplitView: View {
-    @State private var viewModel: SnapshotListViewModel
-    @State private var selectedSnapshot: Snapshot?
-
-    init(modelContext: ModelContext) {
-        _viewModel = State(
-            initialValue: SnapshotListViewModel(modelContext: modelContext))
-    }
-
-    var body: some View {
-        NavigationSplitView {
-            Group {
-                if case .failed(let message) = viewModel.loadState {
-                    DataLoadErrorView(message: message) {
-                        viewModel.loadRowData()
-                    }
-                } else {
-                    List(viewModel.snapshots, selection: $selectedSnapshot) { snapshot in
-                        SnapshotRowView(snapshot: snapshot)
-                    }
-                }
-            }
-            .toolbar {
-                Button("New Snapshot", systemImage: "plus") { /* ... */ }
-            }
-        } detail: {
-            if let snapshot = selectedSnapshot {
-                SnapshotDetailView(snapshot: snapshot)
-            } else {
-                ContentUnavailableView(
-                    "Select a Snapshot",
-                    systemImage: "calendar",
-                    description: Text("Select a snapshot to view details")
-                )
-            }
-        }
-    }
-}
-```
-
-`SnapshotListView` may retain an `@Query` as an invalidation signal for collection membership changes, but it must not render that query directly or pass its results into row loading. Snapshot display and creation both use the throwing `SnapshotListViewModel`, so a failed fetch cannot become “No Snapshots” and a failed date check cannot insert a duplicate.
-
-### Popover Pattern for Quick Edits
-
-Lightweight edit interactions (1-2 fields) use `.popover()` anchored to their trigger row instead of modal sheets. This provides faster, less disruptive editing:
-
-```swift
-.popover(
-    isPresented: Binding(
-        get: { editingItem?.id == item.id },
-        set: { if !$0 { editingItem = nil } }
-    ),
-    arrowEdge: .trailing
-) {
-    VStack(alignment: .leading, spacing: 12) {
-        Text("Edit Value").font(.headline)
-        TextField("Value", text: $valueText).textFieldStyle(.roundedBorder)
-        HStack {
-            Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-            Spacer()
-            Button("Save") { save() }.keyboardShortcut(.defaultAction)
-        }
-    }
-    .frame(width: 280)
-    .padding()
-}
-```
-
-Popovers are used for: Edit Asset Value, Edit Cash Flow, Rename Platform. Complex multi-field forms (Add Asset, Add Cash Flow, Add Category) remain as modal sheets.
-
-### Sheet Pattern (Standard macOS)
-
-All modal sheets use the standard macOS sheet pattern with `NavigationStack` + toolbar placements. `@FocusState` is used to auto-focus the first field on appear:
-
-```swift
-NavigationStack {
-  Form { ... }
-  .formStyle(.grouped)
-  .navigationTitle("Sheet Title")
-  .toolbar {
-    ToolbarItem(placement: .cancellationAction) {
-      Button("Cancel") { dismiss() }
-    }
-    ToolbarItem(placement: .confirmationAction) {
-      Button("Create") { ... }
-        .disabled(...)
-    }
-  }
-}
-
-// Auto-focus first field:
-@FocusState private var focusedField: Field?
-.onAppear { focusedField = .name }
-```
-
-### Menu Bar Commands
-
-The File menu includes custom commands via `CommandGroup(replacing: .newItem)`:
-
-- **New Snapshot...** (Cmd+N) -- navigates to Snapshots section and opens the New Snapshot sheet
-- **Import CSV...** (Cmd+I) -- navigates to the Import CSV section
-
-These use `@FocusedValue` to bridge between menu commands and `ContentView` state. `FocusedValueKey` types (`NewSnapshotActionKey`, `ImportCSVActionKey`) are defined in `ContentView.swift`.
-
-The Help menu includes custom commands via `CommandGroup(replacing: .help)`:
-
-- **AssetFlow User Guide** -- opens the version- and locale-aware documentation URL (`Constants.AppInfo.documentationURL`)
-- **Report an Issue** -- opens the GitHub Issues page (`Constants.AppInfo.issuesURL`)
-
-### Chart Implementation
-
-Use Swift Charts framework:
-
-```swift
-import Charts
-
-// Pie chart for category allocation
-Chart(categoryData) { item in
-    SectorMark(
-        angle: .value("Value", item.value),
-        innerRadius: .ratio(0.5)
-    )
-    .foregroundStyle(by: .value("Category", item.name))
-}
-
-// Line chart for portfolio value
-Chart(snapshotData) { point in
-    LineMark(
-        x: .value("Date", point.date),
-        y: .value("Value", point.totalValue)
-    )
-    PointMark(
-        x: .value("Date", point.date),
-        y: .value("Value", point.totalValue)
-    )
-}
-```
-
-### Import Screen Implementation
-
-```swift
-struct ImportView: View {
-    @State private var viewModel = ImportViewModel()
-
-    var body: some View {
-        VStack {
-            // Import type selector
-            Picker("Import Type", selection: $viewModel.importType) {
-                Text("Assets").tag(ImportType.assets)
-                Text("Cash Flows").tag(ImportType.cashFlows)
-            }
-            .pickerStyle(.segmented)
-
-            // File drop zone
-            FileDropZone(url: $viewModel.selectedFile)
-
-            // Configuration (date, platform, category)
-            if viewModel.selectedFile != nil {
-                ImportConfigurationView(viewModel: viewModel)
-                ImportPreviewTable(viewModel: viewModel)
-                ImportValidationSummary(viewModel: viewModel)
-            }
-
-            // Import button
-            Button("Import") { viewModel.executeImport() }
-                .disabled(viewModel.isImportDisabled)
-        }
-    }
-}
-```
-
-### Reusable Components
-
-**CurrencyText**: Use `Decimal.formatted(currency:)` extension
-
-```swift
-Text(value.formatted(currency: settings.displayCurrency))
-    .font(.title2)
-    .fontWeight(.semibold)
-```
-
-**PercentageText**: Color-coded percentage display
-
-```swift
-Text(percentage.formattedPercentage())
-    .foregroundColor(percentage >= 0 ? .green : .red)
-```
-
-**MetricCard**: Card container for dashboard metrics
-
-```swift
-VStack(alignment: .leading, spacing: 8) {
-    HStack {
-        Text("Total Portfolio Value")
-            .font(.subheadline)
-            .foregroundColor(.secondary)
-        Button(action: { showTooltip.toggle() }) {
-            Image(systemName: "info.circle")
-        }
-    }
-    Text(value.formatted(currency: "USD"))
-        .font(.title)
-        .fontWeight(.bold)
-}
-.padding()
-.background(.regularMaterial)
-.cornerRadius(10)
-```
-
-**AssetTableView** (`Views/Components/AssetTableView.swift`): Generic `AssetTableView<SecondColumn>` for displaying asset rows with Name, a configurable second column (e.g., "Category" or "Platform"), Original Value, and an optional Converted Value column. The Converted Value column is automatically hidden when no rows have converted values. Uses `DetailAssetRowData` as the shared row data type. Used by `PlatformDetailView` and `CategoryDetailView`.
-
-**PlatformPickerField** (`Views/Components/PlatformPickerField.swift`): Reusable `Picker` for selecting an existing platform or creating a new one inline. Uses a `Binding<String>` for the selected platform. Selecting the sentinel value `"__new__"` (tagged as "New Platform...") toggles to an inline `TextField` for entering a new platform name. Commit logic performs case-insensitive deduplication against the cached platform list.
-
-**CategoryPickerField** (`Views/Components/CategoryPickerField.swift`): Reusable picker for selecting an existing `Category` or entering a new category name inline. Similar inline-creation pattern to `PlatformPickerField`; uses a `resolveCategory` closure to look up or create the `Category` model object.
-
-**EditValuePopover** (`Views/Components/EditValuePopover.swift`): Small popover for editing a `Decimal` market value in place. Triggered by double-click or context menu on market value cells in `AssetDetailView` and `SnapshotDetailView`.
-
-### Animation and Transitions
-
-All animations use shared constants from `AnimationConstants` (`Utilities/AnimationConstants.swift`), which automatically respect the Reduce Motion accessibility setting by falling back to near-instant durations.
-
-**Available animations:**
-
-| Constant       | Duration | Curve     | Usage                                                  |
-| -------------- | -------- | --------- | ------------------------------------------------------ |
-| `.standard`    | 0.25s    | easeOut   | Empty↔content transitions, conditional field show/hide |
-| `.list`        | 0.2s     | easeOut   | List row reordering (`.onMove`)                        |
-| `.chart`       | 0.25s    | easeInOut | Chart time range changes, pie chart cross-fade         |
-| `.numericText` | 0.2s     | easeInOut | Dashboard period picker value changes                  |
-
-**Animation patterns:**
-
-- **Empty state transitions**: Views using ViewModel-based loading (`.onAppear`) must NOT use `.animation(_:value:)` — it animates the initial data load, causing a flash of the empty state. Do NOT add `.transition(.opacity)` to empty/content branches either — the transition is unnecessary and may cause jitter on navigation. The `withAnimation` in user-action code paths (e.g., `onChange`, delete handlers) smoothly updates list content; the empty↔content switch itself should be instant. A view may use `@Query` to invalidate a throwing ViewModel load, but it must render the ViewModel's loaded collection so query failures cannot display a false empty state.
-- **Chart data cross-fade**: When switching between datasets (e.g., pie chart snapshot picker), use `.id(selectedValue)` + `.transition(.opacity)` on the chart content with `.animation()` on the parent container. This produces a clean dissolve instead of morphing artifacts.
-- **Lock screen**: Only the unlock transition animates (security constraint — lock must appear instantly).
-- **Numeric text**: Use `.contentTransition(.numericText())` for metric values that change in place.
-
-______________________________________________________________________
-
-## Development Workflow
-
-### Before Building a Screen
-
-1. Define the screen's purpose in one sentence
-1. Identify which models/queries are needed
-1. Choose container (List, Form, ScrollView, or custom layout)
-1. Plan navigation (how users arrive and leave)
-
-### While Building
-
-1. Use Xcode Previews for rapid iteration
-1. Test with realistic data and edge cases
-1. Check light and dark mode
-1. Verify Dynamic Type scaling
-
-### After Implementation
-
-1. Add empty states
-1. Add loading states (if async)
-1. Add error handling UI
-1. Verify keyboard navigation
-1. Test VoiceOver (basic navigation)
-
-______________________________________________________________________
-
-## Resources
-
-### Apple Documentation
-
-- [Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/)
-- [SF Symbols App](https://developer.apple.com/sf-symbols/)
-- [SwiftUI Documentation](https://developer.apple.com/documentation/swiftui/)
-- [Swift Charts](https://developer.apple.com/documentation/charts)
-- [Accessibility Guidelines](https://developer.apple.com/accessibility/)
-
-### Specification Reference
-
-- `SPEC.md` Sections 3, 4, 12 for detailed UI requirements
-
-______________________________________________________________________
-
-## Implementation Status
-
-| View                           | Status      | Notes                                                                                                                                                                                                                                                     |
-| ------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ContentView (Navigation Shell) | Implemented | Full 7-section sidebar with SidebarSection enum, list-detail splits, discard confirmation, post-import navigation                                                                                                                                         |
-| DashboardView                  | Implemented | Summary cards with `.helpWhenUnlocked()` tooltips, period performance (1M/3M/1Y), interactive charts, ContentUnavailableView, recent snapshots                                                                                                            |
-| SnapshotListView               | Implemented | Throwing ViewModel-backed list with query invalidation, relative time bucket grouping (collapsible sections), New Snapshot sheet (NavigationStack), retryable persistence error state, ContentUnavailableView, Delete key shortcut                        |
-| SnapshotDetailView             | Implemented | Asset breakdown, category allocation, cash flow CRUD, edit popovers, delete confirmation                                                                                                                                                                  |
-| AssetListView                  | Implemented | Platform/category grouping, selection binding, ContentUnavailableView, Delete key shortcut                                                                                                                                                                |
-| AssetDetailView                | Implemented | Edit fields, interactive 250pt value history chart with time range selector and hover tooltips, converted value chart toggle, inline editing, delete validation                                                                                           |
-| CategoryListView               | Implemented | Add sheet (NavigationStack), target allocation warning, delete validation, ContentUnavailableView, Delete key shortcut                                                                                                                                    |
-| CategoryDetailView             | Implemented | Edit fields, value/allocation history charts with time range controls, delete validation                                                                                                                                                                  |
-| PlatformListView               | Implemented | List-detail split with selection binding, rename popover, ContentUnavailableView, onChange reload after rename                                                                                                                                            |
-| PlatformDetailView             | Implemented | Editable name, assets table (Name/Category/Original Value), value history chart with time range controls and hover tooltip                                                                                                                                |
-| RebalancingView                | Implemented | Suggestions table, no-target section, uncategorized section, summary, ContentUnavailableView                                                                                                                                                              |
-| ImportView                     | Implemented | Accepts ViewModel from ContentView for shared state observation                                                                                                                                                                                           |
-| BulkEntryView                  | Implemented | Full-screen bulk value entry with platform-grouped table, per-platform CSV import, inline asset/platform creation, category picker for new assets, keyboard navigation, zero-value warnings, observation boundaries for asset/cash-flow/toolbar isolation |
-| SettingsView                   | Implemented | Currency, date format, default platform; accessible via Cmd+, (Settings scene)                                                                                                                                                                            |
-
-## Minimum Balance Goals
-
-Category create/detail retain an optional percentage and add an independent minimum toggle. Minimum amount and currency always occupy separate labeled form rows, including at wide widths. Default currency uses a single shared asset currency, otherwise the display currency. Save Changes commits the entire detail form atomically; Revert resets every draft field. Return saves only from a text field; Command-S saves from Category Detail. Both buttons are disabled without edits. Category/section/history navigation with edits offers Save, Discard, or Cancel. Explanations appear in information popovers, and saved-minimum status appears in the section footer with its snapshot date. Amount-only rows emphasize the original minimum and met/shortfall/unavailable status; no minimum surplus generates a sell warning.
-
-The list labels Current and Effective target percentages together, both shares of the whole portfolio. Pool target remains secondary configured metadata. One indicator explains allocation deviation above 5 percentage points and/or any positive minimum shortfall; the help groups reasons as consecutive bullets. Minimum-only categories show feasible effective shares and protect surpluses without a deviation warning. No-goal categories omit effective targets. Infeasible/unavailable effective shares and zero-portfolio percentages show an em dash; independently determinable minimum shortfalls still warn. Uncategorized holdings contribute to the actual denominator. The value-history chart overlays current minimums converted with each snapshot's rates, breaks lines at missing rates, includes overlay values in the pinned domain, and includes them in lock-aware hover content. Allocation history shows actual share of total without a misleading pool-percentage reference line.
-
-Rebalancing uses Category, Current balance, Current %, Effective target balance, Effective target %, Change, Action, and Minimum columns. Configured percentages appear in category settings and relevant calculation inputs. Cells stay on one line and narrow windows allow horizontal scrolling. Category popovers show contextual lettered inputs and formula result rows with asset display precision. Calculation details reconciles portfolio total, protected funds, available allocation, and conditional minimum-fixed/remainder amounts, followed by compact rules; no category lists or overlapping total-minimum rows appear. Diagnostics replace actions for infeasible, invalid, or unavailable plans. Small adjustments and unmatched residuals remain visible. All help behavior remains lock-aware.
-
-## Structured Rebalancing Help
-
-Category popovers explain the selected target using lettered inputs and formula result rows in one compact table; they do not repeat the main-table balance/change fields or list other categories. Calculation details presents aggregate allocation inputs and allocation rules. Minimum assessment popovers retain their focused comparison and snapshot date. The Traditional Chinese snapshot note uses “評估依據：%@ 的快照資料。” to identify the dated data used for the assessment.
-
-## Shared Currency Headings in Rebalancing Help
-
-Each popup table independently checks the intended currencies of its monetary rows. When they all match, the table heading shows that ISO code once and monetary values show localized numbers without a currency prefix. A previously untitled minimum assessment table uses Assessment as its heading. Mixed-currency tables retain prefixes on every available monetary value. Percentage rows are excluded from the check; unavailable monetary rows still contribute their intended currency and remain an em dash. Amounts in explanatory sentences retain their codes. The currency-heading rule does not convert values or parse formatted strings. Monetary formatting separately uses the existing asset currency formatter's fraction precision, with the same trailing decimal places, locale separators and grouping; Foundation supplies the currency defaults without an app-maintained currency list. Apply this to all popup amount rows, shortfall explanations and funding diagnostics. Nonzero values below one display unit use a bound (for example, `<0.01`), with localized Increase/Decrease text for tiny signed changes; actual zero remains a formatted zero and unavailable values remain an em dash. No Full precision section is shown. Stored Decimal values, allocation arithmetic and minimum-status comparisons remain unrounded.
-
-Rebalancing pairs each current/effective balance with its share of the entire portfolio, followed by Change/Action and Minimum. Effective target % includes minimum-only categories, uses existing percentage formatting, and displays an em dash for unavailable/infeasible plans, zero totals and rows without goals. Its lock-aware cell tooltip explains the whole-portfolio denominator and minimum-only surplus protection.
-
-### Lettered rebalancing calculations
-
-Input rows use (A), (B), (C), etc.; result rows show their plain-language label, referenced formula, and value in the same grid. Formula text follows the label inline in caption styling. All row labels use secondary color and regular weight. All popup values use the standard system callout font with one bold weight and tabular digits (`.monospacedDigit()`), matching the dashboard category value trend tooltip approach. Result rows remain distinguished by dividers; no monospaced font design or per-result weight change is applied. Percentage symbols occupy a separate suffix column with a small gap, so percentage numbers share the right-aligned numeric column with monetary values. Tables without suffixes retain two columns. Unavailable shares have no suffix. Accessibility includes the suffix with the numeric value and hides the separate decorative symbol cell. Each data row is a single baseline-aligned GridRow; dividers are full-width table overlays positioned from result-row bounds, never extra conditional grid rows. Rebalancing popovers use their natural title/table width with explanatory paragraphs wrapping to that width. Available screen width bounds the content, allowing wrapping instead of clipping when necessary. Non-rebalancing help retains its existing sizing. Shared monetary currency headings and asset display precision remain in place. Results use ≈ when a displayed result or referenced input is rounded; arithmetic and funding decisions retain original Decimal precision. Category lists are omitted from aggregate and category explanations.
-
-Rebalancing Keep/Protected cells use `minus.circle.fill` before the localized text in secondary gray, matching the filled-circle Buy/Sell icons. The standard Label preserves the text for accessibility.
-
-### Draft protection while choosing a snapshot date
-
-The sidebar New Snapshot date sheet overlays Categories without replacing its editor. Save or Discard resolves the current draft before opening the sheet; cancelling the sheet retains the editor, so later edits still require Save, Discard, or Cancel before leaving. The editor is released only after the visible category is replaced or section navigation completes. Suggested Moves funds minimum shortfalls before optional percentage adjustments, with repeated category pairs combined into one move.
+Check chart labels and tooltips, popover and dialog reading order, focus after sheet presentation and dismissal, keyboard activation of list and chart actions, and visible focus indicators with VoiceOver and Full Keyboard Access. Check light and dark appearance, Reduce Transparency, Reduce Motion, and contrast interactively. Source-level labels, semantic colors, and render tests do not establish native event routing or a contrast rating by themselves.

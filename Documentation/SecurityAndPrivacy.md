@@ -1,406 +1,73 @@
 # Security and Privacy
 
-## Preface
+AssetFlow stores portfolio records locally and uses network requests to obtain currency names and exchange rates. This document describes the sensitive data, trust boundaries, current protections, and their limits. [`SPEC.md`](SPEC.md) defines intended product behavior; [`Architecture.md`](Architecture.md) owns component and lifecycle design; [`DataModel.md`](DataModel.md) owns persistence; and [`APIDesign.md`](APIDesign.md) owns file and network contracts.
 
-**Purpose of this Document**
+## Sensitive Data and Locations
 
-This document outlines the security and privacy considerations for AssetFlow, a personal finance application handling sensitive financial data. It describes the measures taken to protect user data, ensure privacy, and maintain secure operation on macOS.
+Portfolio data can reveal wealth, investment choices, and cash-flow history. Asset names, platforms, snapshot values and dates, cash-flow descriptions and amounts, category targets and minimum balances, and exported backups should all be treated as sensitive. A category minimum's amount and currency are stored locally and included in current-format backups; rebalancing reads this data locally and does not submit balances or goals to the rate provider.
 
-**Philosophy**
+| Data                                          | Location and lifetime                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Portfolio records and snapshot exchange rates | SwiftData's default persistent store for the sandboxed app. This includes the six models described in [`DataModel.md`](DataModel.md); the app does not configure separate database encryption.                                                                                                                                |
+| Preferences and currency list                 | `UserDefaults` stores display and import preferences, app-lock settings, and a downloaded currency-name cache. Only the backup format's documented settings subset is exported; app-lock settings and the currency-list cache are not.                                                                                        |
+| Working data                                  | Import drafts and backup transfer records are held in memory while their operations run. A decoded exchange-rate dictionary is an in-memory, `@Transient` cache of a stored rate record.                                                                                                                                      |
+| User-selected files                           | Imported CSV files remain at their selected locations. Exported ZIP backups are written to a user-selected destination, which may be shared or cloud-synced independently of AssetFlow.                                                                                                                                       |
+| Backup working files                          | Export writes readable manifest and CSV files under `FileManager.default.temporaryDirectory` and an intermediate ZIP beside the chosen destination. Validation and restore extract into temporary directories. The code attempts to remove these working files on exit, but cleanup is best effort and is not secure erasure. |
 
-1. **Privacy by Design**: Minimal data collection, user owns all data
-1. **Local-First**: Data stays on user's device -- network used only for exchange rate fetching (no authentication, no user data sent)
-1. **Platform Trust**: Leverage Apple's security infrastructure
-1. **Transparency**: Clear communication about data handling
-1. **User Control**: Users can export, delete, or back up their data
+The app has no account or built-in cloud-sync service. User-selected files and operating-system backups can retain copies outside the live SwiftData store. See [`BackupService.swift`](../AssetFlow/Services/BackupService.swift) for working-file handling and [`APIDesign.md`](APIDesign.md#backup-interchange-format) for the exported settings and records.
 
-**Related Documentation**
+## Threats and Controls
 
-- [Architecture.md](Architecture.md) - System architecture and data flow
-- [DataModel.md](DataModel.md) - Data structures and relationships
-- [APIDesign.md](APIDesign.md) - Backup/restore format and validation
+| Boundary and threat                          | Current control                                                                                                                                                                           | Limit                                                                                                                                                                                             |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Someone viewing an unattended, unlocked Mac  | Optional app lock covers the main and Settings scenes and asks macOS to authenticate the device owner. Lock-aware help, hover, and selected editing controls reduce on-screen disclosure. | This protects the app interface, not stored files or data already visible elsewhere on the Mac. Its event behavior needs interactive verification.                                                |
+| Other software or physical access to storage | The app target configures App Sandbox; macOS file permissions and the device's encryption configuration also matter.                                                                      | Sandbox access can extend to user-selected files. App lock is not database encryption, and these controls do not establish protection against an administrator or malware with sufficient access. |
+| Untrusted CSV or ZIP input                   | CSV preparation validates imported records. Restore validates the extracted backup into typed records before replacing the live graph.                                                    | ZIP extraction precedes the backup's regular-file and per-file size checks; the app does not impose a pre-extraction total expansion limit.                                                       |
+| Copies of financial data in a backup         | Export requires the user to choose a destination; restore requires confirmation.                                                                                                          | The ZIP and its CSV contents are not encrypted by AssetFlow. Temporary and user-managed copies may remain.                                                                                        |
+| Exchange-rate provider and network observers | The app uses HTTPS for CDN requests and checks rate responses before using them.                                                                                                          | The provider receives the request URL and ordinary connection metadata; its retention practices are outside this repository's evidence.                                                           |
 
-______________________________________________________________________
+The table summarizes controls visible in source; device and distribution state determine the effective platform protections. [Apple's App Sandbox guidance](https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox) describes container and user-selected-file access.
 
-## Threat Model
+## App Lock (Optional)
 
-### Assets to Protect
+App lock is off by default. Enabling it requires a successful system authentication attempt. When enabled, the app locks on launch and uses separate timeouts for app switching and screen lock or sleep: Immediately, 1, 5, or 15 minutes, or Never. Setting both to Never disables app lock and unlocks the app; re-enabling it resets both timeouts to Immediately. [`SettingsViewModel.swift`](../AssetFlow/ViewModels/SettingsViewModel.swift) owns these setting transitions.
 
-**Sensitive Data**:
+`AuthenticationService` evaluates `LAPolicy.deviceOwnerAuthentication` through macOS `LocalAuthentication`. Touch ID, a paired Apple Watch, or the user's password may be available according to the device and system state; the app does not choose a fixed fallback sequence. The app does not receive or store biometric data or the device password. [Apple documents the policy's macOS behavior](https://developer.apple.com/documentation/localauthentication/lapolicy/deviceownerauthentication).
 
-- Portfolio composition and asset values
-- Snapshot history (reveals wealth trajectory over time)
-- Category allocations and target allocations
-- Cash flow operations (deposits, withdrawals)
-- Backup files (contain all of the above)
+[`AssetFlowApp.swift`](../AssetFlow/AssetFlowApp.swift) passes app-activation and screen-lock events to the service and places `LockScreenView` over the main and Settings scenes. An immediate timeout sets lock state when the background event is recorded; automatic authentication waits until the app is active. A failed or cancelled attempt leaves it locked and suppresses further automatic attempts until another background event. The Unlock button still permits a manual attempt.
 
-**Sensitivity Level**: **High**
+The lock environment suppresses help text and gates hover callbacks while locked through [`WhenUnlockedModifiers.swift`](../AssetFlow/Utilities/WhenUnlockedModifiers.swift). Category goal and calculation help popovers close when locked, and affected editing controls reject locked interaction. App commands for new snapshots and CSV import are disabled while locked. These controls address tooltip, chart, popover, and keyboard disclosure through the interface; their behavior across actual windows, focus changes, and supported authentication devices still needs interactive verification.
 
-- Exposure could reveal user's wealth, investment strategy, and financial situation
-- Not authentication credentials, but valuable for profiling
+App lock does not encrypt SwiftData, backups, preferences, or temporary files. It does not prevent another process with file access from reading them. [`UserInterfaceDesign.md`](UserInterfaceDesign.md) owns the visible locked state and interaction details.
 
-### Potential Threats
+## Files, Validation, and Restore
 
-**Local Device Threats**:
+An exported backup is a ZIP containing a manifest and CSV records, including category minimums and other portfolio data. Its contents are readable without an AssetFlow password. Users should protect the chosen destination and any copies, especially on shared or synced storage. The exact archive layout, format versions, and supported settings are defined in [`APIDesign.md`](APIDesign.md#backup-interchange-format).
 
-1. **Physical Device Access**: Unauthorized person accesses unlocked Mac
-1. **Device Theft**: Lost or stolen Mac
-1. **Malware**: Malicious software on the device
-1. **Backup Exposure**: Unencrypted backup files accessible to others
+CSV import reads a user-selected, security-scoped file and prepares parsed records before the user commits them. Parsing checks the file structure and field formats; domain validators apply finite and range checks where those rules are defined. These checks protect input boundaries. `Decimal` is the monetary precision choice, not an input-security control. The import format and validation contract belong in [`APIDesign.md`](APIDesign.md#csv-import-format-specification) and [`BusinessLogic.md`](BusinessLogic.md).
 
-**Backup File Threats**:
+Restore invokes macOS `/usr/bin/ditto` to extract the ZIP into a temporary directory. **After extraction**, it requires the named manifest and CSV files to be regular, nonsymlink files, limits the manifest to 1 MiB and each CSV to 128 MiB, and validates the supported version, headers, values, identities, settings, and relationships. Those checks do not establish a ZIP-size, entry-count, total-expanded-size, or extraction-time limit before extraction. The current source does not establish a general guarantee about unusual archive paths or links during `ditto` extraction. See [`BackupService+Validation.swift`](../AssetFlow/Services/BackupService+Validation.swift) and [`BackupService+Parsing.swift`](../AssetFlow/Services/BackupService+Parsing.swift).
 
-5. **Unsecured Export Files**: ZIP backup files stored in unprotected locations
-1. **Shared Storage**: Backup files on shared drives, cloud storage, or email
+Validation produces typed transfer records before the live graph is replaced. If validation fails, replacement does not begin. Restore saves any pending context changes as a checkpoint before its replacement transaction; a transaction failure calls `rollback()`, and backup settings are applied only after the transaction succeeds. This is the implemented failure boundary, not a claim that extraction is harmless or that all filesystem copies are removed. [`BackupService.swift`](../AssetFlow/Services/BackupService.swift) and [`BackupService+Restore.swift`](../AssetFlow/Services/BackupService+Restore.swift) define the sequence.
 
-### Mitigations
+## Network and Privacy
 
-**Device-Level Security** (Apple Platform Features):
+The app's automatic network requests use `cdn.jsdelivr.net`. A currency-list request fetches the supported names; a rate request embeds the requested date and base currency in its HTTPS URL. Source inspection shows no portfolio names, values, cash-flow amounts, category goals, or backup contents in these requests. The provider can nevertheless observe the requested currency and date, request timing, IP address, and ordinary connection metadata. The repository does not establish the provider's retention or logging policy. [`ExchangeRateService.swift`](../AssetFlow/Services/ExchangeRateService.swift) defines the URLs and response checks.
 
-1. **File System Encryption**: FileVault encrypts the entire disk
-1. **App Sandbox**: macOS sandbox isolates app data from other apps
-1. **Code Signing**: App signed by developer, ensures integrity
-1. **Hardened Runtime**: Prevents code injection and memory tampering
-1. **Gatekeeper**: macOS verifies signed apps before launch
+There is no app-level analytics, telemetry, account, or crash-upload integration in the current application target. That statement does not cover macOS diagnostics, user-initiated website visits, CDN behavior, or files a user places on another service. The application should not log financial values, asset names, backup contents, imported filenames, or raw errors that may repeat user data. A ban on `print()` is configured in [`.swiftlint.yml`](../.swiftlint.yml), but a linter rule cannot prove that framework or debug output contains no sensitive data. Logging conventions belong in [`CodeStyle.md`](CodeStyle.md).
 
-**Application-Level Security**:
+Category minimums can cause rate fetching for a currency absent from current holdings. Rate requests still follow the same CDN boundary; they do not send the minimum amount or goal. Missing rates leave affected converted balances or goal results unavailable rather than creating a guessed value; [`BusinessLogic.md`](BusinessLogic.md) owns that result policy.
 
-1. **Minimal Network Access**: Only exchange rate fetching from a public CDN (`cdn.jsdelivr.net`). No user data is sent in requests — only the base currency code and date. No authentication or API keys required.
-1. **No API Keys**: No secrets to manage or leak
-1. **SwiftData Encryption**: Leverages platform database encryption (FileVault)
-1. **No Logging of Sensitive Data**: Financial values never logged to console
-1. **Input Validation**: All user inputs validated before processing
-1. **Secure Deletion**: SwiftData removes data when user requests
+## Storage Protection, Deletion, and Distribution
 
-______________________________________________________________________
+SwiftData does not provide application-managed encryption in this project. FileVault can protect a volume according to the Mac's hardware and the user's configuration; its key protection differs between Macs and whether FileVault is enabled. Neither FileVault nor app lock makes an exported, unencrypted ZIP safe wherever it is copied. [Apple's FileVault documentation](https://support.apple.com/en-gb/guide/security/sec4c6dc1b6e/web) describes those platform distinctions.
 
-## Data Security
+Deleting a record removes it from the live model graph, subject to its relationships and application guards. Deleting a snapshot cascades to its recorded asset values, cash flows, and exchange rate. An asset with existing recorded values cannot be deleted through the normal application path: `Asset.snapshotAssetValues` uses a deny rule and the ViewModel checks for references. See [`DataModel.md`](DataModel.md#relationships-and-integrity) for the complete graph.
 
-### Data Storage
+Logical deletion is not forensic erasure. The project does not explicitly configure or verify SQLite secure deletion, nor does it prove that previously stored bytes, temporary files, system backups, or exported archives are wiped. [SQLite's `secure_delete` documentation](https://www.sqlite.org/pragma.html#pragma_secure_delete) explains why deleting records alone cannot support that promise. Uninstalling the app does not establish removal of user-created backups or other files; [Apple's uninstall guidance](https://support.apple.com/en-us/102610) explicitly distinguishes them from the app. Users must manage copies and retention in their chosen storage locations.
 
-**SwiftData Persistence**:
+The Xcode project configures App Sandbox, outgoing network access, user-selected file access, and hardened runtime for the app target. These settings alone do not prove the properties of a distributed binary. The current [CI archive workflow](../.github/workflows/xcode-build.yml) explicitly disables code signing, so this document makes no Developer ID, notarization, Gatekeeper, or App Store distribution claim for that artifact. Signing, entitlements, and notarization must be checked on the actual artifact before making such claims.
 
-- **Location**: App sandbox directory (isolated from other apps)
-- **Encryption**: Encrypted at rest when FileVault is enabled (recommended)
+## Verification Limits
 
-**No Network Storage**:
-
-- No cloud sync, no iCloud, no remote servers
-- All data resides exclusively on the user's Mac
-
-### Backup File Security
-
-**Export Format**: ZIP archive containing CSV files and a manifest.json.
-
-**Implementation**: Uses macOS built-in `/usr/bin/ditto` command for ZIP creation and extraction. No external dependencies or third-party libraries.
-
-**Security Characteristics**:
-
-- Backup files are **not encrypted** by the application
-- They contain all financial data in human-readable CSV format
-- User is responsible for storing backup files securely
-
-**Recommendations to Users**:
-
-- Store backup files in an encrypted volume or directory
-- Do not share backup files via unencrypted channels (email, public cloud)
-- Delete old backup files when no longer needed
-- Consider encrypting backup files with a third-party tool if storing on shared media
-
-**Restore Security**:
-
-- Restore parses the complete archive into typed transfer records before modifying data
-- Validation includes supported manifest versions, version-specific headers, row arity, scalar values, duplicate and normalized identities, settings, and all relationship keys
-- Database replacement runs in one SwiftData transaction and rolls back on any failure
-- Settings are applied only after the database transaction succeeds
-- If validation or persistence fails, the original data and settings remain unchanged
-- Restore requires explicit confirmation: "Restoring from backup will replace ALL existing data. This cannot be undone."
-
-### App Lock (Optional)
-
-**Purpose**: Protects against casual physical access to portfolio data when the Mac is unlocked but unattended.
-
-**Implementation**: Uses macOS `LocalAuthentication` framework (`LAPolicy.deviceOwnerAuthentication`):
-
-- Touch ID on supported Macs (Apple silicon with compatible keyboard)
-- Apple Watch proximity unlock
-- System password fallback (always available)
-
-**Threat Addressed**: Unauthorized viewing of financial data by someone with physical access to an unlocked Mac. This is a convenience feature, not a security boundary — it does not protect against determined attackers with admin access.
-
-**Security Characteristics**:
-
-- Off by default — user enables in Settings → Security
-- No secrets or credentials stored by the app
-- Biometric evaluation happens entirely in the Secure Enclave — no biometric data leaves the device
-- Lock screen uses an opaque material overlay (both main window and Settings window have independent `LockScreenView` overlays)
-- Centralized lock state machine in `AuthenticationService`: three-step protocol (`recordBackground` → `evaluateOnBecomeActive` → `authenticateIfActive`) with `isAppActive` gate ensures auth dialogs only appear when the app is frontmost
-- Cancellation retry suppression: `authenticateIfActive()` guards on `!authWasCancelled`; when the user dismisses or fails the authentication dialog, `authWasCancelled` is set to `true` and prevents the dialog from reappearing automatically. The flag is cleared by the next `recordBackground()` call (i.e., when the app goes to background again), so auth is offered fresh on the next return to foreground
-- Per-condition re-lock timeouts: separate settings for app switching and screen lock/sleep events, each configurable to immediately, 1 minute, 5 minutes, 15 minutes, or never. Setting both to "never" auto-disables app lock
-- Eager lock, deferred auth: lock overlay appears immediately when timeout is "Immediately"; authentication dialog waits until the user returns to the app
-- Enabling app lock requires successful authentication first (prevents accidental lockout)
-- Menu commands (Cmd+N, Cmd+I) are disabled while locked to prevent keyboard shortcut bypass
-- Toolbar buttons (navigation back/forward, add snapshot/category, grouping picker) are disabled while locked
-- All `.help()` tooltips are suppressed while locked via the `.helpWhenUnlocked()` view modifier and `isAppLocked` environment key, preventing tooltip leakage through the lock overlay
-- All `.onHover()` and `.onContinuousHover()` interactions are suppressed while locked via `.onHoverWhenUnlocked()` and `.onContinuousHoverWhenUnlocked()`, preventing chart tooltip and highlight leakage through the lock overlay
-
-**Limitations**:
-
-- Does not encrypt data at rest (use FileVault for that)
-- Does not prevent access via other apps that can read the SwiftData store
-- Not all Macs have Touch ID — system password is the universal fallback
-
-______________________________________________________________________
-
-## Privacy
-
-### Data Collection
-
-**What Data is Collected**: None by the developer.
-
-- All data is user-entered and stored locally
-- No analytics, telemetry, or usage tracking
-- No crash reporting sent to the developer
-
-**What Data is NOT Collected**:
-
-- No personal identifiers (name, email, phone)
-- No usage patterns or behavior data
-- No location data
-- Network requests are limited to fetching exchange rates from a public CDN — only the base currency code and date are included in the URL; no user data, financial values, or portfolio information is ever transmitted
-
-**Data Ownership**:
-
-- User owns 100% of their data
-- Data stored only on user's device
-- No server-side storage by developer
-
-### Data Usage
-
-**Within the App**:
-
-- Data used solely for app functionality (calculations, displays, charts)
-- No secondary use (no ads, no profiling, no recommendations)
-
-**With Third Parties**:
-
-- **No user data shared with third parties** -- exchange rate requests contain only a currency code and date, no personal or financial data
-- No data sold or shared with any entity
-
-### User Control
-
-**Data Export**:
-
-- User can export all data via the backup feature (ZIP archive)
-- Enables backup and migration to other tools
-
-**Data Deletion**:
-
-- User can delete individual snapshots, assets, categories, and cash flow operations
-- Uninstalling app removes all local data (app sandbox is deleted)
-
-______________________________________________________________________
-
-## Platform Security Features
-
-### macOS Security
-
-**App Sandbox**:
-
-- Enabled (App Store requirement)
-- Restricts file system access to app's container
-- `com.apple.security.network.client` entitlement required for exchange rate fetching
-
-**Hardened Runtime**:
-
-- Enabled for distribution
-- Prevents code injection, memory tampering
-- Required for notarization
-
-**Code Signing**:
-
-- App signed with Developer ID
-- Ensures integrity and verifies developer
-
-**Gatekeeper**:
-
-- macOS checks signed apps before launch
-- Prevents running tampered or malicious apps
-
-**FileVault**:
-
-- Encrypts entire disk when enabled by user
-- All SwiftData files encrypted at rest
-- Strongly recommended for users storing financial data
-
-______________________________________________________________________
-
-## Secure Coding Practices
-
-### Input Validation
-
-**Financial Inputs**:
-
-- Validate all user inputs (market values, amounts, dates)
-- Use `Decimal` type (prevents floating-point injection risks)
-- Reject invalid formats during CSV parsing
-- Enforce uniqueness constraints (asset identity, snapshot dates, cash flow descriptions)
-
-**CSV Import Validation**:
-
-- Validate file encoding (UTF-8)
-- Validate required columns exist
-- Validate number formatting per row
-- Detect duplicates within CSV and against existing data
-- Block entire import if validation errors exist (no partial imports)
-
-### No Sensitive Data Logging
-
-**Prohibition**: Never log financial values, asset names, or portfolio data to console.
-
-**SwiftLint Rule**: `print()` statements are prohibited.
-
-```swift
-// BAD
-print("Portfolio value: \(totalValue)")
-
-// GOOD
-logger.info("Portfolio value calculated successfully")
-```
-
-### Secure Deletion
-
-**Data Deletion**:
-
-- When user deletes a snapshot, SwiftData removes all associated SnapshotAssetValues and CashFlowOperations (cascade)
-- When user deletes an asset (if allowed), SwiftData removes all associated SnapshotAssetValues (cascade)
-- OS handles secure file deletion at the SQLite level
-
-**App Uninstall**:
-
-- Uninstalling app removes app sandbox (all data deleted)
-- Backup files stored outside the sandbox persist (user must delete manually)
-
-______________________________________________________________________
-
-## Compliance and Regulations
-
-### GDPR (General Data Protection Regulation)
-
-**Applicability**: Minimal obligations since no data is collected by the developer.
-
-**GDPR-Ready**:
-
-- Right to access: User has full access to their data
-- Right to erasure: User can delete all data
-- Right to portability: Backup export feature
-- Data minimization: No unnecessary data collected
-
-### CCPA (California Consumer Privacy Act)
-
-**CCPA-Ready**:
-
-- No sale of personal information
-- No data sharing with third parties
-- User has full control and transparency
-
-### Financial Regulations
-
-**Not Applicable**:
-
-- AssetFlow is a personal tracking tool, not a financial service
-- No banking, trading, or investment advice features
-- Not subject to financial industry regulations
-
-______________________________________________________________________
-
-## Privacy Nutrition Label (App Store)
-
-**Data Not Collected**: No data collected by this app.
-
-**Data Linked to You**: None.
-
-**Data Used to Track You**: None.
-
-______________________________________________________________________
-
-## Security Checklist
-
-### Development
-
-- [ ] All financial data uses `Decimal` type
-- [ ] No `print()` statements with sensitive data
-- [ ] Input validation on all user inputs
-- [ ] Business logic prevents invalid states
-- [ ] SwiftLint checks pass
-- [ ] No hardcoded secrets (exchange rate API is free/public, no key needed)
-- [ ] Code signed with valid developer certificate
-
-### Pre-Release
-
-- [ ] App sandboxed
-- [ ] Hardened Runtime enabled
-- [ ] Network entitlement limited to `com.apple.security.network.client` (exchange rates only)
-- [ ] Privacy disclosures accurate
-- [ ] Backup/restore validation thoroughly tested
-
-### User Recommendations
-
-- [ ] Enable FileVault for disk encryption
-- [ ] Keep macOS updated (security patches)
-- [ ] Store backup files securely
-- [ ] Delete old backup files when no longer needed
-- [ ] Enable strong login password
-
-______________________________________________________________________
-
-## Incident Response
-
-### Security Vulnerability Discovery
-
-1. **Assess Severity** (Critical/High/Medium/Low)
-1. **Develop Fix** (prioritize based on severity)
-1. **Release Update** (App Store fast review for security fixes)
-1. **User Communication** (release notes, in-app notification for critical issues)
-
-______________________________________________________________________
-
-## Conclusion
-
-AssetFlow's **local-first, privacy-by-design architecture** inherently mitigates many security and privacy risks. With minimal network access (only exchange rate fetching from a public CDN), no data collection, and no user data transmission, the primary security concerns are limited to local device protection and backup file security.
-
-**Key Principles**:
-
-- All data stays on the user's device
-- Network access limited to exchange rate fetching (no user data sent)
-- No third-party data sharing or collection
-- User has full control and ownership
-- Backup files are the user's responsibility to secure
-
-______________________________________________________________________
-
-## References
-
-### Apple Security Documentation
-
-- [Apple Platform Security](https://support.apple.com/guide/security/welcome/web)
-- [App Sandbox](https://developer.apple.com/documentation/security/app_sandbox)
-- [Hardened Runtime](https://developer.apple.com/documentation/security/hardened_runtime)
-
-### Privacy Regulations
-
-- [GDPR Overview](https://gdpr.eu/)
-- [CCPA Overview](https://oag.ca.gov/privacy/ccpa)
-
-### Best Practices
-
-- [OWASP Mobile Security](https://owasp.org/www-project-mobile-security/)
-- [Apple Privacy Guidelines](https://developer.apple.com/app-store/user-privacy-and-data-use/)
-
-## Category Minimum Requirements
-
-Minimum amounts/currencies are local financial data stored in SwiftData and included in v4 backups. Rebalancing is read-only and sends no portfolio balances or goals over the network. Exchange-rate requests can include a minimum's currency even when no holding uses it, following the existing CDN-only fetching policy. Keep goal charts, status help, and hover details behind the existing lock-aware modifiers. Missing rates produce unavailable states rather than guessed balances.
-
-## Category Editing and Compact Goal Presentation
-
-Category goal and calculation help popovers are disabled while locked and dismiss when the app locks. Their content is also gated by the lock environment. Save/Revert and submit handlers reject locked interaction; pending navigation confirmation is hidden while locked.
+Source and configuration describe the controls above. Interactive checks are still needed for app-lock presentation, keyboard and hover disclosure, popover dismissal, and available authentication methods on supported hardware. Artifact inspection is needed to establish signing and runtime entitlements for any distributed build. The source-level post-extraction checks do not by themselves verify `ditto` behavior for unusual paths, links, or large archive expansion.

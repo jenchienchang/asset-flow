@@ -1,548 +1,131 @@
 # Testing Strategy
 
-## Overview
+Tests should establish AssetFlow's behavior against the [product requirements](SPEC.md), with calculation examples from [`BusinessLogic.md`](BusinessLogic.md) and file and service contracts from [`APIDesign.md`](APIDesign.md). Prioritize financial correctness, unavailable results, failed operations, and preservation of existing data. Describe each check by what it asserts; a passing suite does not establish behavior it never exercises.
 
-This document outlines the testing strategy for AssetFlow, which prioritizes **unit and ViewModel testing** to ensure logical correctness and maintain a fast, reliable test suite.
+Swift application tests use Swift Testing on macOS. Python repository-tooling tests use pytest and have separate fixtures and CI execution. [`DevelopmentGuide.md`](DevelopmentGuide.md) owns setup and contributor commands; the [test skill](../.codex/skills/test/SKILL.md) owns agent execution of Swift tests. [`AssetFlowTests/AGENTS.md`](../AssetFlowTests/AGENTS.md) and [`CodeStyle.md`](CodeStyle.md) own test structure and naming conventions.
 
-The app uses the **Swift Testing** framework (`import Testing`) for its tests, with `@Suite`, `@Test`, `#expect()`, and `#require()` macros. XCTest is NOT used. Repository Python scripts use pytest.
+## Swift Application Tests
 
-The app and test targets use the Swift 6 language mode with complete concurrency checking. A successful test run requires both compilation without Swift concurrency diagnostics and passing Swift Testing assertions; tests are run on macOS because SwiftData and the application target are macOS-only.
+Use pure service and model tests for calculations and validation, ViewModel tests for state transitions, and integration tests with isolated SwiftData containers for persistence and cross-component behavior. Source-contract tests inspect specific view declarations. Offscreen render tests create samples and can assert fitting sizes or that images were produced. The project has no native UI automation target, so interaction, visual quality, and accessibility still need interactive macOS review.
 
-GitHub Actions runs the unit test suites on every pull request through `.github/workflows/unit-tests.yml`. The Swift job uses the shared Xcode build workflow and runs `xcodebuild test -project AssetFlow.xcodeproj -scheme AssetFlow -destination 'platform=macOS'`. A separate macOS job runs Python script tests using the repo-local uv venv and a dependency cache keyed by `uv.lock`.
+### Risk and verification map
 
-Currency conversion tests cover both numeric correctness and availability semantics. Exchange-rate fetch tests use a mock `URLSession` to verify fixed Gregorian API dates, rejection of empty, invalid, and wrong-date responses, complete currency coverage before caching, replacement of malformed and wrong-date cached data, request coalescing, prompt cancellation of an individual coalesced waiter while another continues, and protection against cache mutation after cancellation. Conversion tests also verify that wrong-date records and missing rates produce native-currency totals plus an explicit unavailable status rather than a mixed-currency display total. Asset detail history tests use mixed available and unavailable rates to verify that converted chart points contain only converted amounts, split into separate line segments across unavailable dates, while original values and unavailable dates remain available for the table and compact chart warning. Coverage includes unavailable rates at both ends, a selected period with no converted points, and hover selection that yields no value when an unavailable date is closer. Dashboard ViewModel tests verify that a historical pie-chart selection reports the selected snapshot's availability even when the latest snapshot is complete. Persistence failure tests inject a `ModelFetching` double and verify that fetch errors propagate, list ViewModels expose `DataLoadState.failed`, the snapshot list does not trust an empty query result, and snapshot creation performs no mutation after a required read fails.
+#### Portfolio values and returns
 
-After careful consideration, the project has opted to **forgo UI testing**. A comprehensive suite of tests at the ViewModel and Service layers provides sufficient confidence in application behavior while avoiding the brittleness and maintenance overhead of UI tests.
+- **Automated evidence:** [CalculationServiceTests](../AssetFlowTests/Services/CalculationServiceTests.swift), [CurrencyConversionServiceTests](../AssetFlowTests/Services/CurrencyConversionServiceTests.swift), [ExchangeRateServiceTests](../AssetFlowTests/Services/ExchangeRateServiceTests.swift), [DashboardViewModelTests](../AssetFlowTests/ViewModels/DashboardViewModelTests.swift), and [AssetDetailViewModelTests](../AssetFlowTests/ViewModels/AssetDetailViewModelTests.swift) cover [returns and conversion](SPEC.md#10-calculation-logic), rate validity, cancellation, and unavailable display state. Asset-history fixtures check converted-only points, line gaps at missing rates, unavailable rates at either end, empty converted periods, and hover suppression near unavailable dates.
+- **Manual checks and limits:** Check chart selection, hover, gap markers, affected-date popovers, date labels, and unavailable messages in the running app. ViewModel assertions do not exercise chart or popover interactions.
 
-### Python Script Tests
+#### Category goals and rebalancing
 
-Run `uv run pytest` from the repository root. Pytest belongs to the default uv `dev` group, and root configuration discovers `scripts/tests/` and makes modules in `scripts/` importable. Name suites `test_<script>.py`, use independent tests and pytest temporary-directory fixtures, and parameterize related input cases. Use `sys.executable` for CLI subprocesses so they use the same uv venv as pytest.
+- **Automated evidence:** [CategoryGoalValidatorTests](../AssetFlowTests/Services/CategoryGoalValidatorTests.swift), [RebalancingCalculatorTests](../AssetFlowTests/Services/RebalancingCalculatorTests.swift), [RebalancingTransferPlannerTests](../AssetFlowTests/Services/RebalancingTransferPlannerTests.swift), and [CategoryGoalViewModelTests](../AssetFlowTests/ViewModels/CategoryGoalViewModelTests.swift) cover [goal rules](SPEC.md#11-rebalancing-engine), funding, precision, and editor state.
+- **Manual checks and limits:** Verify the real sheet, table, help popovers, and Save/Discard/Cancel routing with mouse and keyboard.
 
-`scripts/tests/test_release_version.py` exercises `scripts/release_version.py` through its CLI. It covers marker-free synchronization with remapped app configuration IDs, preservation of unrelated project data, no-op updates, missing/quoted settings, invalid versions, conditional overrides, missing targets/configurations and malformed project data. Archive fixtures cover XML/binary plists and rejection of missing, malformed or mismatched version data without modifying archives. Tests require macOS for `plutil`; the release-version suite skips on other platforms.
+#### CSV import and Bulk Entry
 
-These tests validate script behavior. Build workflows separately run `release_version.py check` against the actual project and `release_version.py archive` against the finished app. Pytest is part of the Unit Tests workflow, independent of archive and release jobs. Fixture tests do not establish hosted workflow execution or signing behavior.
+- **Automated evidence:** [CSVParsingServiceTests](../AssetFlowTests/Services/CSVParsingServiceTests.swift), [CSVColumnMappingTests](../AssetFlowTests/Services/CSVColumnMappingTests.swift), [ImportViewModelTests](../AssetFlowTests/ViewModels/ImportViewModelTests.swift), and [BulkEntryViewModelTests](../AssetFlowTests/ViewModels/BulkEntryViewModelTests.swift) cover [import behavior](SPEC.md#4-csv-import-system): row errors, mapping, duplicates, and atomic replacement.
+- **Manual checks and limits:** Check file picking, mapping-sheet focus, preview feedback, and stale-draft controls in the app.
 
-### Query-Driven Data Refresh
+#### Persistence, migration, and backup
 
-Unit tests cover query revision changes for both membership and edits to each persisted model type, stable-ID selection rebinding, Import preview revalidation and picker refresh after store replacement, Platform detail reload behavior, and Bulk Entry stale-draft save protection. SwiftUI `@Query` callback wiring is verified manually because the project has no UI test target:
+- **Automated evidence:** [CategoryGoalMigrationTests](../AssetFlowTests/Integration/CategoryGoalMigrationTests.swift), [BackupServiceTests](../AssetFlowTests/Services/BackupServiceTests.swift), and [CategoryGoalBackupTests](../AssetFlowTests/Services/CategoryGoalBackupTests.swift) check [migration](DataModel.md#schema-migration-and-preservation), [backup compatibility](APIDesign.md#backup-interchange-format), and failure preservation with isolated stores and archives.
+- **Manual checks and limits:** Restore only disposable synthetic portfolios. Backup validation tests do not establish pre-extraction resource or path guarantees.
 
-1. Restore a different backup while Dashboard, Rebalancing, Snapshots, Assets, Categories, or Platforms is active; confirm visible data refreshes without navigating away and returning.
-1. Keep the Assets, Categories, and Platforms lists open while adding a newer snapshot with changed values; confirm latest values, allocations, and platform totals refresh without navigating away.
-1. Keep a snapshot, asset, or category detail selected across restore; confirm a matching stable ID shows the restored values and a missing ID clears the detail selection.
-1. Keep the New Snapshot or Add Asset sheet open through restore; confirm date conflicts, picker options, and selected model references reflect the restored store.
-1. Keep Category or Platform detail open while adding and deleting snapshots (including snapshots without asset values); confirm histories incorporate each date.
-1. Keep Import open with a loaded CSV while changing existing asset/category fields and snapshot child values; confirm picker options and duplicate validation update. Navigate away and return to confirm a fresh validation pass.
-1. Keep Bulk Entry open while editing a value in the prior snapshot or changing an asset/category; confirm the stale banner appears, editing and saving are disabled, and **Discard Draft and Reload** creates a fresh draft.
-1. Keep a platform detail selected across restore; confirm its asset/history data reloads, its rename draft resets, and a platform absent from the restored assets is deselected.
-1. Keep Bulk Entry open while restoring; confirm the stale banner appears, editing and saving are disabled, and **Discard Draft and Reload** creates a fresh draft. Also verify a retained Bulk Entry draft becomes stale when restore occurs while another section is selected.
+#### Refresh, drafts, and fetch failures
 
-Async file, import, and backup tests use `Sendable` transfer values and deterministic task boundaries. They verify that CSV preparation and backup validation can be called from detached tasks, that cancellation is honored during CSV record and row processing, and that main-actor ViewModels apply only completed worker results. Bulk Entry direct-import tests also verify that cancellation returns a no-op result without changing existing rows or feedback, including deterministic gates that cancel after preparation is ready but before main-actor application. These tests do not inspect thread identities or assert elapsed time; executor threads are an implementation detail and timing thresholds are unstable across machines.
+- **Automated evidence:** [ObservedRefreshTests](../AssetFlowTests/Utilities/ObservedRefreshTests.swift), [ObservedRefreshRegressionTests](../AssetFlowTests/ViewModels/ObservedRefreshRegressionTests.swift), and [SnapshotSummaryFetchFailureTests](../AssetFlowTests/Services/SnapshotSummaryFetchFailureTests.swift) check refresh coalescing, draft retention, and injected read failures.
+- **Manual checks and limits:** Verify SwiftUI `@Query` wiring, visible refresh, retained drafts, and stale Bulk Entry controls in the running app.
 
-______________________________________________________________________
+#### Presentation, localization, and app lock
 
-## Testing Philosophy
+- **Automated evidence:** [CategoryGoalLocalizationTests](../AssetFlowTests/Integration/CategoryGoalLocalizationTests.swift), [RebalancingColumnTests](../AssetFlowTests/Integration/RebalancingColumnTests.swift), [CategoryGoalPreviewTests](../AssetFlowTests/Integration/CategoryGoalPreviewTests.swift), and [AuthenticationServiceTests](../AssetFlowTests/Services/AuthenticationServiceTests.swift) check catalogs, source contracts, render samples, and authentication state.
+- **Manual checks and limits:** Follow the [interaction design](UserInterfaceDesign.md) in English and Traditional Chinese at wide and narrow widths. Use VoiceOver and native mouse and keyboard events through lock transitions; render files and source checks do not prove interaction or visual accessibility.
 
-### Core Principles
+The [SPEC success criteria](SPEC.md#17-success-criteria) identify expected outcomes. Use the corresponding [BusinessLogic worked examples](BusinessLogic.md#portfolio-performance) and [rebalancing rules](BusinessLogic.md#rebalancing-engine) to derive expected values and invariants; do not infer an expected result from the implementation under test.
 
-1. **Test-Driven Development (TDD)**: Write tests before or alongside implementation when practical
-1. **Focused Testing**: Concentrate on ViewModel and Service layers (the logic-heavy parts)
-1. **Fast Feedback**: Tests must run quickly and provide clear failure messages
-1. **Isolation**: Each test runs in a completely isolated environment (in-memory SwiftData container)
-1. **Maintainability**: Tests are code and must be kept clean and well-organized
+### Fixtures and failure boundaries
 
-### The Testing Pyramid
+- For ordinary model and ViewModel tests, [TestDataManager](../AssetFlowTests/TestDataManager.swift) creates a uniquely named in-memory container with `CurrentSchema.schema`. Retain the `ModelContainer` for the whole test, including relationship reads; a helper result that discards it can invalidate the backing store. The `TestContext` pattern in [`AssetFlowTests/AGENTS.md`](../AssetFlowTests/AGENTS.md#swiftdata-lifetime-critical) keeps it alive.
+- Migration and reopen behavior require disposable disk stores. [CategoryGoalMigrationTests](../AssetFlowTests/Integration/CategoryGoalMigrationTests.swift) opens V1 fixtures through `AssetFlowMigrationPlan` and reopens migrated data. Backup tests use temporary archives and separate model graphs to check supported versions, invalid records, transaction rollback, and preservation of settings when restore fails.
+- Settings tests use `SettingsService.createForTesting()` or an isolated `UserDefaults` suite. Exchange-rate tests inject a `URLSession` with mock `URLProtocol`; persistence-failure tests inject `ModelFetching` doubles. These fixtures avoid changing user settings, relying on a live network, or treating a failed fetch as an empty portfolio.
+- Async import and backup checks use `Sendable` transfer values, cancellation points, and state assertions. Bulk Entry tests use a gate between preparation and main-actor application, then assert that cancellation leaves rows and feedback unchanged. Swift 6 concurrency compilation checks actor transfers, but does not establish responsiveness. Avoid elapsed-time thresholds and thread-identity assertions.
 
-```
-        +------------------+
-        |    UI Layer      |  <- Not tested automatically
-        |     (Views)      |
-        +------------------+
-        |   ViewModel &    |  <- Primary focus: Test app
-        | Integration Tests|    logic and state here
-        +------------------+
-        |    Unit Tests    |  <- Foundation: Test models,
-        | (Models, Utils)  |    services, and calculations
-        +------------------+
-```
+For each risk, cover valid, invalid, absent, zero, and unavailable inputs where they produce different outcomes. Financial regressions should check full-precision Decimal values, both signs of residuals, strict funding boundaries, conservation and permutation invariants, protected funds, and tiny mandatory transfers. Import regressions should check quoted CSV records, source row diagnostics, normalized duplicates, zero-placeholder replacement, and no partial mutation after invalid input. Refresh regressions should check both settling after repeated loads and later source mutations still publishing new state.
 
-______________________________________________________________________
+Presentation regressions should distinguish genuine zero, unavailable values, and tiny nonzero amounts rounded for display. Check currency codes and signs, percentage suffixes, and English and Traditional Chinese interpolation without rounding the underlying Decimal targets.
 
-## Testing Frameworks
+### Representative assertions
 
-This project uses **Swift Testing** for all tests:
+The following small Swift Testing suite uses current service interfaces. A Modified Dietz return is a fraction, so `0.09` means 9%; the 90-day example and its expected result are explained in [`BusinessLogic.md`](BusinessLogic.md#modified-dietz-return). The tolerance accounts for Decimal division, while the CSV assertions check both quoted numeric input and a genuinely required header.
 
 ```swift
+import Foundation
 import Testing
-import SwiftData
 
-@Suite("Category Model Tests")
+@testable import AssetFlow
+
+@Suite("Service examples")
 @MainActor
-struct CategoryModelTests {
-    @Test("name must not be empty")
-    func nameValidation() throws {
-        // test implementation
-    }
+struct ServiceExampleTests {
+  @Test("Mid-period contribution produces a nine percent return")
+  func midPeriodContribution() throws {
+    let result = try #require(
+      CalculationService.modifiedDietzReturn(
+        beginValue: Decimal(100_000),
+        endValue: Decimal(215_000),
+        cashFlows: [(amount: Decimal(100_000), daysSinceStart: 30)],
+        totalDays: 90
+      ))
+    let expected = Decimal(string: "0.09")!
+    let tolerance = Decimal(string: "0.0001")!
+    #expect(abs(result - expected) < tolerance)
+  }
+
+  @Test("Quoted amounts parse and missing required headers are reported")
+  func assetCSV() throws {
+    let csv = """
+      Asset Name,Market Value
+      AAPL,"15,000.50"
+      """
+    let parsed = CSVParsingService.parseAssetCSV(
+      data: Data(csv.utf8), importPlatform: nil)
+    #expect(parsed.isValid)
+    let row = try #require(parsed.rows.first)
+    #expect(row.marketValue == Decimal(string: "15000.50")!)
+    #expect(row.platform == "")
+
+    let missing = CSVParsingService.parseAssetCSV(
+      data: Data("Asset Name\nAAPL\n".utf8), importPlatform: nil)
+    #expect(missing.errors.contains(where: {
+      $0.row == 1 && $0.column == "Market Value"
+    }))
+  }
 }
 ```
 
-**NOT XCTest**: Do not use `XCTestCase`, `XCTAssert*`, or other XCTest APIs.
+For model and ViewModel fixture examples, use [AssetModelTests](../AssetFlowTests/Models/AssetModelTests.swift) and [CategoryListViewModelTests](../AssetFlowTests/ViewModels/CategoryListViewModelTests.swift). Test normalized identity through its public behavior; use separate persistence tests when checking uniqueness constraints or relationships. The current source files and [`APIDesign.md`](APIDesign.md#internal-service-apis) own API signatures rather than copied skeletons here.
 
-______________________________________________________________________
+### Interaction checks on macOS
 
-## Unit and ViewModel Testing with SwiftData
+The following are recommended manual checks. They are not established by the Swift Testing suites:
 
-Every test function that requires a database creates its own dedicated, in-memory `ModelContainer` for perfect isolation.
+1. Restore a disposable synthetic backup while Dashboard, Rebalancing, Snapshots, Assets, Categories, or Platforms is open. Confirm that visible data refreshes, matching stable IDs rebind to restored records, missing selections clear, and open pickers or import previews use the new store. Never use a personal portfolio or delete a personal store for this check.
+1. Add or change snapshots, asset values, categories, and goal settings while their lists or detail views remain open. Confirm histories and totals refresh without navigation, clean editors adopt saved changes, unsaved category drafts remain, and a stale Bulk Entry draft blocks editing and saving until reloaded.
+1. In both supported languages and at narrow widths, inspect rebalancing explanations, currency headings, zero and unavailable values, chart interactions, and clipping. Check field-focused Return, Command-S, information-button keyboard access, popover dismissal, VoiceOver labels, and focus order.
+1. With App Lock enabled, exercise mouse, keyboard, hover, and tooltip behavior through lock and unlock transitions. Service tests cover authentication state; they do not prove that the lock overlay prevents visual or interaction disclosure.
+1. For large synthetic imports and backups, use Instruments to inspect main-thread file, parsing, serialization, and archive work. Compilation and cancellation assertions do not measure interface responsiveness.
 
-### Import Lookup Coverage
+### Regression workflow and coverage expectations
 
-Import and Bulk Entry tests verify operation-scoped lookup behavior through functional correctness rather than timing thresholds. Coverage includes normalized identity reuse, first-match behavior, zero-value snapshot placeholders, duplicate validation, category reuse and display-order assignment, excluded rows, and representative larger synthetic imports that assert final entity/value counts and selected relationships. Unit tests do not assert elapsed time because SwiftData faulting, in-memory containers, build configuration, and CI machine load make timing thresholds noisy; collection-size scalability is validated by the indexed implementation structure and these correctness fixtures.
+When using red-green-refactor, first write a compiling test and minimal stubs, then confirm RED is an assertion failure. Implement the behavior, confirm GREEN, and run the relevant regressions before refactoring. Use `#expect` for assertions and `#require` when the remainder of a test needs a value. Keep fixtures deterministic and independent.
 
-### Background Work Validation
+Judge coverage by the behaviors and failure boundaries asserted, not by an unmeasured percentage or a fixed file count. A service result, a ViewModel state assertion, a source-contract check, an offscreen render, and an interactive observation are different kinds of evidence. Record any unverified behavior as a gap rather than describing the suite as complete.
 
-No execution-time/performance test target and no UI test target is used for main-actor responsiveness. Swift 6 compilation verifies that non-Sendable SwiftData objects do not cross the worker boundary. Service and ViewModel tests verify async handoff, cancellation during CSV record/row processing, failure state, and restore data preservation with task cancellation and state assertions rather than sleeps. Large-file responsiveness is checked manually with Instruments by inspecting main-thread call stacks for file, parser, serialization, and archive work.
+When diagnosing a Swift test failure, separate compilation or actor-isolation errors from assertion failures. A suite-wide SIGTRAP immediately after relationship access can indicate a prematurely released `ModelContainer`; inspect the retained fixture and captured test log before rerunning. The [test skill](../.codex/skills/test/SKILL.md) owns runner and log details.
 
-### Test Data Manager
+## Python Script Tests
 
-```swift
-// In AssetFlowTests/TestDataManager.swift
-@MainActor
-class TestDataManager {
-    static func createInMemoryContainer() -> ModelContainer {
-        let schema = Schema([
-            Category.self,
-            Asset.self,
-            Snapshot.self,
-            SnapshotAssetValue.self,
-            CashFlowOperation.self,
-            ExchangeRate.self,
-        ])
-        // Use a unique name per container to ensure true isolation.
-        // Without a unique name, ModelConfiguration(isStoredInMemoryOnly: true) may
-        // share the same backing store across calls, causing test interference.
-        let configuration = ModelConfiguration(
-            UUID().uuidString,
-            schema: schema,
-            isStoredInMemoryOnly: true
-        )
-        do {
-            let container = try ModelContainer(for: schema, configurations: [configuration])
-            return container
-        } catch {
-            fatalError("Failed to create in-memory model container: \(error)")
-        }
-    }
-}
-```
+Python tests verify repository tooling independently of the Swift application. The root [`pyproject.toml`](../pyproject.toml) discovers [`scripts/tests/`](../scripts/tests/); pytest is in the project-local uv development dependency group. [`DevelopmentGuide.md`](DevelopmentGuide.md#python-script-tests) owns local commands and environment setup. The current [release-version suite](../scripts/tests/test_release_version.py) requires macOS because the script uses `/usr/bin/plutil`; it skips on other platforms.
 
-### Example: Model Test
+The release-version tests run the [CLI](../scripts/release_version.py) through `sys.executable` against pytest temporary project and archive fixtures. They check that synchronization changes only app marketing versions, no-op runs preserve bytes, invalid or missing versions and configurations fail without changing the project, and archive checks accept XML or binary plists while rejecting missing, malformed, or mismatched metadata. Parameterized cases cover related invalid inputs. These assertions establish script behavior on disposable fixtures, not signing or a hosted release.
 
-```swift
-@Suite("Asset Model Tests")
-@MainActor
-struct AssetModelTests {
-    @Test("asset identity uses normalized name and platform")
-    func assetIdentity() throws {
-        let container = TestDataManager.createInMemoryContainer()
-        let context = container.mainContext
-
-        let asset1 = Asset(name: "AAPL", platform: "Interactive Brokers")
-        let asset2 = Asset(name: "  aapl  ", platform: "interactive brokers")
-        context.insert(asset1)
-        context.insert(asset2)
-
-        // Verify normalized identity matching
-        #expect(asset1.normalizedIdentity == asset2.normalizedIdentity)
-    }
-}
-```
-
-### Example: ViewModel Test
-
-ViewModels accept a `ModelContext` in their initializer for test injection:
-
-```swift
-@Suite("CategoryListViewModel Tests")
-@MainActor
-struct CategoryListViewModelTests {
-    @Test("deleteCategory blocked when assets assigned")
-    func deleteCategoryWithAssets() throws {
-        let container = TestDataManager.createInMemoryContainer()
-        let context = container.mainContext
-
-        let category = Category(name: "Equities")
-        let asset = Asset(name: "AAPL", platform: "IB")
-        asset.category = category
-        context.insert(category)
-        context.insert(asset)
-
-        let viewModel = CategoryListViewModel(modelContext: context)
-
-        #expect(throws: CategoryError.cannotDeleteWithAssignedAssets) {
-            try viewModel.deleteCategory(category)
-        }
-    }
-
-    @Test("deleteCategory succeeds when no assets assigned")
-    func deleteCategoryEmpty() throws {
-        let container = TestDataManager.createInMemoryContainer()
-        let context = container.mainContext
-
-        let category = Category(name: "Equities")
-        context.insert(category)
-
-        let viewModel = CategoryListViewModel(modelContext: context)
-        try viewModel.deleteCategory(category)
-
-        let descriptor = FetchDescriptor<Category>()
-        let remaining = try context.fetch(descriptor)
-        #expect(remaining.isEmpty)
-    }
-}
-```
-
-### Example: Service Test
-
-Services are stateless and operate on pre-fetched data. Tests use real SwiftData models in an in-memory container (same pattern as ViewModel tests):
-
-### Example: Calculation Test
-
-```swift
-@Suite("ModifiedDietzCalculator Tests")
-struct ModifiedDietzCalculatorTests {
-    @Test("basic return with no cash flows")
-    func basicReturn() {
-        let result = ModifiedDietzCalculator.calculate(
-            beginningValue: 100000,
-            endingValue: 110000,
-            cashFlows: [],
-            periodStart: date("2025-01-01"),
-            periodEnd: date("2025-03-31")
-        )
-
-        #expect(result != nil)
-        #expect(result! == Decimal(string: "0.1")!)  // 10% return
-    }
-
-    @Test("return with mid-period cash flow")
-    func returnWithCashFlow() {
-        let result = ModifiedDietzCalculator.calculate(
-            beginningValue: 100000,
-            endingValue: 160000,
-            cashFlows: [(date: date("2025-01-31"), amount: 50000)],
-            periodStart: date("2025-01-01"),
-            periodEnd: date("2025-03-31")
-        )
-
-        #expect(result != nil)
-        // EMV=160000, BMV=100000, CF=50000
-        // w = (89-30)/89 = 0.663
-        // R = (160000-100000-50000) / (100000 + 0.663*50000)
-        // R = 10000 / 133150 = 0.0751 (approx)
-    }
-
-    @Test("returns nil when beginning value is zero")
-    func zeroBMV() {
-        let result = ModifiedDietzCalculator.calculate(
-            beginningValue: 0,
-            endingValue: 10000,
-            cashFlows: [],
-            periodStart: date("2025-01-01"),
-            periodEnd: date("2025-03-31")
-        )
-
-        #expect(result == nil)
-    }
-}
-```
-
-### Example: Parameterized Test
-
-Swift Testing supports parameterized tests, which are ideal for testing edge cases in calculation logic:
-
-```swift
-@Suite("GrowthRateCalculator Edge Cases")
-struct GrowthRateEdgeCaseTests {
-    @Test("returns nil for invalid beginning values", arguments: [
-        Decimal(0), Decimal(-100), Decimal(-1),
-    ])
-    func invalidBeginningValues(bmv: Decimal) {
-        let result = GrowthRateCalculator.calculate(
-            beginningValue: bmv,
-            endingValue: 100
-        )
-        #expect(result == nil)
-    }
-}
-```
-
-______________________________________________________________________
-
-### Example: CSV Parsing Test
-
-```swift
-@Suite("CSVParsingService Tests")
-struct CSVParsingServiceTests {
-    @Test("parses valid asset CSV")
-    func parseValidAssetCSV() throws {
-        let csv = """
-        Asset Name,Market Value,Platform
-        AAPL,15000,Interactive Brokers
-        Bitcoin,5000,Coinbase
-        """
-        let url = createTempFile(content: csv)
-
-        let result = try CSVParsingService.parseAssetCSV(
-            url: url,
-            importPlatform: nil,
-            importCategory: nil
-        )
-
-        #expect(result.rows.count == 2)
-        #expect(result.rows[0].assetName == "AAPL")
-        #expect(result.rows[0].marketValue == 15000)
-        #expect(result.rows[0].platform == "Interactive Brokers")
-    }
-
-    @Test("strips currency symbols and thousand separators")
-    func numberParsing() throws {
-        let csv = """
-        Asset Name,Market Value
-        Stock A,$15,000.50
-        Stock B, $1,234
-        """
-        let url = createTempFile(content: csv)
-
-        let result = try CSVParsingService.parseAssetCSV(
-            url: url,
-            importPlatform: nil,
-            importCategory: nil
-        )
-
-        #expect(result.rows[0].marketValue == Decimal(string: "15000.50"))
-        #expect(result.rows[1].marketValue == 1234)
-    }
-
-    @Test("throws error for missing required columns")
-    func missingColumns() {
-        let csv = """
-        Name,Value
-        AAPL,15000
-        """
-        let result = CSVParsingService.parseAssetCSV(
-            data: Data(csv.utf8),
-            importPlatform: nil
-        )
-
-        #expect(result.hasErrors)
-        #expect(result.errors.first?.message.contains("Platform") == true)
-    }
-}
-```
-
-### Example: Duplicate Detection Test
-
-```swift
-@Suite("DuplicateDetectionService Tests")
-struct DuplicateDetectionTests {
-    @Test("detects duplicate assets within CSV")
-    func duplicatesInCSV() {
-        let rows = [
-            AssetCSVRow(rowNumber: 1, assetName: "AAPL", marketValue: 15000, platform: "IB"),
-            AssetCSVRow(rowNumber: 2, assetName: "VTI", marketValue: 28000, platform: "IB"),
-            AssetCSVRow(rowNumber: 3, assetName: "aapl", marketValue: 16000, platform: "IB"),
-        ]
-
-        let duplicates = DuplicateDetectionService.findAssetDuplicatesInCSV(rows)
-
-        #expect(duplicates.count == 1)
-        #expect(duplicates[0].row1 == 1)
-        #expect(duplicates[0].row2 == 3)
-    }
-
-    @Test("detects duplicate cash flows within CSV")
-    func cashFlowDuplicatesInCSV() {
-        let rows = [
-            CashFlowCSVRow(rowNumber: 1, description: "Salary deposit", amount: 50000),
-            CashFlowCSVRow(rowNumber: 2, description: "salary deposit", amount: 30000),
-        ]
-
-        let duplicates = DuplicateDetectionService.findCashFlowDuplicatesInCSV(rows)
-
-        #expect(duplicates.count == 1)
-    }
-}
-```
-
-______________________________________________________________________
-
-## Test Data and Previews
-
-### Test Utilities
-
-- **Unit/ViewModel Tests**: Use `TestDataManager.createInMemoryContainer()` for clean database per test
-- **SwiftUI Previews**: Use `PreviewContainer` utility for dedicated in-memory container
-
-### Test Fixtures
-
-For creating complex model instances:
-
-```swift
-extension Snapshot {
-    static func withAssets(
-        date: Date,
-        assets: [(Asset, Decimal)],
-        in context: ModelContext
-    ) -> Snapshot {
-        let snapshot = Snapshot(date: date)
-        context.insert(snapshot)
-        for (asset, value) in assets {
-            let sav = SnapshotAssetValue(marketValue: value)
-            sav.snapshot = snapshot
-            sav.asset = asset
-            context.insert(sav)
-        }
-        return snapshot
-    }
-}
-```
-
-______________________________________________________________________
-
-## Test Coverage
-
-### Coverage Goals
-
-| Layer       | Target Coverage |
-| ----------- | --------------- |
-| Models      | 90%+            |
-| ViewModels  | 85%+            |
-| Services    | 90%+            |
-| Calculators | 95%+            |
-| Overall     | 85%+            |
-
-### Enabling Coverage
-
-1. Edit Scheme > Test
-1. Options > Code Coverage > Gather coverage for `AssetFlow` target
-1. Run tests and view results in Report Navigator (Cmd+9)
-
-______________________________________________________________________
-
-## Test Inventory
-
-**Current Status:**
-
-- **901 tests** across **57 test files**
-- All models, services, and ViewModels have comprehensive test coverage
-- Includes SPEC verification tests for end-to-end scenarios
-
-**Test Files**:
-
-| Category       | Files                                                                                                                                                                                                                                                                                                                                                       | Coverage                                                                                                    |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Models         | AssetModelTests, CategoryModelTests, SnapshotModelTests, SnapshotAssetValueModelTests, CashFlowOperationModelTests, ExchangeRateModelTests, AssetCategoryRelationshipTests, AssetUniquenessTests, CashFlowOperationUniquenessTests, CategoryUniquenessTests                                                                                                 | All 6 models + relationships + uniqueness constraints                                                       |
-| ViewModels     | DashboardViewModelTests, SnapshotListViewModelTests, SnapshotDetailViewModelTests, AssetListViewModelTests, AssetDetailViewModelTests, CategoryListViewModelTests, CategoryDetailViewModelTests, PlatformListViewModelTests, PlatformDetailViewModelTests, RebalancingViewModelTests, BulkEntryViewModelTests, ImportViewModelTests, SettingsViewModelTests | All ViewModels                                                                                              |
-| Services       | CalculationServiceTests, CSVParsingServiceTests, BackupServiceTests, RebalancingCalculatorTests, SettingsServiceTests, ChartDataServiceTests, AuthenticationServiceTests, CurrencyConversionServiceTests, DateFormattingTests, ExchangeRateServiceTests, SnapshotSummaryFetchFailureTests                                                                   | All services (includes persistence failure and batch fetch missing rates tests)                             |
-| Currency       | BackupServiceCurrencyTests, CategoryDetailViewModelCurrencyTests, CategoryListViewModelCurrencyTests, CSVParsingCurrencyTests, PlatformDetailViewModelCurrencyTests, PlatformListViewModelCurrencyTests, SnapshotListViewModelCurrencyTests                                                                                                                 | Multi-currency conversion scenarios                                                                         |
-| Integration    | NavigationIntegrationTests, SwiftDataRelationshipTests, SpecVerificationTests                                                                                                                                                                                                                                                                               | End-to-end scenarios, SPEC verification, edge cases                                                         |
-| Root           | SnapshotTimeBucketTests                                                                                                                                                                                                                                                                                                                                     | Snapshot time-bucket edge cases (file at `AssetFlowTests/` root, not in a subdirectory)                     |
-| Utilities      | ModelResolutionLookupTests                                                                                                                                                                                                                                                                                                                                  | Operation-scoped persistence lookup indexes                                                                 |
-| Category goals | CategoryGoalValidatorTests, CategoryGoalAssessmentTests, CategoryGoalBackupTests, CategoryGoalViewModelTests, CategoryGoalMigrationTests, CategoryGoalLocalizationTests, CategoryGoalPreviewTests, RebalancingHelpPresentationTests                                                                                                                         | Goal validation, constrained allocation integration, migration, backup, locales and sample screen rendering |
-
-**TestContext Pattern**: All ViewModel tests use the `TestContext` struct pattern to retain `ModelContainer` for the test scope, preventing premature deallocation and "model instance destroyed" crashes.
-
-______________________________________________________________________
-
-## What to Test
-
-### Models
-
-- Computed properties (normalized identity, relationship helpers)
-- Validation rules (uniqueness, required fields)
-- Deletion constraints (asset with values, category with assets)
-
-### ViewModels
-
-- Form state management and validation
-- CRUD operations (create, update, delete with proper constraints)
-- Error state handling
-- Empty state handling
-- Import preview and validation
-
-### Services
-
-- **CalculationService**: Growth rate, Modified Dietz return (no cash flows, with cash flows, time-weighting), cumulative TWR (chaining returns), CAGR (multi-year, fractional year, large-magnitude Decimal values), category allocation, edge cases (zero/negative values, divide-by-zero), and Decimal precision bounds
-- **CSVParsingService**: Valid files, RFC-style quoted commas, escaped quotes, CRLF, embedded newlines, empty/trailing fields, malformed records, encoding, number formats, column mapping, localized parser/validation diagnostics, source-row-preserving duplicate diagnostics (including invalid rows before cash-flow duplicates), and within-CSV duplicate detection (assets by name+platform, cash flows by description)
-- **BulkEntryViewModel**: Effective target-platform resolution, duplicate rejection after resolution, skipped-platform warnings, malformed and mixed-validity CSV errors, and atomic replacement preservation
-- **BackupService**: Export and version compatibility; record-aware CSV round trips; archive, scalar, identity, and relationship validation; localized diagnostics from app-owned parser reasons (including Traditional Chinese catalog coverage); complete-graph rollback and settings preservation; round-trip integrity
-- **RebalancingCalculator**: Balanced portfolio, unbalanced, no target, uncategorized assets, adjustment calculations
-- **ChartDataService**: Time range filtering, abbreviated axis labels (K/M/B)
-
-______________________________________________________________________
-
-## Best Practices
-
-- **Test Behavior, Not Implementation**: Focus on what the code *does*, not how it does it
-- **One Assertion Per Test**: Ideal for clarity, but group related assertions when necessary
-- **Arrange-Act-Assert**: Structure tests clearly
-- **Independence**: Tests must not rely on each other
-- **Avoid Testing Frameworks**: Don't test SwiftData or SwiftUI internals
-- **Write Regression Tests**: When fixing a bug, write a test that fails before the fix and passes after
-- **Test Edge Cases**: Zero values, nil values, empty collections, boundary conditions (14-day threshold, 0 denominator)
-
-______________________________________________________________________
-
-## References
-
-- [Swift Testing Documentation](https://developer.apple.com/documentation/testing)
-- [AssetFlowTests/CLAUDE.md](../AssetFlowTests/CLAUDE.md) - Detailed test patterns
-- [Architecture.md](Architecture.md) - Layer responsibilities
-- [BusinessLogic.md](BusinessLogic.md) - Calculation formulas for test verification
-
-## Category Goal Coverage
-
-Swift Testing goal suites cover shared validation and complete locale parsing, all four goal combinations, currency defaults, Decimal precision, iterative minimum binding, conservation/permutation invariants, zero weights/totals, global versus available-funds shortfalls, protected balances, tiny mandatory transfers, and stale-plan clearing. RED uses compiling stubs and assertion failures before implementation; targeted GREEN logs precede full-suite regression verification.
-
-Category editing regression tests cover draft detection, atomic validation, Revert, saved baselines, guarded navigation, Cancel, failed Save retention, and successful Save/Discard continuation. Offscreen render samples cover compact table rows and wide/narrow form layouts in both languages. Verify field-focused Return, Command-S, information-button keyboard access, and locked popover dismissal interactively; model tests and render samples do not verify actual keyboard event routing.
-
-Disposable disk fixtures verify V1-to-V2 migration of all six model types and persistence after reopen. Backup v4 tests cover currency/rate preservation, full-precision goals, legacy default nil fields, invalid pairs and restore rollback. Goal-only rate tests use a mocked URLSession; missing historical rates break goal comparisons without hiding valid values. Catalog tests require Traditional Chinese translations and matching placeholders. Manual macOS review covers narrow windows, accessibility, both languages, and lock interactions; automated tests do not establish visual accessibility by themselves.
-
-## Structured Rebalancing Help
-
-RebalancingHelpPresentationTests cover section grouping, omitted goals, protected categories, minimum-binding explanations, infeasible plans without totals, original versus converted denominations, missing values as em dashes, and genuine zero shortfalls. Render fixtures include all three popup bodies in both languages. Actual mouse/keyboard activation and lock transitions still require interactive macOS verification.
-
-Currency-heading regression coverage checks per-table scope, mixed currencies, unavailable row currencies, case-insensitive ISO codes, percentage-only and mixed percentage/monetary tables, signs, asset display precision, tiny nonzero bounds, and preservation of currency codes in explanatory sentences.
-
-### Rebalancing conversion precision regressions
-
-Synthetic full-precision converted balances reproduce the legacy portfolio precision failure without including private backup data. Calculator tests separately cover addition precision loss with identical totals, regrouping differences, both signs of consistency residuals, rejection outside the existing arithmetic tolerance, input permutation invariance, strict minimum funding boundaries, percentage/funding sums whose precision loss could conceal an excess, converted protected holdings and binding minimums, and invalid/overflow/underflow arithmetic. Assessment tests reverse SwiftData relationship and category ordering across multi-currency historical snapshots and require identical totals, category balances and plans. A disposable V1 disk graph with converted history migrates to V2 with nil minimum fields and remains rebalancable. Each regression was run to assertion-based RED before production changes, followed by GREEN and full-suite verification.
-
-### Rebalancing popup display precision
-
-Assertion-based RED/GREEN regressions verify shared and mixed-currency popup rows, allocation totals, shortfall explanations and blocked-plan diagnostics. Numeric formatting is compared with Foundation's existing asset currency fraction defaults for fiat, crypto and unknown codes in English, Traditional Chinese and a comma-decimal locale. Coverage includes positive/negative changes, actual zero, unavailable values, thresholds with zero/two/three fraction digits, values just below and at one display unit, localized Increase/Decrease labels and preservation of raw minimum assessment inputs. Currency code compaction remains independent of numeric formatting. No Full precision disclosure or per-asset precision metadata is introduced.
-
-### Aggregate refresh and category-list regressions
-
-Use assertion-based RED before replacing loaders. Counting fetchers stop runaway refreshes safely and assert that repeated loads and Save settle, then that later source mutations still refresh. `ObservedRefreshTests` cover request coalescing, generation supersession, publication exclusion and mutations during publication. Dashboard cache-reader tests check UI observation independently of scalar output equality. Category-list tests cover minimum-only shares, protected surplus, no-goal rows, combined reasons, the exact five-point boundary, zero/infeasible portfolios and missing goal conversion. Existing history/rate, query-revision and store-replacement tests remain part of the full suite. English/Traditional Chinese catalog tests require translated labels/help and matching placeholders.
-
-Clean category editors adopt externally updated saved fields after a data refresh; editors with unsaved changes retain every draft field. Saved-field source reads are tracked even for empty categories.
-
-Rebalancing column regressions verify the SwiftUI declaration order and percentage binding as a source contract, alongside runtime ViewModel checks for minimum-only effective shares including protected holdings and unavailable/zero-total cases. String catalog tests require Traditional Chinese translations for both effective-target headings.
-
-### Lettered allocation explanation regressions
-
-Assertion-based RED/GREEN covers the eight-column order, letter/formula references, portfolio/protected/available reconciliation, final remaining weights after multiple minimum passes, minimum-bound equality, minimum-only top-ups and surplus retention, uncategorized protection, explicit zero percentages, zero totals, missing rates and infeasible plans. Rounded inputs/results use approximation markers without altering Decimal targets. Existing currency compaction and precision regressions remain. Every new presentation string has English and Traditional Chinese coverage; render fixtures cover both locales and wide/narrow tables.
-
-### Intrinsic rebalancing popup layout
-
-Assertion-based RED/GREEN measures NSHostingView fitting sizes: inline formulas increase width without adding a line; long paragraphs do not widen tables; screen-constrained labels and very long values wrap; text-only diagnostics remain bounded; input row spacing is one text line plus four points. Source integration checks cover all three content-sizing opt-ins, consistent secondary labels and first-baseline rows without conditional separator views. Render previews measure natural dimensions and also capture 320-point constrained layouts for both locales. Offscreen renders verify layout, not native popover event routing.
-
-Numeric-width regression tests compare popup fitting widths for identical values in input/result rows and for different digits of equal length. Cases include grouped amounts, ISO prefixes, approximation markers and percentage suffixes. Source integration checks require the standard system callout font, one bold value weight and `.monospacedDigit()`, matching the dashboard tooltip approach; they reject monospaced font design and conditional result font weights. Assertion-based RED/GREEN verifies the styling switch while preserving natural/constrained layout and numeric widths.
-
-Percentage suffix regressions reach assertion-based RED/GREEN for English, Traditional Chinese, German and French number separators and percent symbols, actual zero and unavailable shares. Category tests check configured/remaining/effective percentage metadata and its preservation through currency compaction; render previews cover a separate suffix column under natural and constrained widths. Accessibility joins the symbol to the value rather than exposing a disconnected symbol cell.
-
-Keep-operation icon regressions require a secondary-gray Label with `minus.circle.fill`, retain the existing localized key and verify that AppKit resolves the SF Symbol. Both-language rebalancing render previews cover the action column.
-
-### Reviewer regression coverage: funding, sheets, localization
-
-`RebalancingTransferPlannerTests` exercises the reported 100-unit portfolio, multiple minimum-bearing recipients with above-minimum demand, supporting small donors, optional subunit suppression, zero changes, recipient order, capacity limits and minimum preservation. `CategoryGoalViewModelTests` verifies the actual localized Suggested Moves and residual, editor retention through Save/Discard and sheet cancellation, subsequent navigation guards, actual editor replacement and ContentView lifecycle wiring. Existing invalid-save and infeasible-plan tests remain required. `CategoryGoalLocalizationTests` checks active rebalancing catalog keys and renders the real percentage-sum diagnostic from the compiled Traditional Chinese bundle, including interpolation and a single literal percent sign. RED must fail by assertions before implementation.
+The [Unit Tests workflow](../.github/workflows/unit-tests.yml) runs Swift tests and pytest in separate macOS jobs. The [shared Xcode workflow](../.github/workflows/xcode-build.yml) also checks the real project's version before builds and checks the finished archive's version for archive jobs. Fixture tests, real-project checks, and archive checks answer different questions; none establish that a distributed app was signed or notarized. For new tooling, test CLI exit status, diagnostics, and file side effects against isolated fixtures, including preservation on failure.

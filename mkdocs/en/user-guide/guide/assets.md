@@ -47,8 +47,9 @@ The value history section shows how the asset's value has changed over time.
 
 - **Time range selector** — choose from **All**, **1Y**, **3M**, or **1M** to zoom in on a specific period.
 - **Line chart** — a visual plot of the asset's value over time. Hover over any point to see a tooltip with the exact date and value.
-- **Show Converted Value** toggle — this only appears for assets in a currency different from your main currency. When enabled, the chart shows values converted using each snapshot's exchange rate. If a rate is unavailable, that date has no converted point; a dashed marker identifies it, and the line stops across the gap. A compact warning shows the number of days with unavailable exchange rates; click it to see their dates. If no values can be converted in the selected period, the chart shows an unavailable message. Switch back to see the complete history in the asset's original currency.
-- **Value history table** — below the chart, a table lists every recorded value with columns for Date, Market Value, and Converted Value when applicable. A dash (—) in Converted Value means the historical rate is unavailable. Double-click or right-click any row to edit the value for that snapshot.
+- **Show Converted Value** toggle — appears when the asset currency differs from your display currency. Converted mode plots only values with usable rates; switch back to see the complete recorded history in the asset's currency.
+- **Missing exchange rates** — when some converted points are available, missing-rate dates have dashed markers and split the line. A warning shows the number of affected dates and opens their list. If no values can be converted in the selected period, an unavailable message replaces the chart.
+- **Value history table** — lists every recorded value with Date and Market Value, plus Converted Value when the currencies differ. An unavailable conversion appears as an em dash. Double-click or right-click a row to edit the value for that snapshot.
 
 ![Asset detail](../../assets/images/asset-detail.png)
 

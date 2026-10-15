@@ -48,7 +48,7 @@ At the top, you'll see:
 
 ### Asset Breakdown
 
-A table listing every asset in the snapshot with its market value. For multi-currency assets, both the original currency value and the converted value are shown.
+Each asset row shows its recorded market value in the asset's currency. For an asset in another currency, an approximate converted amount appears when a usable rate produces a different value. If the rate is unavailable, the row omits the converted amount; see [Exchange Rates](#exchange-rates) below for its status.
 
 - **Right-click** an asset to edit its value or remove it from the snapshot.
 - **Add Asset** — click to add an existing asset to this snapshot, or create a new asset on the spot.
