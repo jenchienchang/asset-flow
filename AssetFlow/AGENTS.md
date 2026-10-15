@@ -2,14 +2,14 @@
 
 ## Directory Structure
 
-| Directory     | Purpose                                                            |
-| ------------- | ------------------------------------------------------------------ |
-| `Models/`     | SwiftData `@Model` classes (see `Models/README.md`)                |
-| `Views/`      | SwiftUI views (includes `Charts/` and `Components/` subdirs)       |
-| `ViewModels/` | `@Observable @MainActor` classes for form state and business logic |
-| `Services/`   | Stateless utilities (see list below)                               |
-| `Utilities/`  | Extensions and helpers (e.g., `Decimal.formatted(currency:)`)      |
-| `Resources/`  | Non-code assets (XML data, `.xcstrings` localization catalogs)     |
+| Directory     | Purpose                                                             |
+| ------------- | ------------------------------------------------------------------- |
+| `Models/`     | SwiftData `@Model` classes (see `Models/README.md`)                 |
+| `Views/`      | SwiftUI views (includes `Charts/` and `Components/` subdirs)        |
+| `ViewModels/` | `@Observable @MainActor` classes for form state and business logic  |
+| `Services/`   | Calculations, app services, and model-backed operations (see below) |
+| `Utilities/`  | Extensions and helpers (e.g., `Decimal.formatted(currency:)`)       |
+| `Resources/`  | Non-code assets (XML data, `.xcstrings` localization catalogs)      |
 
 ## Patterns
 
@@ -47,17 +47,17 @@ func requestRefresh() {
 
 ### Services
 
-Stateless enums or classes with no direct SwiftData dependency:
+Services include pure calculations, stateful app services, and operations that use SwiftData:
 
 - **CalculationService** -- `enum`, growth rate, Modified Dietz, cumulative TWR, CAGR, category allocation
 - **CSVParsingService** -- `enum`, parses asset/cash flow CSV with intra-CSV duplicate detection (cross-snapshot dedup is handled by `ImportViewModel`)
 - **RebalancingCalculator** -- `enum`, rebalancing adjustment amounts (buy/sell)
-- **BackupService** -- `@MainActor enum`, ZIP backup via `/usr/bin/ditto`
+- **BackupService** -- `nonisolated enum` with main-actor export and restore methods, ZIP backup via `/usr/bin/ditto`
 - **SettingsService** -- `@Observable @MainActor class`, app-wide settings (currency, date format, default platform)
 - **AuthenticationService** -- `@Observable @MainActor class` singleton, app lock via LocalAuthentication (Touch ID, Apple Watch, system password)
 - **CurrencyService** -- `@Observable @MainActor class` singleton (`static let shared`), currency data with UserDefaults caching
-- **ExchangeRateService** -- `final class` (`@unchecked Sendable`), fetches rates from cdn.jsdelivr.net, batch-fetches missing rates on launch and after restore, graceful degradation when offline
-- **CurrencyConversionService** -- `enum`, stateless currency conversion using ExchangeRate data, returns unconverted values when rates unavailable
+- **ExchangeRateService** -- `final class` (`@unchecked Sendable`), fetches currency names and rates from cdn.jsdelivr.net, batch-fetches missing rates on launch and after restore, graceful degradation when offline
+- **CurrencyConversionService** -- `enum`, stateless currency conversion using ExchangeRate data; missing required rates yield a `nil` converted total and native totals grouped by currency
 - **ChartDataService** -- `enum`, time range filtering, TWR rebasing (`rebasedTWR`), and Y-axis abbreviation
 - **DateFormatStyle** -- `enum`, user-selectable date formats → `Date.FormatStyle.DateStyle`
 
@@ -71,7 +71,7 @@ Stateless enums or classes with no direct SwiftData dependency:
 ## SwiftData Notes
 
 - Single shared `ModelContainer` injected at app root
-- No manual `save()` — SwiftData auto-persists
+- Routine model edits rely on SwiftData autosave; backup restore and Debug preview fixtures explicitly call `ModelContext.save()`
 - Snapshots contain only directly-recorded values; no carry-forward
 
 ## SwiftUI Pitfalls

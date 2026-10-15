@@ -2,13 +2,11 @@
 
 ## Project Overview
 
-AssetFlow is a macOS 15.0+ desktop app for snapshot-based portfolio management and asset allocation tracking. Built with SwiftUI, SwiftData, and Swift Charts. Local-first; network access limited to exchange rate fetching (cdn.jsdelivr.net).
+AssetFlow is a macOS 15.0+ desktop app for snapshot-based portfolio management and asset allocation tracking. Built with SwiftUI, SwiftData, and Swift Charts. Local-first; network requests to cdn.jsdelivr.net fetch currency names and exchange rates.
 
-## Build Commands
+## Build and Test
 
-```bash
-xcodebuild -project AssetFlow.xcodeproj -scheme AssetFlow build
-```
+Use the `/build` skill for agent builds; see `.codex/skills/build/SKILL.md` for host-access and log instructions.
 
 **Testing**: Use the `/test` skill to run Swift unit tests (see `AssetFlowTests/AGENTS.md`) instead of xcodebuild unless the skill asks for. Run Python script tests with `uv run pytest` from the repository root using the project-local `.venv`.
 
@@ -22,7 +20,7 @@ swiftlint --fix
 
 ## Architecture
 
-MVVM with SwiftData. Models: `@Model` classes (see `Models/README.md`). Views: SwiftUI. ViewModels: `@Observable @MainActor` classes. Services: stateless utilities and singleton services (see `AssetFlow/AGENTS.md`).
+MVVM with SwiftData. Models: `@Model` classes (see `AssetFlow/Models/README.md`). Views: SwiftUI. ViewModels: `@Observable @MainActor` classes. Services: calculation utilities, model-backed operations, and stateful app services (see `AssetFlow/AGENTS.md`).
 
 ```
 Category (1:Many) → Asset
@@ -32,9 +30,9 @@ Snapshot (1:Many) → CashFlowOperation
 Snapshot (1:1) → ExchangeRate
 ```
 
-All models registered in `SchemaV2` (`Models/SchemaVersioning.swift`). When adding models, update `SchemaV2.models`, `Models/README.md`, and `Documentation/DataModel.md`.
+All models registered in `SchemaV2` (`AssetFlow/Models/SchemaVersioning.swift`). When adding models, update `SchemaV2.models`, `AssetFlow/Models/README.md`, and `Documentation/DataModel.md`.
 
-**Xcode:** When adding files/features, update targets, `Info.plist`, entitlements, and scheme configs as needed.
+**Xcode:** When adding files/features, update targets, `AssetFlow/Info.plist`, entitlements, and scheme configs as needed.
 
 ## Documentation
 
@@ -44,16 +42,16 @@ Source of truth: `Documentation/SPEC.md`. Design docs in `Documentation/`: Archi
 
 Before completing any task, review and update affected docs. Key mappings:
 
-| Change Type              | Update                             |
-| ------------------------ | ---------------------------------- |
-| Add/modify model         | `Models/README.md`, `DataModel.md` |
-| Architecture/service     | `Architecture.md`, `APIDesign.md`  |
-| UI/screen                | `UserInterfaceDesign.md`           |
-| Business rule            | `BusinessLogic.md`                 |
-| Security/privacy         | `SecurityAndPrivacy.md`            |
-| Testing approach         | `TestingStrategy.md`               |
-| Coding convention        | `CodeStyle.md`                     |
-| Build command/dependency | `DevelopmentGuide.md`, this file   |
+| Change Type              | Update                                                        |
+| ------------------------ | ------------------------------------------------------------- |
+| Add/modify model         | `AssetFlow/Models/README.md`, `Documentation/DataModel.md`    |
+| Architecture/service     | `Documentation/Architecture.md`, `Documentation/APIDesign.md` |
+| UI/screen                | `Documentation/UserInterfaceDesign.md`                        |
+| Business rule            | `Documentation/BusinessLogic.md`                              |
+| Security/privacy         | `Documentation/SecurityAndPrivacy.md`                         |
+| Testing approach         | `Documentation/TestingStrategy.md`                            |
+| Coding convention        | `Documentation/CodeStyle.md`                                  |
+| Build command/dependency | `Documentation/DevelopmentGuide.md`, this file                |
 
 **Markdown conventions:** Use `1.` for all ordered list items. Don't manually adjust table column widths (`mdformat` hook handles it).
 

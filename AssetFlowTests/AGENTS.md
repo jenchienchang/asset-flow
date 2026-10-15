@@ -6,7 +6,7 @@ Uses **Swift Testing** (`import Testing`), NOT XCTest. No `XCTAssert*` or `XCTes
 
 ## Test-Driven Development (TDD)
 
-Red-Green-Refactor: write a failing test first, implement minimum code to pass, then refactor. Services are stateless — test with pure input/output.
+Red-Green-Refactor: write a failing test first, implement minimum code to pass, then refactor. Test pure calculations with input/output; use isolated in-memory containers for model-backed services.
 
 **RED phase must produce assertion failures, not compilation errors.** Compilation errors are trivial and don't validate that the tests actually test anything. Before running tests:
 
@@ -67,10 +67,10 @@ let (context, snapshot) = (tc.context, tc.snapshot)
 
 ## Running Tests
 
-Use the `/test` skill to run unit tests. See `.claude/skills/test/SKILL.md` for details.
+Use the `/test` skill to run unit tests. See `.codex/skills/test/SKILL.md` for its required host-access and runner instructions.
 
 - `/test` - Run all tests
-- `/test SuiteName` - Run specific test suite
+- `/test -s SuiteName` - Run specific test suite
 
 ## Directory Structure
 
