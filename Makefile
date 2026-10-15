@@ -40,7 +40,7 @@ test:
 
 ## Run all pre-commit hooks (swift-format + SwiftLint)
 lint:
-	pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 ## Remove build artifacts
 clean:
