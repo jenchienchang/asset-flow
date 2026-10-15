@@ -143,16 +143,9 @@ struct SettingsViewModelTests {
 
   // MARK: - App Lock (Authentication)
 
-  /// Mock LAContext for testing biometric availability.
+  /// Mock LAContext for testing system authentication results.
   private nonisolated class MockLAContext: LAContext {
-    var canEvaluateResult = true
     var evaluateResult = true
-
-    override func canEvaluatePolicy(
-      _ policy: LAPolicy, error: NSErrorPointer
-    ) -> Bool {
-      canEvaluateResult
-    }
 
     override func evaluatePolicy(
       _ policy: LAPolicy, localizedReason: String
@@ -162,12 +155,10 @@ struct SettingsViewModelTests {
     }
   }
 
-  private func createViewModelWithAuth(
-    canEvaluate: Bool = true,
-    evaluateSuccess: Bool = true
-  ) -> (viewModel: SettingsViewModel, authService: AuthenticationService) {
+  private func createViewModelWithAuth(evaluateSuccess: Bool = true) -> (
+    viewModel: SettingsViewModel, authService: AuthenticationService
+  ) {
     let mock = MockLAContext()
-    mock.canEvaluateResult = canEvaluate
     mock.evaluateResult = evaluateSuccess
     let settingsService = SettingsService.createForTesting()
     let authService = AuthenticationService.createForTesting(
@@ -217,7 +208,6 @@ struct SettingsViewModelTests {
     // Pre-enable app lock at the service level, then create ViewModel
     // so it picks up isAppLockEnabled = true at init (avoids async auth Task)
     let mock = MockLAContext()
-    mock.canEvaluateResult = true
     mock.evaluateResult = true
     let settingsService = SettingsService.createForTesting()
     let authService = AuthenticationService.createForTesting(
@@ -244,7 +234,6 @@ struct SettingsViewModelTests {
   func testReEnableAfterAutoDisableResetsTimeouts() async {
     // Pre-enable app lock at the service level so ViewModel picks it up at init
     let mock = MockLAContext()
-    mock.canEvaluateResult = true
     mock.evaluateResult = true
     let settingsService = SettingsService.createForTesting()
     let authService = AuthenticationService.createForTesting(
@@ -278,19 +267,9 @@ struct SettingsViewModelTests {
     #expect(authService.screenLockTimeout == .immediately)
   }
 
-  @Test("canUseBiometrics reflects AuthenticationService.canEvaluatePolicy")
-  func testCanUseBiometricsReflectsAuthService() {
-    let (viewModel, _) = createViewModelWithAuth(canEvaluate: true)
-    #expect(viewModel.canUseBiometrics == true)
-
-    let (viewModel2, _) = createViewModelWithAuth(canEvaluate: false)
-    #expect(viewModel2.canUseBiometrics == false)
-  }
-
   @Test("Disabling app lock syncs to AuthenticationService and unlocks")
   func testDisableAppLockUnlocks() {
     let mock = MockLAContext()
-    mock.canEvaluateResult = true
     mock.evaluateResult = true
     let settingsService = SettingsService.createForTesting()
     let authService = AuthenticationService.createForTesting(

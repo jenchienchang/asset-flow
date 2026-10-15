@@ -81,22 +81,12 @@
         }
       }
     },
-    "Configure when AssetFlow requires authentication. \"When Switching Apps\" applies when you Cmd+Tab or click another window. \"When Locked or Sleeping\" applies when you lock the screen or your Mac sleeps. Set either to \"Never\" to skip locking for that trigger. Uses Touch ID, Apple Watch, or your system password." : {
+    "Configure when AssetFlow requires authentication. \"When Switching Apps\" applies when you Cmd+Tab or click another window. \"When Locked or Sleeping\" applies when you lock the screen or your Mac sleeps. Set either to \"Never\" to skip locking for that trigger. Depending on your Mac and settings, macOS may offer Touch ID, Apple Watch, or your system password." : {
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "設定 AssetFlow 何時需要驗證。「切換應用程式時」適用於使用 Cmd+Tab 或點按其他視窗時。「鎖定螢幕或睡眠時」適用於鎖定螢幕或 Mac 進入睡眠時。將任一項設為「永不」可略過該觸發條件的鎖定。使用 Touch ID、Apple Watch 或系統密碼解鎖。"
-          }
-        }
-      }
-    },
-    "Configure when AssetFlow requires authentication. \"When Switching Apps\" applies when you Cmd+Tab or click another window. \"When Locked or Sleeping\" applies when you lock the screen or your Mac sleeps. Set either to \"Never\" to skip locking for that trigger. Uses your system password. Touch ID is not available on this Mac." : {
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定 AssetFlow 何時需要驗證。「切換應用程式時」適用於使用 Cmd+Tab 或點按其他視窗時。「鎖定螢幕或睡眠時」適用於鎖定螢幕或 Mac 進入睡眠時。將任一項設為「永不」可略過該觸發條件的鎖定。使用系統密碼解鎖。此 Mac 不支援 Touch ID。"
+            "value" : "設定 AssetFlow 何時需要驗證。「切換應用程式時」適用於使用 Cmd+Tab 或點按其他視窗時。「鎖定螢幕或睡眠時」適用於鎖定螢幕或 Mac 進入睡眠時。將任一項設為「永不」可略過該觸發條件的鎖定。視您的 Mac 與系統設定而定，macOS 可能提供 Touch ID、Apple Watch 或系統密碼作為解鎖方式。"
           }
         }
       }

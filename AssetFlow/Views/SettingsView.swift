@@ -181,17 +181,10 @@ struct SettingsView: View {
       Text("Security")
     } footer: {
       if viewModel.isAppLockEnabled {
-        if viewModel.canUseBiometrics {
-          Text(
-            "Configure when AssetFlow requires authentication. \"When Switching Apps\" applies when you Cmd+Tab or click another window. \"When Locked or Sleeping\" applies when you lock the screen or your Mac sleeps. Set either to \"Never\" to skip locking for that trigger. Uses Touch ID, Apple Watch, or your system password.",
-            tableName: "Settings"
-          )
-        } else {
-          Text(
-            "Configure when AssetFlow requires authentication. \"When Switching Apps\" applies when you Cmd+Tab or click another window. \"When Locked or Sleeping\" applies when you lock the screen or your Mac sleeps. Set either to \"Never\" to skip locking for that trigger. Uses your system password. Touch ID is not available on this Mac.",
-            tableName: "Settings"
-          )
-        }
+        Text(
+          "Configure when AssetFlow requires authentication. \"When Switching Apps\" applies when you Cmd+Tab or click another window. \"When Locked or Sleeping\" applies when you lock the screen or your Mac sleeps. Set either to \"Never\" to skip locking for that trigger. Depending on your Mac and settings, macOS may offer Touch ID, Apple Watch, or your system password.",
+          tableName: "Settings"
+        )
       } else {
         Text(
           "When enabled, AssetFlow will require authentication after switching apps, locking the screen, or waking from sleep.",

@@ -29,7 +29,6 @@ struct AuthenticationServiceTests {
 
   /// Mock LAContext subclass for testing without real biometric hardware.
   private nonisolated class MockLAContext: LAContext {
-    var canEvaluateResult = true
     var evaluateResult = true
     var evaluatedPolicy: LAPolicy?
     var evaluatedReason: String?
@@ -37,12 +36,6 @@ struct AuthenticationServiceTests {
     /// Called just before `evaluatePolicy` returns, while still inside the method.
     /// Use this to inspect service state mid-authentication.
     var onEvaluate: (() -> Void)?
-
-    override func canEvaluatePolicy(
-      _ policy: LAPolicy, error: NSErrorPointer
-    ) -> Bool {
-      canEvaluateResult
-    }
 
     override func evaluatePolicy(
       _ policy: LAPolicy, localizedReason: String
@@ -60,12 +53,10 @@ struct AuthenticationServiceTests {
   }
 
   /// Creates an isolated `AuthenticationService` with a mock `LAContext` factory.
-  private func createService(
-    canEvaluate: Bool = true,
-    evaluateSuccess: Bool = true
-  ) -> (service: AuthenticationService, mock: MockLAContext) {
+  private func createService(evaluateSuccess: Bool = true) -> (
+    service: AuthenticationService, mock: MockLAContext
+  ) {
     let mock = MockLAContext()
-    mock.canEvaluateResult = canEvaluate
     mock.evaluateResult = evaluateSuccess
     let service = AuthenticationService.createForTesting(
       laContextFactory: { mock }
@@ -529,20 +520,6 @@ struct AuthenticationServiceTests {
 
     #expect(service.appSwitchTimeout == .fifteenMinutes)
     #expect(service.screenLockTimeout == .fiveMinutes)
-  }
-
-  // MARK: - canEvaluatePolicy
-
-  @Test("canEvaluatePolicy returns true when biometrics available")
-  func testCanEvaluatePolicyAvailable() {
-    let (service, _) = createService(canEvaluate: true)
-    #expect(service.canEvaluatePolicy() == true)
-  }
-
-  @Test("canEvaluatePolicy returns false when biometrics unavailable")
-  func testCanEvaluatePolicyUnavailable() {
-    let (service, _) = createService(canEvaluate: false)
-    #expect(service.canEvaluatePolicy() == false)
   }
 
   // MARK: - ReLockTimeout

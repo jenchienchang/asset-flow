@@ -69,8 +69,9 @@ enum LockTrigger {
 
 /// Service for managing app-level authentication using LocalAuthentication.
 ///
-/// Uses `LAPolicy.deviceOwnerAuthentication` for broadest compatibility:
-/// Touch ID → Apple Watch → system password fallback.
+/// Requests `LAPolicy.deviceOwnerAuthentication`. macOS chooses among the
+/// available Touch ID, Apple Watch, and password methods; the app does not
+/// select or promise an order.
 ///
 /// Supports dependency injection for test isolation via `createForTesting()`.
 @Observable
@@ -195,8 +196,8 @@ class AuthenticationService {
 
   /// Attempts to authenticate the user using the system authentication dialog.
   ///
-  /// Uses `LAPolicy.deviceOwnerAuthentication` which supports Touch ID,
-  /// Apple Watch, and system password fallback.
+  /// Uses `LAPolicy.deviceOwnerAuthentication`; macOS determines which
+  /// authentication methods are available for this attempt.
   ///
   /// - Returns: `true` if authentication succeeded, `false` otherwise.
   func authenticate() async -> Bool {
@@ -288,15 +289,6 @@ class AuthenticationService {
   func setBackgroundDateForTesting(_ date: Date) {
     backgroundDate = date
   }
-
-  /// Whether biometric authentication is available on this Mac.
-  ///
-  /// Use this to adapt the Settings UI footer text.
-  func canEvaluatePolicy() -> Bool {
-    let context = laContextFactory()
-    var error: NSError?
-    return context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
-  }
 }
 
 // MARK: - Testing Support
@@ -305,7 +297,6 @@ class AuthenticationService {
   /// An `LAContext` subclass that always succeeds without showing any system dialog.
   /// Only compiled into the Testing build configuration.
   private nonisolated class PassthroughLAContext: LAContext {
-    override func canEvaluatePolicy(_: LAPolicy, error _: NSErrorPointer) -> Bool { true }
     override func evaluatePolicy(_: LAPolicy, localizedReason _: String) async throws -> Bool {
       true
     }

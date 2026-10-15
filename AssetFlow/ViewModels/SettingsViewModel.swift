@@ -115,11 +115,6 @@ final class SettingsViewModel {
     }
   }
 
-  /// Whether biometric authentication (Touch ID) is available on this Mac
-  var canUseBiometrics: Bool {
-    authService.canEvaluatePolicy()
-  }
-
   /// Available currencies for picker
   var availableCurrencies: [Currency] {
     CurrencyService.shared.currencies
