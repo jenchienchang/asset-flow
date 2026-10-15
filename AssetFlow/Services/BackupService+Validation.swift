@@ -15,6 +15,7 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+import Darwin
 import Foundation
 
 // MARK: - Validation
@@ -83,8 +84,7 @@ extension BackupService {
       arguments: ["-c", "-k", "--sequesterRsrc", dir.path, zipURL.path])
 
     guard FileManager.default.fileExists(atPath: zipURL.path) else {
-      throw BackupError.corruptedData(
-        localizedBackupMessage("Failed to create ZIP: archive was not created."))
+      throw BackupError.archiveCreationFailed(nil)
     }
   }
 
@@ -99,6 +99,16 @@ extension BackupService {
   }
 
   private nonisolated static func runDitto(arguments: [String]) async throws {
+    try await runProcess(
+      executableURL: URL(fileURLWithPath: "/usr/bin/ditto"),
+      arguments: arguments)
+  }
+
+  /// Internal process seam for synthetic stderr and cancellation tests.
+  nonisolated static func runProcess(
+    executableURL: URL,
+    arguments: [String]
+  ) async throws {
     try Task.checkCancellation()
 
     let box = DittoProcessBox()
@@ -106,35 +116,42 @@ extension BackupService {
       try await withCheckedThrowingContinuation {
         (continuation: CheckedContinuation<Void, Error>) in
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.executableURL = executableURL
         process.arguments = arguments
 
         let pipe = Pipe()
         process.standardError = pipe
+        let diagnostics = DittoStderrCapture(handle: pipe.fileHandleForReading)
+        let reader = DispatchGroup()
+        reader.enter()
+        DispatchQueue.global(qos: .utility).async {
+          diagnostics.drain()
+          reader.leave()
+        }
+
         process.terminationHandler = { process in
-          let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
-          if box.cancellationRequested {
-            continuation.resume(throwing: CancellationError())
-          } else if process.terminationStatus == 0 {
-            continuation.resume()
-          } else {
-            let errorMessage =
-              String(data: errorData, encoding: .utf8)
-              ?? localizedBackupMessage("Unknown ditto error")
-            continuation.resume(
-              throwing: BackupError.corruptedData(
-                localizedBackupMessage("ditto failed: \(errorMessage)")))
+          diagnostics.stop()
+          reader.notify(queue: .global(qos: .utility)) {
+            if box.cancellationRequested {
+              box.resume(continuation, with: .failure(CancellationError()))
+            } else if process.terminationStatus == 0 {
+              box.resume(continuation, with: .success(()))
+            } else {
+              box.resume(
+                continuation,
+                with: .failure(BackupError.archiveCreationFailed(diagnostics.message)))
+            }
           }
         }
 
-        box.install(process)
         do {
           try process.run()
-          if box.cancellationRequested {
-            process.terminate()
-          }
+          try? pipe.fileHandleForWriting.close()
+          box.install(process)
         } catch {
-          continuation.resume(throwing: error)
+          try? pipe.fileHandleForWriting.close()
+          diagnostics.stop()
+          box.resume(continuation, with: .failure(error))
         }
       }
     } onCancel: {
@@ -145,10 +162,128 @@ extension BackupService {
   }
 }
 
+private nonisolated final class DittoStderrCapture: @unchecked Sendable {
+  private static let maximumDiagnosticBytes = 4 * 1_024
+  private static let maximumDisplayedScalars = 240
+  private let handle: FileHandle
+  private let lock = NSLock()
+  private var stopRequested = false
+  private var tail = Data()
+  private var omittedEarlierOutput = false
+
+  nonisolated init(handle: FileHandle) {
+    self.handle = handle
+  }
+
+  nonisolated func drain() {
+    defer { try? handle.close() }
+    let descriptor = handle.fileDescriptor
+    let flags = fcntl(descriptor, F_GETFL)
+    guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) >= 0 else {
+      return
+    }
+
+    var buffer = [UInt8](repeating: 0, count: 8 * 1_024)
+    while true {
+      if shouldStop {
+        _ = readAvailable(from: descriptor, into: &buffer, maximumChunks: 128)
+        return
+      }
+
+      var descriptorState = pollfd(
+        fd: descriptor, events: Int16(POLLIN | POLLHUP), revents: 0)
+      let result = Darwin.poll(&descriptorState, 1, 50)
+      if result < 0 {
+        if errno == EINTR { continue }
+        return
+      }
+      if result > 0,
+        !readAvailable(from: descriptor, into: &buffer, maximumChunks: 16)
+      {
+        return
+      }
+    }
+  }
+
+  nonisolated func stop() {
+    lock.lock()
+    stopRequested = true
+    lock.unlock()
+  }
+
+  private nonisolated var shouldStop: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return stopRequested
+  }
+
+  private nonisolated func readAvailable(
+    from descriptor: Int32,
+    into buffer: inout [UInt8],
+    maximumChunks: Int
+  ) -> Bool {
+    for _ in 0..<maximumChunks {
+      let count = buffer.withUnsafeMutableBytes { bytes in
+        Darwin.read(descriptor, bytes.baseAddress!, bytes.count)
+      }
+      if count > 0 {
+        append(Data(buffer.prefix(count)))
+      } else if count == 0 {
+        return false
+      } else if errno == EAGAIN || errno == EWOULDBLOCK {
+        return true
+      } else if errno != EINTR {
+        return false
+      }
+    }
+    return true
+  }
+
+  private nonisolated func append(_ chunk: Data) {
+    if chunk.count >= Self.maximumDiagnosticBytes {
+      tail = Data(chunk.suffix(Self.maximumDiagnosticBytes))
+      omittedEarlierOutput = true
+      return
+    }
+
+    let excess = max(0, tail.count + chunk.count - Self.maximumDiagnosticBytes)
+    if excess > 0 {
+      tail.removeFirst(excess)
+      omittedEarlierOutput = true
+    }
+    tail.append(chunk)
+  }
+
+  nonisolated var message: String? {
+    // The reader group must finish before this value is accessed.
+    let lines = String(decoding: tail, as: UTF8.self)
+      .split(whereSeparator: \.isNewline)
+    let cleaned = lines.reversed().lazy.compactMap { line -> String? in
+      let value = line.unicodeScalars.map { scalar in
+        CharacterSet.controlCharacters.contains(scalar) ? " " : String(scalar)
+      }.joined().trimmingCharacters(in: .whitespacesAndNewlines)
+      return value.isEmpty ? nil : value
+    }.first
+    guard let cleaned else { return nil }
+
+    let clipped = cleaned.unicodeScalars.suffix(Self.maximumDisplayedScalars)
+      .map(String.init).joined()
+    let omitted =
+      omittedEarlierOutput || lines.count > 1
+      || cleaned.unicodeScalars.count > Self.maximumDisplayedScalars
+    if omitted {
+      return
+        "\(clipped)\n\(BackupService.localizedBackupMessage("Some error details were omitted."))"
+    }
+    return clipped
+  }
+}
+
 private nonisolated final class DittoProcessBox: @unchecked Sendable {
   private let lock = NSLock()
   private var process: Process?
   private(set) var isCancellationRequested = false
+  private var didResume = false
 
   nonisolated var cancellationRequested: Bool {
     lock.lock()
@@ -158,11 +293,15 @@ private nonisolated final class DittoProcessBox: @unchecked Sendable {
 
   nonisolated func install(_ process: Process) {
     lock.lock()
+    guard !didResume else {
+      lock.unlock()
+      return
+    }
     self.process = process
     let shouldTerminate = isCancellationRequested
     lock.unlock()
 
-    if shouldTerminate {
+    if shouldTerminate && process.isRunning {
       process.terminate()
     }
   }
@@ -173,6 +312,23 @@ private nonisolated final class DittoProcessBox: @unchecked Sendable {
     let process = self.process
     lock.unlock()
 
-    process?.terminate()
+    if process?.isRunning == true {
+      process?.terminate()
+    }
+  }
+
+  nonisolated func resume(
+    _ continuation: CheckedContinuation<Void, Error>,
+    with result: Result<Void, Error>
+  ) {
+    lock.lock()
+    let shouldResume = !didResume
+    didResume = true
+    process = nil
+    lock.unlock()
+
+    if shouldResume {
+      continuation.resume(with: result)
+    }
   }
 }

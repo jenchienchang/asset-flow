@@ -90,6 +90,7 @@ enum BackupError: LocalizedError, Sendable {
   case unsupportedFormatVersion(Int)
   case validationFailed([BackupValidationIssue])
   case restoreFailed(String)
+  case archiveCreationFailed(String?)
   case corruptedData(String)
 
   nonisolated var errorDescription: String? {
@@ -134,6 +135,13 @@ enum BackupError: LocalizedError, Sendable {
       String(
         localized: "The backup could not be restored: \(detail)",
         table: "Services")
+
+    case .archiveCreationFailed(let detail):
+      if let detail {
+        String(localized: "Could not create the backup ZIP. \(detail)", table: "Services")
+      } else {
+        String(localized: "Could not create the backup ZIP.", table: "Services")
+      }
 
     case .corruptedData(let detail):
       String(

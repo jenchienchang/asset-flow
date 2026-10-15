@@ -15,6 +15,7 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+import Darwin
 import Foundation
 import SwiftData
 import Testing
@@ -142,6 +143,125 @@ struct BackupServiceTests {
     }.value
 
     #expect(manifest.formatVersion == BackupFormatVersion.current.rawValue)
+  }
+
+  @Test("A process with more stderr than a pipe can hold still completes", .timeLimit(.minutes(1)))
+  func processDrainsLargeStderr() async throws {
+    let omission = BackupService.localizedBackupMessage("Some error details were omitted.")
+    let start = ContinuousClock.now
+
+    do {
+      try await BackupService.runProcess(
+        executableURL: URL(fileURLWithPath: "/bin/sh"),
+        arguments: ["-c", noisyProcessScript(exitCode: 7)])
+      Issue.record("A process that exited with status 7 should throw")
+    } catch let BackupError.archiveCreationFailed(detail) {
+      #expect(detail?.contains("final diagnostic: disk full") == true)
+      #expect(detail?.contains(omission) == true)
+      #expect((detail?.count ?? 0) < 300)
+    } catch {
+      Issue.record("Expected a process diagnostic, received: \(error)")
+    }
+    #expect(ContinuousClock.now - start < .seconds(8))
+  }
+
+  @Test("Successful process completes after writing large stderr", .timeLimit(.minutes(1)))
+  func successfulProcessDrainsLargeStderr() async throws {
+    let start = ContinuousClock.now
+    try await BackupService.runProcess(
+      executableURL: URL(fileURLWithPath: "/bin/sh"),
+      arguments: ["-c", noisyProcessScript(exitCode: 0)])
+    #expect(ContinuousClock.now - start < .seconds(8))
+  }
+
+  @Test("Invalid UTF-8 diagnostics stay short and keep the final error")
+  func invalidUTF8ProcessDiagnostics() async throws {
+    let script = noisyProcessScript(outputByte: "\\377", exitCode: 7)
+    let omission = BackupService.localizedBackupMessage("Some error details were omitted.")
+    do {
+      try await BackupService.runProcess(
+        executableURL: URL(fileURLWithPath: "/bin/sh"),
+        arguments: ["-c", script])
+      Issue.record("A process that exited with status 7 should throw")
+    } catch let error as BackupError {
+      #expect(error.localizedDescription.contains("final diagnostic: disk full"))
+      #expect(error.localizedDescription.contains(omission))
+      #expect(error.localizedDescription.count < 400)
+    } catch {
+      Issue.record("Expected a backup error, received: \(error)")
+    }
+  }
+
+  @Test("A process failure without stderr shows a short archive error")
+  func processFailureWithoutStderr() async throws {
+    do {
+      try await BackupService.runProcess(
+        executableURL: URL(fileURLWithPath: "/bin/sh"),
+        arguments: ["-c", "exit 7"])
+      Issue.record("A process that exited with status 7 should throw")
+    } catch let BackupError.archiveCreationFailed(detail) {
+      #expect(detail == nil)
+    } catch {
+      Issue.record("Expected an archive creation error, received: \(error)")
+    }
+  }
+
+  @Test("Cancelling a process whose child holds stderr completes promptly", .timeLimit(.minutes(1)))
+  func processCancellationCompletes() async throws {
+    let marker = FileManager.default.temporaryDirectory
+      .appending(path: "backup-process-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: marker) }
+
+    let task = Task.detached { () -> (Bool, ContinuousClock.Instant) in
+      do {
+        try await BackupService.runProcess(
+          executableURL: URL(fileURLWithPath: "/bin/sh"),
+          arguments: [
+            "-c", "/bin/sleep 5 & child=$!; printf '%s' \"$child\" > '\(marker.path)'; wait",
+          ])
+        return (false, .now)
+      } catch is CancellationError {
+        return (true, .now)
+      } catch {
+        return (false, .now)
+      }
+    }
+
+    let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+    while !FileManager.default.fileExists(atPath: marker.path)
+      && ContinuousClock.now < deadline
+    {
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    guard FileManager.default.fileExists(atPath: marker.path) else {
+      task.cancel()
+      Issue.record("The process did not start")
+      return
+    }
+
+    let childText = try String(contentsOf: marker, encoding: .utf8)
+    let childPID = try #require(pid_t(childText))
+    defer { _ = Darwin.kill(childPID, SIGTERM) }
+
+    let start = ContinuousClock.now
+    task.cancel()
+    let (wasCancelled, completedAt) = await task.value
+    #expect(wasCancelled)
+    #expect(completedAt - start < .seconds(3))
+  }
+
+  private func noisyProcessScript(
+    outputByte: String = "x",
+    exitCode: Int
+  ) -> String {
+    """
+    (/bin/sleep 10; kill -TERM $$) 2>/dev/null &
+    watchdog=$!
+    trap 'kill "$watchdog" 2>/dev/null' EXIT
+    /usr/bin/head -c 262144 /dev/zero | LC_ALL=C /usr/bin/tr '\\000' '\(outputByte)' >&2
+    printf '\\nfinal diagnostic: disk full\\n   \\n' >&2
+    exit \(exitCode)
+    """
   }
 
   @Test("Cancellation after restore validation preserves existing data")
@@ -1841,6 +1961,9 @@ struct BackupServiceTests {
       "The backup files must be at the ZIP root or inside one enclosing folder.",
       "Expected a valid ISO 8601 timestamp.",
       "The app version must not be empty.",
+      "Could not create the backup ZIP.",
+      "Could not create the backup ZIP. %@",
+      "Some error details were omitted.",
       "Expected a regular file.",
       "The file exceeds the supported size limit.",
       "The name must not be empty.",
@@ -1885,8 +2008,6 @@ struct BackupServiceTests {
       "Validated asset ID was not available during value insertion.",
       "Validated snapshot ID was not available during cash-flow insertion.",
       "Validated snapshot ID was not available during exchange-rate insertion.",
-      "Unknown ditto error",
-      "Failed to create ZIP: %@",
     ]
   }
 

@@ -27,7 +27,7 @@ Use pure service and model tests for calculations and validation, ViewModel test
 
 #### Persistence, migration, and backup
 
-- **Automated evidence:** [CategoryGoalMigrationTests](../AssetFlowTests/Integration/CategoryGoalMigrationTests.swift), [BackupServiceTests](../AssetFlowTests/Services/BackupServiceTests.swift), and [CategoryGoalBackupTests](../AssetFlowTests/Services/CategoryGoalBackupTests.swift) check [migration](DataModel.md#schema-migration-and-preservation), [backup compatibility](APIDesign.md#backup-interchange-format), and failure preservation with isolated stores and archives.
+- **Automated evidence:** [CategoryGoalMigrationTests](../AssetFlowTests/Integration/CategoryGoalMigrationTests.swift), [BackupServiceTests](../AssetFlowTests/Services/BackupServiceTests.swift), and [CategoryGoalBackupTests](../AssetFlowTests/Services/CategoryGoalBackupTests.swift) check [migration](DataModel.md#schema-migration-and-preservation), [backup compatibility](APIDesign.md#backup-interchange-format), and failure preservation with isolated stores and archives. Process fixtures check success and failure after large stderr, bounded final diagnostics with invalid UTF-8, and prompt cancellation while a child retains the stderr handle.
 - **Manual checks and limits:** Restore only disposable synthetic portfolios. Backup validation tests do not establish pre-extraction resource or path guarantees.
 
 #### Refresh, drafts, and fetch failures
