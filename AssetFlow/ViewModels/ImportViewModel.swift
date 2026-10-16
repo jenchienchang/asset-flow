@@ -157,8 +157,11 @@ class ImportViewModel {
   /// Raw headers from the current file (for the mapping sheet).
   var pendingRawHeaders: [String] = []
 
-  /// Sample rows from the current file (for preview in mapping sheet).
+  /// All parsed data rows from the current file for the mapping preview.
   var pendingSampleRows: [[String]] = []
+
+  /// Widths prepared before presenting the mapping sheet.
+  var pendingPreviewColumnWidths: [CGFloat] = []
 
   /// Partial auto-detect mapping (pre-fills dropdowns).
   var pendingPartialMapping: [CanonicalColumn: Int] = [:]
@@ -244,9 +247,19 @@ class ImportViewModel {
         expectedImportType == .assets ? .asset : .cashFlow
       let preparation = try await CSVImportPreparationService.prepare(
         data: data, schema: schema)
+      let previewWidths: [CGFloat]
+      if case .needsMapping(_, let mappingSchema, let headers, let rows, let partialMapping) =
+        preparation
+      {
+        previewWidths = try await ColumnMappingPreviewLayout.prepareColumnWidths(
+          headers: headers, rows: rows, schema: mappingSchema,
+          initialMapping: partialMapping)
+      } else {
+        previewWidths = []
+      }
       try Task.checkCancellation()
       guard importType == expectedImportType else { return }
-      apply(preparation)
+      apply(preparation, previewWidths: previewWidths)
     } catch is CancellationError {
       return
     } catch {
@@ -279,7 +292,7 @@ class ImportViewModel {
     await loadCSVData(data)
   }
 
-  private func apply(_ preparation: CSVImportPreparation) {
+  private func apply(_ preparation: CSVImportPreparation, previewWidths: [CGFloat] = []) {
     switch preparation {
     case .parsedAsset(let data, let result):
       selectedFileData = data
@@ -296,6 +309,7 @@ class ImportViewModel {
       selectedFileData = data
       pendingRawHeaders = rawHeaders
       pendingSampleRows = sampleRows
+      pendingPreviewColumnWidths = previewWidths
       pendingPartialMapping = partialMapping
       showColumnMappingSheet = true
     }
@@ -508,6 +522,7 @@ class ImportViewModel {
 
     pendingRawHeaders = []
     pendingSampleRows = []
+    pendingPreviewColumnWidths = []
     pendingPartialMapping = [:]
     hasUnsavedChanges = true
   }

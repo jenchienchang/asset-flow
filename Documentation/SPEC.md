@@ -315,6 +315,8 @@ ______________________________________________________________________
 
 **Bulk Entry draft imports:** Within Bulk Entry, asset and cash-flow CSV imports replace the previous CSV-sourced draft rows for their target. Parser or row-validation errors reject the entire draft replacement; valid rows from the same file are not applied separately. Warnings alone do not block replacement. The saved snapshot changes only when the user saves the draft. This differs from importing records into a snapshot for an existing date.
 
+When CSV headers require manual mapping, Import and Bulk Entry show every data row before users confirm the column assignments. [Import Screen](UserInterfaceDesign.md#import-screen) defines the shared preview's presentation.
+
 ______________________________________________________________________
 
 ### 4.2 CSV Schemas

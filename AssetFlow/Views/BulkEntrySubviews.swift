@@ -409,6 +409,48 @@ struct BulkEntryHeaderCellStyle: ViewModifier {
   }
 }
 
+// MARK: - CSV Loading Status
+
+/// The header's flexible gap owns its status without affecting the header's
+/// measured size or moving the buttons beside it.
+struct BulkEntryCSVHeaderLoadingSlot: View {
+  let isLoading: Bool
+  let onCancel: () -> Void
+
+  var body: some View {
+    Spacer(minLength: 0)
+      .frame(minHeight: 24)
+      .overlay(alignment: .trailing) {
+        DelayedCSVLoadingIndicator(isLoading: isLoading) {
+          ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+              ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel("Loading CSV…")
+              Text("Loading CSV…")
+                .lineLimit(1)
+                .accessibilityHidden(true)
+              Button("Cancel", action: onCancel)
+            }
+
+            HStack(spacing: 8) {
+              ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel("Loading CSV…")
+              Button(action: onCancel) {
+                Image(systemName: "xmark.circle")
+              }
+              .accessibilityLabel("Cancel")
+              .helpWhenUnlocked(LocalizedStringKey("Cancel"))
+            }
+          }
+          .font(.callout)
+        }
+      }
+      .clipped()
+  }
+}
+
 // MARK: - Content Area
 
 /// Owns the `viewModel.rows.isEmpty` observation so that `BulkEntryView.body`
@@ -418,6 +460,9 @@ struct BulkEntryContentArea: View {
   var viewModel: BulkEntryViewModel
   @Binding var cachedCategoryNames: [String]
   var csvImportTarget: Binding<CSVImportTarget?>
+  let csvLoadingTracker: BulkEntryCSVLoadingTracker
+  let isSourceDataStale: Bool
+  let onCancelCSVImport: () -> Void
 
   @State private var showEmptyStatePopover = false
   @State private var emptyStatePlatformName = ""
@@ -443,16 +488,23 @@ struct BulkEntryContentArea: View {
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .disabled(isSourceDataStale)
     } else {
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
           BulkEntryAssetSection(
             viewModel: viewModel,
             cachedCategoryNames: $cachedCategoryNames,
-            csvImportTarget: csvImportTarget)
+            csvImportTarget: csvImportTarget,
+            csvLoadingTracker: csvLoadingTracker,
+            isSourceDataStale: isSourceDataStale,
+            onCancelCSVImport: onCancelCSVImport)
           BulkEntryCashFlowSection(
             viewModel: viewModel,
-            csvImportTarget: csvImportTarget)
+            csvImportTarget: csvImportTarget,
+            isCSVLoading: csvLoadingTracker.isActive(for: .cashFlow),
+            isSourceDataStale: isSourceDataStale,
+            onCancelCSVImport: onCancelCSVImport)
         }
         .padding()
       }
@@ -511,6 +563,9 @@ struct BulkEntryAssetSection: View {
   var viewModel: BulkEntryViewModel
   @Binding var cachedCategoryNames: [String]
   var csvImportTarget: Binding<CSVImportTarget?>
+  let csvLoadingTracker: BulkEntryCSVLoadingTracker
+  let isSourceDataStale: Bool
+  let onCancelCSVImport: () -> Void
   @FocusState private var focusedRowID: UUID?
   @FocusState private var nameFieldFocusedRowID: UUID?
 
@@ -523,7 +578,10 @@ struct BulkEntryAssetSection: View {
         cachedCategoryNames: $cachedCategoryNames,
         focusedRowID: $focusedRowID,
         nameFieldFocusedRowID: $nameFieldFocusedRowID,
-        csvImportTarget: csvImportTarget
+        csvImportTarget: csvImportTarget,
+        isCSVLoading: csvLoadingTracker.isActive(for: .asset(platform: group.platform)),
+        isSourceDataStale: isSourceDataStale,
+        onCancelCSVImport: onCancelCSVImport
       )
       .equatable()
     }
@@ -562,10 +620,15 @@ struct BulkEntryPlatformSection: View, Equatable {
   var focusedRowID: FocusState<UUID?>.Binding
   var nameFieldFocusedRowID: FocusState<UUID?>.Binding
   var csvImportTarget: Binding<CSVImportTarget?>
+  let isCSVLoading: Bool
+  let isSourceDataStale: Bool
+  let onCancelCSVImport: () -> Void
 
   static func == (lhs: BulkEntryPlatformSection, rhs: BulkEntryPlatformSection) -> Bool {
     lhs.platform == rhs.platform && lhs.rows == rhs.rows
       && lhs.cachedCategoryNames == rhs.cachedCategoryNames
+      && lhs.isCSVLoading == rhs.isCSVLoading
+      && lhs.isSourceDataStale == rhs.isSourceDataStale
   }
 
   var body: some View {
@@ -607,6 +670,7 @@ struct BulkEntryPlatformSection: View, Equatable {
         }
       }
       .bulkEntrySectionBackgrounds(rowIDs: rows.map(\.id))
+      .disabled(isSourceDataStale)
     }
     .padding(.bottom, 16)
   }
@@ -633,7 +697,7 @@ struct BulkEntryPlatformSection: View, Equatable {
         .font(.caption)
         .foregroundStyle(.secondary)
 
-      Spacer()
+      BulkEntryCSVHeaderLoadingSlot(isLoading: isCSVLoading, onCancel: onCancelCSVImport)
 
       Button {
         let rowID = viewModel.addManualRow(forPlatform: platform)
@@ -642,6 +706,7 @@ struct BulkEntryPlatformSection: View, Equatable {
         Label("Add Asset", systemImage: "plus")
           .font(.callout)
       }
+      .disabled(isSourceDataStale)
       .helpWhenUnlocked("Add a new asset to this platform")
 
       Button {
@@ -650,6 +715,7 @@ struct BulkEntryPlatformSection: View, Equatable {
         Label("Import CSV", systemImage: "doc.text")
           .font(.callout)
       }
+      .disabled(isSourceDataStale)
       .helpWhenUnlocked("Import a CSV file to fill values for this platform")
     }
     .padding(.vertical, 8)
@@ -668,6 +734,9 @@ struct BulkEntryPlatformSection: View, Equatable {
 struct BulkEntryCashFlowSection: View {
   var viewModel: BulkEntryViewModel
   @Binding var csvImportTarget: CSVImportTarget?
+  let isCSVLoading: Bool
+  let isSourceDataStale: Bool
+  let onCancelCSVImport: () -> Void
   @FocusState private var focusedAmountRowID: UUID?
   @FocusState private var focusedDescriptionRowID: UUID?
 
@@ -681,6 +750,7 @@ struct BulkEntryCashFlowSection: View {
         focusedAmountRowID: $focusedAmountRowID,
         focusedDescriptionRowID: $focusedDescriptionRowID
       )
+      .disabled(isSourceDataStale)
     }
     .padding(.bottom, 16)
     .onChange(of: focusedAmountRowID) { oldValue, _ in
@@ -720,7 +790,7 @@ struct BulkEntryCashFlowSection: View {
           .background(.quaternary, in: Capsule())
       }
 
-      Spacer()
+      BulkEntryCSVHeaderLoadingSlot(isLoading: isCSVLoading, onCancel: onCancelCSVImport)
 
       Button {
         viewModel.addManualCashFlowRow()
@@ -728,6 +798,7 @@ struct BulkEntryCashFlowSection: View {
         Label("Add Cash Flow", systemImage: "plus")
           .font(.callout)
       }
+      .disabled(isSourceDataStale)
       .helpWhenUnlocked("Add a new cash flow operation")
 
       Button {
@@ -736,6 +807,7 @@ struct BulkEntryCashFlowSection: View {
         Label("Import CSV", systemImage: "doc.text")
           .font(.callout)
       }
+      .disabled(isSourceDataStale)
       .helpWhenUnlocked("Import cash flows from a CSV file")
     }
     .padding(.vertical, 8)

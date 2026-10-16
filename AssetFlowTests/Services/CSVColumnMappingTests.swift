@@ -85,6 +85,20 @@ struct CSVColumnMappingTests {
     #expect(rows.isEmpty)
   }
 
+  @Test("CSV preparation provides every row to the mapping preview")
+  func testMappingPreparationIncludesAllRows() async throws {
+    let csv = "Symbol,Price\n" + (1...12).map { "Asset \($0),\($0)" }.joined(separator: "\n")
+    let preparation = try await CSVImportPreparationService.prepare(
+      data: csvData(csv), schema: .assetWithoutPlatform)
+
+    guard case .needsMapping(_, _, _, let rows, _) = preparation else {
+      Issue.record("Expected column mapping")
+      return
+    }
+    #expect(rows.count == 12)
+    #expect(rows.last == ["Asset 12", "12"])
+  }
+
   // MARK: - autoDetectMapping
 
   @Test("autoDetectMapping returns matched for exact asset headers (case-insensitive)")

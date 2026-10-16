@@ -3066,7 +3066,14 @@
       }
     },
     "Loading CSV…" : {
-
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在載入 CSV…"
+          }
+        }
+      }
     },
     "Main Currency" : {
       "comment" : "A label for the currency picker in the settings view.",

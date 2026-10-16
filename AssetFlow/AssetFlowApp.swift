@@ -28,8 +28,11 @@ struct AssetFlowApp: App {
     #if DEBUG
       let showMissingRatePreview =
         ProcessInfo.processInfo.arguments.contains("--preview-missing-rates")
+      let showBulkEntryCSVLoadingPreview =
+        ProcessInfo.processInfo.arguments.contains("--preview-bulk-entry-csv-loading")
       let usePreviewData =
-        showMissingRatePreview || ProcessInfo.processInfo.arguments.contains("--preview-data")
+        showMissingRatePreview || showBulkEntryCSVLoadingPreview
+        || ProcessInfo.processInfo.arguments.contains("--preview-data")
     #else
       let usePreviewData = false
     #endif

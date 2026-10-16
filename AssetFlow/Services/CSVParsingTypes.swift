@@ -104,6 +104,7 @@ struct CSVParseResult<T: Sendable>: Sendable {
 enum CSVImportPreparation: Sendable {
   case parsedAsset(data: Data, result: CSVParseResult<AssetCSVRow>)
   case parsedCashFlow(data: Data, result: CSVParseResult<CashFlowCSVRow>)
+  /// `sampleRows` contains all parsed data rows for the mapping preview.
   case needsMapping(
     data: Data,
     schema: CSVColumnSchema,

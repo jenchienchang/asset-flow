@@ -75,7 +75,7 @@ Conversion uses rates applicable to a snapshot's date and the selected display c
 
 ### Import and Bulk Entry
 
-A selected file is read by a nonisolated worker. `CSVImportPreparationService` and `CSVRecordReader` prepare parsed rows or a column-mapping request away from the main actor, with cancellation checks. The main-actor `ImportViewModel` owns preview state, effective-platform duplicate validation, checks against an existing snapshot, and the eventual model changes. Bulk Entry keeps an editable draft and validates a CSV replacement before replacing draft rows.
+A selected file is read by a nonisolated worker. `CSVImportPreparationService` and `CSVRecordReader` prepare parsed rows or a column-mapping request away from the main actor, with cancellation checks. When mapping is needed, the loading task measures the preview's column widths before the ViewModel presents the sheet; row text is measured off the main actor, and the mapping controls are measured on it. The main-actor `ImportViewModel` owns preview state, effective-platform duplicate validation, checks against an existing snapshot, and the eventual model changes. Bulk Entry keeps an editable draft and validates a CSV replacement before replacing draft rows.
 
 For multi-row mutations, [`ModelResolutionLookup.swift`](../AssetFlow/Utilities/ModelResolutionLookup.swift) provides operation-scoped indexes for assets, categories, and snapshot values. They are built for a preview, validation, import, or save operation, updated after insertions, and then discarded. The shared `ModelContext` lookup helpers remain for single-record work. [`BusinessLogic.md`](BusinessLogic.md) owns duplicate and zero-placeholder policy; [`APIDesign.md`](APIDesign.md) owns CSV syntax and column contracts.
 

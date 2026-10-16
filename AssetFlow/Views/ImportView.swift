@@ -54,11 +54,17 @@ struct ImportView: View {
   }
 
   var body: some View {
+    GeometryReader { geometry in
+      content(parentSize: geometry.size)
+    }
+  }
+
+  private func content(parentSize: CGSize) -> some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         importTypeSelector
         fileSelector
-        if viewModel.isLoading {
+        DelayedCSVLoadingIndicator(isLoading: viewModel.isLoading) {
           HStack {
             ProgressView()
             Text("Loading CSV…")
@@ -88,12 +94,20 @@ struct ImportView: View {
     ) { result in
       handleFileImport(result)
     }
-    .sheet(isPresented: $viewModel.showColumnMappingSheet) {
+    .sheet(
+      isPresented: $viewModel.showColumnMappingSheet,
+      onDismiss: {
+        viewModel.pendingSampleRows = []
+        viewModel.pendingPreviewColumnWidths = []
+      }
+    ) {
       ColumnMappingSheet(
         rawHeaders: viewModel.pendingRawHeaders,
         schema: viewModel.importType == .assets ? .asset : .cashFlow,
         sampleRows: viewModel.pendingSampleRows,
+        preparedColumnWidths: viewModel.pendingPreviewColumnWidths,
         initialMapping: viewModel.pendingPartialMapping,
+        parentSize: parentSize,
         onConfirm: { mapping in
           startImportTask { @MainActor in
             await viewModel.confirmColumnMapping(mapping)

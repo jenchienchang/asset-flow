@@ -138,7 +138,7 @@ External withdrawal,-10000,TWD
 
 ### Column Mapping
 
-`CSVParsingService.autoDetectMapping(headers:schema:)` matches canonical columns case-insensitively after trimming surrounding whitespace. If all required columns are found, preparation parses immediately. Otherwise it returns `.needsMapping` with raw headers, sample rows, and a partial mapping. The user confirms a `CSVColumnMapping` from canonical columns to original column indices; every required field must be assigned once. The same flow is used by Import and Bulk Entry, including Bulk Entry's `.assetWithoutPlatform` schema. Confirmation reparses the pending file with that mapping. It does not change the source CSV or make arbitrary headers canonical for later files.
+`CSVParsingService.autoDetectMapping(headers:schema:)` matches canonical columns case-insensitively after trimming surrounding whitespace. `CSVImportPreparationService.prepare(data:schema:)` parses immediately when all required columns are found; otherwise it returns `.needsMapping` with raw headers, every parsed data row in its `sampleRows` field, and a partial mapping. The user confirms a `CSVColumnMapping` from canonical columns to original column indices; every required field must be assigned once. The same flow is used by Import and Bulk Entry, including Bulk Entry's `.assetWithoutPlatform` schema. Confirmation reparses the pending file with that mapping. It does not change the source CSV or make arbitrary headers canonical for later files.
 
 Raw duplicate candidates and row diagnostics survive mapping. Import and Bulk Entry then validate the effective included rows using their respective platform and snapshot context. A blocking error prevents the operation; a warning alone does not.
 

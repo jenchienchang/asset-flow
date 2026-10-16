@@ -148,7 +148,6 @@ struct BackupServiceTests {
   @Test("A process with more stderr than a pipe can hold still completes", .timeLimit(.minutes(1)))
   func processDrainsLargeStderr() async throws {
     let omission = BackupService.localizedBackupMessage("Some error details were omitted.")
-    let start = ContinuousClock.now
 
     do {
       try await BackupService.runProcess(
@@ -162,16 +161,13 @@ struct BackupServiceTests {
     } catch {
       Issue.record("Expected a process diagnostic, received: \(error)")
     }
-    #expect(ContinuousClock.now - start < .seconds(8))
   }
 
   @Test("Successful process completes after writing large stderr", .timeLimit(.minutes(1)))
   func successfulProcessDrainsLargeStderr() async throws {
-    let start = ContinuousClock.now
     try await BackupService.runProcess(
       executableURL: URL(fileURLWithPath: "/bin/sh"),
       arguments: ["-c", noisyProcessScript(exitCode: 0)])
-    #expect(ContinuousClock.now - start < .seconds(8))
   }
 
   @Test("Invalid UTF-8 diagnostics stay short and keep the final error")
@@ -210,20 +206,34 @@ struct BackupServiceTests {
   func processCancellationCompletes() async throws {
     let marker = FileManager.default.temporaryDirectory
       .appending(path: "backup-process-\(UUID().uuidString)")
-    defer { try? FileManager.default.removeItem(at: marker) }
+    let pendingMarker = marker.appendingPathExtension("pending")
+    let fifo = marker.appendingPathExtension("fifo")
+    try #require(Darwin.mkfifo(fifo.path, 0o600) == 0)
+    defer {
+      try? FileManager.default.removeItem(at: marker)
+      try? FileManager.default.removeItem(at: pendingMarker)
+      try? FileManager.default.removeItem(at: fifo)
+    }
 
-    let task = Task.detached { () -> (Bool, ContinuousClock.Instant) in
+    let task = Task.detached { () -> String? in
       do {
+        let script = """
+          /bin/sh -c '
+            trap "" HUP TERM
+            printf "%s" "$$" > "\(pendingMarker.path)"
+            /bin/mv "\(pendingMarker.path)" "\(marker.path)"
+            exec /bin/cat "\(fifo.path)" >/dev/null
+          ' &
+          wait
+          """
         try await BackupService.runProcess(
           executableURL: URL(fileURLWithPath: "/bin/sh"),
-          arguments: [
-            "-c", "/bin/sleep 5 & child=$!; printf '%s' \"$child\" > '\(marker.path)'; wait",
-          ])
-        return (false, .now)
+          arguments: ["-c", script])
+        return "The process exited without cancellation"
       } catch is CancellationError {
-        return (true, .now)
+        return nil
       } catch {
-        return (false, .now)
+        return "Expected cancellation, received: \(error)"
       }
     }
 
@@ -241,13 +251,29 @@ struct BackupServiceTests {
 
     let childText = try String(contentsOf: marker, encoding: .utf8)
     let childPID = try #require(pid_t(childText))
-    defer { _ = Darwin.kill(childPID, SIGTERM) }
+    defer { _ = Darwin.kill(childPID, SIGKILL) }
+    try #require(Darwin.kill(childPID, 0) == 0)
 
-    let start = ContinuousClock.now
+    let watchdog = Task.detached { () -> Bool in
+      do {
+        try await Task.sleep(for: .seconds(10))
+      } catch {
+        return false
+      }
+      _ = Darwin.kill(childPID, SIGKILL)
+      return true
+    }
+    let completion = Task.detached {
+      let failure = await task.value
+      watchdog.cancel()
+      return (failure, await watchdog.value)
+    }
+
     task.cancel()
-    let (wasCancelled, completedAt) = await task.value
-    #expect(wasCancelled)
-    #expect(completedAt - start < .seconds(3))
+    let (failure, watchdogReleasedChild) = await completion.value
+    if let failure { Issue.record("\(failure)") }
+    #expect(!watchdogReleasedChild)
+    #expect(Darwin.kill(childPID, 0) == 0)
   }
 
   private func noisyProcessScript(

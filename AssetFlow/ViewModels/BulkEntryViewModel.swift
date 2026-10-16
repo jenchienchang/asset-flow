@@ -36,6 +36,8 @@ final class BulkEntryViewModel {
   var showCashFlowColumnMappingSheet: Bool = false
   var pendingCashFlowRawHeaders: [String] = []
   var pendingCashFlowSampleRows: [[String]] = []
+  /// Widths prepared before presenting the cash-flow mapping sheet.
+  var pendingCashFlowPreviewColumnWidths: [CGFloat] = []
   var pendingCashFlowPartialMapping: [CanonicalColumn: Int] = [:]
   var pendingCashFlowCSVData: Data?
   var lastImportFeedback: CSVImportFeedback?
@@ -86,6 +88,8 @@ final class BulkEntryViewModel {
   var showColumnMappingSheet: Bool = false
   var pendingRawHeaders: [String] = []
   var pendingSampleRows: [[String]] = []
+  /// Widths prepared before presenting the asset mapping sheet.
+  var pendingPreviewColumnWidths: [CGFloat] = []
   var pendingPartialMapping: [CanonicalColumn: Int] = [:]
   var pendingCSVData: Data?
   var pendingCSVPlatform: String = ""
@@ -411,9 +415,14 @@ final class BulkEntryViewModel {
 
       case .needsMapping(
         let data, _, let rawHeaders, let sampleRows, let partialMapping):
+        let previewWidths = try await ColumnMappingPreviewLayout.prepareColumnWidths(
+          headers: rawHeaders, rows: sampleRows, schema: .cashFlow,
+          initialMapping: partialMapping)
+        try Task.checkCancellation()
         pendingCashFlowCSVData = data
         pendingCashFlowRawHeaders = rawHeaders
         pendingCashFlowSampleRows = sampleRows
+        pendingCashFlowPreviewColumnWidths = previewWidths
         pendingCashFlowPartialMapping = partialMapping
         showCashFlowColumnMappingSheet = true
 
@@ -447,6 +456,7 @@ final class BulkEntryViewModel {
       pendingCashFlowCSVData = nil
       pendingCashFlowRawHeaders = []
       pendingCashFlowSampleRows = []
+      pendingCashFlowPreviewColumnWidths = []
       pendingCashFlowPartialMapping = [:]
       return result
     } catch is CancellationError {
@@ -637,10 +647,15 @@ final class BulkEntryViewModel {
 
       case .needsMapping(
         let data, _, let rawHeaders, let sampleRows, let partialMapping):
+        let previewWidths = try await ColumnMappingPreviewLayout.prepareColumnWidths(
+          headers: rawHeaders, rows: sampleRows, schema: .assetWithoutPlatform,
+          initialMapping: partialMapping)
+        try Task.checkCancellation()
         pendingCSVData = data
         pendingCSVPlatform = platform
         pendingRawHeaders = rawHeaders
         pendingSampleRows = sampleRows
+        pendingPreviewColumnWidths = previewWidths
         pendingPartialMapping = partialMapping
         showColumnMappingSheet = true
 
@@ -676,6 +691,7 @@ final class BulkEntryViewModel {
       pendingCSVPlatform = ""
       pendingRawHeaders = []
       pendingSampleRows = []
+      pendingPreviewColumnWidths = []
       pendingPartialMapping = [:]
 
       return result

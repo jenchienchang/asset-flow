@@ -1227,6 +1227,8 @@ struct BulkEntryViewModelTests {
     #expect(viewModel.showColumnMappingSheet)
     #expect(viewModel.pendingRawHeaders == ["Symbol", "Price"])
     #expect(viewModel.pendingCSVPlatform == "Vanguard")
+    #expect(viewModel.pendingPreviewColumnWidths.count == 2)
+    #expect(!viewModel.isCSVImporting)
   }
 
   @Test("confirmColumnMapping produces correct import result and dismisses sheet")
@@ -1764,6 +1766,8 @@ struct BulkEntryViewModelTests {
     #expect(viewModel.showCashFlowColumnMappingSheet)
     #expect(viewModel.pendingCashFlowRawHeaders == ["Label", "Value"])
     #expect(viewModel.cashFlowRows.isEmpty)
+    #expect(viewModel.pendingCashFlowPreviewColumnWidths.count == 2)
+    #expect(!viewModel.isCSVImporting)
   }
 
   @Test("loadCashFlowCSVForMapping reports malformed CSV syntax")

@@ -45,7 +45,16 @@ enum CSVImportPreparationService {
     schema: CSVColumnSchema
   ) async throws -> CSVImportPreparation {
     try Task.checkCancellation()
-    let headers = try await CSVParsingService.extractHeadersAsync(from: data)
+    let document: CSVDocument
+    do {
+      document = try await CSVRecordReader.readCancellable(data)
+    } catch is CancellationError {
+      throw CancellationError()
+    } catch {
+      // Preserve the parser's row-level diagnostic for malformed CSV data.
+      return try await parsedPreparation(data: data, schema: schema, mapping: nil)
+    }
+    let headers = document.headers
 
     guard !headers.isEmpty else {
       let preparation = try await parsedPreparation(
@@ -62,13 +71,12 @@ enum CSVImportPreparationService {
       return preparation
 
     case .needsUserMapping(let rawHeaders, let partialMap):
-      let sampleRows = try await CSVParsingService.extractSampleRowsAsync(from: data)
       try Task.checkCancellation()
       return .needsMapping(
         data: data,
         schema: schema,
         rawHeaders: rawHeaders,
-        sampleRows: sampleRows,
+        sampleRows: document.records.map(\.fields),
         partialMapping: partialMap)
     }
   }

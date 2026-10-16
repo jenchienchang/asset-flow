@@ -255,6 +255,12 @@ struct ContentView: View {
         importViewModel = ImportViewModel(modelContext: modelContext)
       }
       #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--preview-bulk-entry-csv-loading"),
+          bulkEntryViewModel == nil
+        {
+          bulkEntryViewModel = BulkEntryViewModel(modelContext: modelContext, date: Date())
+          pushHistory(.bulkEntry)
+        }
         if ProcessInfo.processInfo.arguments.contains("--preview-missing-rates") {
           selectedAsset = queryAssets.first { $0.name == "Exchange Rate Gap" }
         }

@@ -2532,13 +2532,17 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
     viewModel.snapshotDate = makeDate(year: 2025, month: 1, day: 1)
 
-    let csv = csvData("Symbol,Price,Account\nAAPL,15000,Schwab")
+    let wideValue = String(repeating: "Long holding name ", count: 12)
+    let csv = csvData("Symbol,Price,Account\nAAPL,15000,Schwab\n\(wideValue),100,Schwab")
     await viewModel.loadCSVData(csv)
 
     #expect(viewModel.showColumnMappingSheet)
     #expect(viewModel.assetPreviewRows.isEmpty)
     #expect(viewModel.pendingRawHeaders == ["Symbol", "Price", "Account"])
     #expect(!viewModel.pendingSampleRows.isEmpty)
+    #expect(viewModel.pendingPreviewColumnWidths.count == 3)
+    #expect(viewModel.pendingPreviewColumnWidths[0] > 160)
+    #expect(!viewModel.isLoading)
   }
 
   @Test("loadCSVData with partially matching headers pre-populates partial mapping")
@@ -2631,6 +2635,7 @@ struct ImportViewModelTests {
     #expect(!viewModel.showColumnMappingSheet)
     #expect(viewModel.pendingRawHeaders.isEmpty)
     #expect(viewModel.pendingSampleRows.isEmpty)
+    #expect(viewModel.pendingPreviewColumnWidths.isEmpty)
     #expect(viewModel.pendingPartialMapping.isEmpty)
   }
 }

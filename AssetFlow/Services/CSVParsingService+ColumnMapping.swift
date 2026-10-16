@@ -26,16 +26,6 @@ extension CSVParsingService {
     (try? CSVRecordReader.read(data).headers) ?? []
   }
 
-  nonisolated static func extractHeadersAsync(from data: Data) async throws -> [String] {
-    do {
-      return try await CSVRecordReader.readCancellable(data).headers
-    } catch is CancellationError {
-      throw CancellationError()
-    } catch {
-      return []
-    }
-  }
-
   /// Extracts data rows (excluding header) as raw string arrays.
   ///
   /// Pass `nil` for `count` to extract every data row.
@@ -45,23 +35,6 @@ extension CSVParsingService {
       count.map { Array(document.records.prefix($0)) }
       ?? document.records
     return records.map(\.fields)
-  }
-
-  nonisolated static func extractSampleRowsAsync(
-    from data: Data,
-    count: Int? = 3
-  ) async throws -> [[String]] {
-    do {
-      let document = try await CSVRecordReader.readCancellable(data)
-      let records =
-        count.map { Array(document.records.prefix($0)) }
-        ?? document.records
-      return records.map(\.fields)
-    } catch is CancellationError {
-      throw CancellationError()
-    } catch {
-      return []
-    }
   }
 
   /// Attempts case-insensitive auto-detection of column mapping.

@@ -20,6 +20,29 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Tracks the section whose CSV task owns the inline loading indicator.
+struct BulkEntryCSVLoadingTracker {
+  private(set) var activeTarget: CSVImportTarget?
+  private var activeOperationID: UUID?
+
+  mutating func begin(_ target: CSVImportTarget) -> UUID {
+    let operationID = UUID()
+    activeTarget = target
+    activeOperationID = operationID
+    return operationID
+  }
+
+  mutating func finish(_ operationID: UUID) {
+    guard activeOperationID == operationID else { return }
+    activeTarget = nil
+    activeOperationID = nil
+  }
+
+  func isActive(for target: CSVImportTarget) -> Bool {
+    activeTarget == target
+  }
+}
+
 /// Full-screen view for bulk snapshot entry with a platform-grouped table.
 ///
 /// Displays all assets from the most recent snapshot, grouped by platform,
@@ -39,6 +62,10 @@ struct BulkEntryView: View {
   @State private var importResultTitle = ""
   @State private var importResultMessage = ""
   @State private var csvImportTask: Task<Void, Never>?
+  @State private var csvLoadingTracker = BulkEntryCSVLoadingTracker()
+  #if DEBUG
+    @State private var didStartCSVLoadingPreview = false
+  #endif
   @State private var cachedCategoryNames: [String] = []
   @Query private var querySnapshots: [Snapshot]
   @Query private var queryAssets: [Asset]
@@ -77,32 +104,35 @@ struct BulkEntryView: View {
           staleSourceDataBanner
         }
         Divider()
-        if viewModel.isCSVImporting {
-          HStack {
-            ProgressView()
-            Text("Loading CSV…")
-            Spacer()
-            Button("Cancel") {
-              csvImportTask?.cancel()
-            }
-          }
-          .padding(.horizontal)
-          .padding(.vertical, 8)
-        }
         if case .failed(let message) = viewModel.loadState {
           DataLoadErrorView(message: message) { viewModel.retryLoad() }
         } else {
           BulkEntryContentArea(
             viewModel: viewModel,
             cachedCategoryNames: $cachedCategoryNames,
-            csvImportTarget: $csvImportTarget
+            csvImportTarget: $csvImportTarget,
+            csvLoadingTracker: csvLoadingTracker,
+            isSourceDataStale: viewModel.isSourceDataStale,
+            onCancelCSVImport: { csvImportTask?.cancel() }
           )
-          .disabled(viewModel.isSourceDataStale)
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .onAppear {
         cachedCategoryNames = sortedCategoryNames(from: queryCategories)
+        #if DEBUG
+          if ProcessInfo.processInfo.arguments.contains("--preview-bulk-entry-csv-loading"),
+            !didStartCSVLoadingPreview,
+            let platform = viewModel.platformGroups.first?.platform
+          {
+            didStartCSVLoadingPreview = true
+            startCSVImportTask(target: .asset(platform: platform)) { @MainActor in
+              while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+              }
+            }
+          }
+        #endif
       }
       .onChange(of: queryRevision) {
         cachedCategoryNames = sortedCategoryNames(from: queryCategories)
@@ -127,7 +157,7 @@ struct BulkEntryView: View {
           viewModel.lastImportFeedback = nil
 
         case .success(let url):
-          startCSVImportTask { @MainActor in
+          startCSVImportTask(target: target) { @MainActor in
             switch target {
             case .asset(let platform):
               await viewModel.loadCSVFileForMapping(from: url, forPlatform: platform)
@@ -146,15 +176,23 @@ struct BulkEntryView: View {
           }
         }
       }
-      .sheet(isPresented: $viewModel.showColumnMappingSheet) {
+      .sheet(
+        isPresented: $viewModel.showColumnMappingSheet,
+        onDismiss: {
+          viewModel.pendingSampleRows = []
+          viewModel.pendingPreviewColumnWidths = []
+        }
+      ) {
         ColumnMappingSheet(
           rawHeaders: viewModel.pendingRawHeaders,
           schema: .assetWithoutPlatform,
           sampleRows: viewModel.pendingSampleRows,
+          preparedColumnWidths: viewModel.pendingPreviewColumnWidths,
           initialMapping: viewModel.pendingPartialMapping,
           parentSize: geometry.size,
           onConfirm: { mapping in
-            startCSVImportTask { @MainActor in
+            startCSVImportTask(target: .asset(platform: viewModel.pendingCSVPlatform)) {
+              @MainActor in
               _ = await viewModel.confirmColumnMapping(mapping)
               showImportResultAlert(for: viewModel.lastImportFeedback)
               viewModel.lastImportFeedback = nil
@@ -165,15 +203,22 @@ struct BulkEntryView: View {
           }
         )
       }
-      .sheet(isPresented: $viewModel.showCashFlowColumnMappingSheet) {
+      .sheet(
+        isPresented: $viewModel.showCashFlowColumnMappingSheet,
+        onDismiss: {
+          viewModel.pendingCashFlowSampleRows = []
+          viewModel.pendingCashFlowPreviewColumnWidths = []
+        }
+      ) {
         ColumnMappingSheet(
           rawHeaders: viewModel.pendingCashFlowRawHeaders,
           schema: .cashFlow,
           sampleRows: viewModel.pendingCashFlowSampleRows,
+          preparedColumnWidths: viewModel.pendingCashFlowPreviewColumnWidths,
           initialMapping: viewModel.pendingCashFlowPartialMapping,
           parentSize: geometry.size,
           onConfirm: { mapping in
-            startCSVImportTask { @MainActor in
+            startCSVImportTask(target: .cashFlow) { @MainActor in
               _ = await viewModel.confirmCashFlowColumnMapping(mapping)
               showImportResultAlert(for: viewModel.lastImportFeedback)
               viewModel.lastImportFeedback = nil
@@ -256,10 +301,13 @@ struct BulkEntryView: View {
   }
 
   private func startCSVImportTask(
+    target: CSVImportTarget,
     _ operation: @escaping @MainActor () async -> Void
   ) {
     csvImportTask?.cancel()
+    let operationID = csvLoadingTracker.begin(target)
     csvImportTask = Task { @MainActor in
+      defer { csvLoadingTracker.finish(operationID) }
       await operation()
     }
   }

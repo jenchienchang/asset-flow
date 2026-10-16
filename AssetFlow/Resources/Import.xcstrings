@@ -324,6 +324,16 @@
         }
       }
     },
+    "No data rows in this CSV." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 CSV 檔案沒有資料列。"
+          }
+        }
+      }
+    },
     "None" : {
       "comment" : "Label used when an asset has no platform assigned.",
       "localizations" : {

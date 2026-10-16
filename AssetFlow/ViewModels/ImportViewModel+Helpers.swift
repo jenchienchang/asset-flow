@@ -316,6 +316,7 @@ extension ImportViewModel {
     showColumnMappingSheet = false
     pendingRawHeaders = []
     pendingSampleRows = []
+    pendingPreviewColumnWidths = []
     pendingPartialMapping = [:]
   }
 
