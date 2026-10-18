@@ -4,6 +4,11 @@
 
 AssetFlow is a macOS 15.0+ desktop app for snapshot-based portfolio management and asset allocation tracking. Built with SwiftUI, SwiftData, and Swift Charts. Local-first; network requests to cdn.jsdelivr.net fetch currency names and exchange rates.
 
+## Developer Approval
+
+- Do not make decisions during implementation without the developer's explicit approval. Present choices and wait for approval before proceeding.
+- After answering a developer's question or assessment request, do not implement changes discussed in the response unless the developer explicitly approves those changes.
+
 ## Build and Test
 
 Use the `/build` skill for agent builds; see `.codex/skills/build/SKILL.md` for host-access and log instructions.
