@@ -84,7 +84,7 @@ jobs:
 
       - name: Upload release build artifact
         if: ${{ inputs.operation == 'archive' && inputs.package_release_artifact }}
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: AssetFlow-release
           path: build/AssetFlow-*.zip
