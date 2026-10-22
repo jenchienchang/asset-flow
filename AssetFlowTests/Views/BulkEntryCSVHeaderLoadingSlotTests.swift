@@ -113,18 +113,18 @@ struct BulkEntryCSVHeaderLoadingSlotTests {
 
     viewModel.markSourceDataStale()
     let deadline = ContinuousClock.now.advanced(by: .seconds(15))
-    while probe.isEmpty && ContinuousClock.now < deadline {
+    while !probe.cancelCallbackInvoked && ContinuousClock.now < deadline {
       window.makeKeyAndOrderFront(nil)
       host.layoutSubtreeIfNeeded()
       window.displayIfNeeded()
-      for y in stride(from: 300, through: 60, by: -10) where probe.isEmpty {
-        for x in stride(from: 300, through: 780, by: 10) where probe.isEmpty {
+      for y in stride(from: 300, through: 60, by: -10) where !probe.cancelCallbackInvoked {
+        for x in stride(from: 300, through: 780, by: 10) where !probe.cancelCallbackInvoked {
           click(NSPoint(x: CGFloat(x), y: CGFloat(y)), in: window)
         }
       }
-      if probe.isEmpty { try await Task.sleep(for: .milliseconds(50)) }
+      if !probe.cancelCallbackInvoked { try await Task.sleep(for: .milliseconds(50)) }
     }
-    #expect(!probe.isEmpty)
+    #expect(probe.cancelCallbackInvoked)
     #expect(viewModel.rows.count == 1)
     #expect(viewModel.cashFlowRows.isEmpty)
     #expect(probe.importSelections == 0)
@@ -169,7 +169,7 @@ struct BulkEntryCSVHeaderLoadingSlotTests {
   }
 
   private final class CancelProbe {
-    var count = 0
+    var cancelCallbackInvoked = false
     var importSelections = 0
   }
 
@@ -187,7 +187,7 @@ struct BulkEntryCSVHeaderLoadingSlotTests {
         csvImportTarget: $csvImportTarget,
         csvLoadingTracker: tracker,
         isSourceDataStale: viewModel.isSourceDataStale,
-        onCancelCSVImport: { probe.count += 1 }
+        onCancelCSVImport: { probe.cancelCallbackInvoked = true }
       )
       .frame(width: 800, height: 320)
       .onChange(of: csvImportTarget) { _, target in
