@@ -21,7 +21,7 @@ struct DelayedCSVLoadingIndicator<Content: View>: View {
   let isLoading: Bool
   let delay: Duration
   let content: Content
-  @State private var isVisible = false
+  @State private var visibility = DelayedCSVLoadingVisibility()
 
   init(
     isLoading: Bool,
@@ -35,19 +35,39 @@ struct DelayedCSVLoadingIndicator<Content: View>: View {
 
   var body: some View {
     Group {
-      if isLoading && isVisible {
+      if isLoading && visibility.isVisible {
         content
       }
     }
     .task(id: isLoading) {
-      guard isLoading else {
-        isVisible = false
-        return
+      await visibility.update(isLoading: isLoading) {
+        try await Task.sleep(for: delay)
       }
-      isVisible = false
-      try? await Task.sleep(for: delay)
-      guard !Task.isCancelled else { return }
-      isVisible = true
     }
+  }
+}
+
+@MainActor
+@Observable
+final class DelayedCSVLoadingVisibility {
+  private(set) var isVisible = false
+  @ObservationIgnored private var generation = 0
+
+  func update(
+    isLoading: Bool,
+    afterDelay: @MainActor () async throws -> Void
+  ) async {
+    generation &+= 1
+    let currentGeneration = generation
+    isVisible = false
+    guard isLoading else { return }
+
+    do {
+      try await afterDelay()
+    } catch {
+      return
+    }
+    guard !Task.isCancelled, generation == currentGeneration else { return }
+    isVisible = true
   }
 }
