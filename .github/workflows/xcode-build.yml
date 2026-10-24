@@ -67,7 +67,26 @@ jobs:
           xcodebuild test \
             -project AssetFlow.xcodeproj \
             -scheme AssetFlow \
-            -destination 'platform=macOS'
+            -destination 'platform=macOS' \
+            -resultBundlePath "$RUNNER_TEMP/AssetFlowTests.xcresult"
+
+      - name: Report test failures
+        if: ${{ failure() && inputs.operation == 'test' }}
+        run: |
+          result_bundle="$RUNNER_TEMP/AssetFlowTests.xcresult"
+          if [ -d "$result_bundle" ]; then
+            xcrun xcresulttool get test-results summary --path "$result_bundle"
+          else
+            echo "No test result bundle was created."
+          fi
+
+      - name: Upload failed test result bundle
+        if: ${{ failure() && inputs.operation == 'test' }}
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: AssetFlow-test-results
+          path: ${{ runner.temp }}/AssetFlowTests.xcresult
+          if-no-files-found: warn
 
       - name: Copy .app from archive
         if: ${{ inputs.operation == 'archive' && inputs.package_release_artifact }}
