@@ -2,9 +2,6 @@ name: Unit Tests
 
 on:
   pull_request:
-  push:
-    branches:
-      - debug/ci-test-failures
 
 permissions:
   contents: read

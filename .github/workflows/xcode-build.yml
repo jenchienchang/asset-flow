@@ -75,17 +75,34 @@ jobs:
         run: |
           result_bundle="$RUNNER_TEMP/AssetFlowTests.xcresult"
           if [ -d "$result_bundle" ]; then
-            xcrun xcresulttool get test-results summary --path "$result_bundle"
+            summary_path="$RUNNER_TEMP/AssetFlowTests-summary.json"
+            report_path="$RUNNER_TEMP/AssetFlow-test-failures.json"
+            xcrun xcresulttool get test-results summary --path "$result_bundle" > "$summary_path"
+            python3 - "$summary_path" "$report_path" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          summary = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          report = {
+              "result": summary["result"],
+              "failedTests": summary["failedTests"],
+              "testFailures": summary["testFailures"],
+          }
+          report_json = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
+          Path(sys.argv[2]).write_text(report_json, encoding="utf-8")
+          print(report_json, end="")
+          PY
           else
             echo "No test result bundle was created."
           fi
 
-      - name: Upload failed test result bundle
+      - name: Upload failed test report
         if: ${{ failure() && inputs.operation == 'test' }}
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: AssetFlow-test-results
-          path: ${{ runner.temp }}/AssetFlowTests.xcresult
+          name: AssetFlow-test-failures
+          path: ${{ runner.temp }}/AssetFlow-test-failures.json
           if-no-files-found: warn
 
       - name: Copy .app from archive
