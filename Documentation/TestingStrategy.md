@@ -22,8 +22,8 @@ Use pure service and model tests for calculations and validation, ViewModel test
 
 #### CSV import and Bulk Entry
 
-- **Automated evidence:** [CSVParsingServiceTests](../AssetFlowTests/Services/CSVParsingServiceTests.swift), [CSVColumnMappingTests](../AssetFlowTests/Services/CSVColumnMappingTests.swift), [ImportViewModelTests](../AssetFlowTests/ViewModels/ImportViewModelTests.swift), and [BulkEntryViewModelTests](../AssetFlowTests/ViewModels/BulkEntryViewModelTests.swift) cover [import behavior](SPEC.md#4-csv-import-system): row errors, mapping, duplicates, and atomic replacement. [DelayedCSVLoadingIndicatorTests](../AssetFlowTests/Views/DelayedCSVLoadingIndicatorTests.swift) check visibility state with a controlled delay and cancellation; [ColumnMappingPreviewLayoutTests](../AssetFlowTests/Views/ColumnMappingPreviewLayoutTests.swift) check column measurement and relative sheet sizing.
-- **Manual checks and limits:** Check file picking, mapping-sheet focus, preview feedback, and stale-draft controls in the app. Verify that progress stays hidden for quick CSV loads, appears and clears for longer loads, and that the mapping sheet fits narrow windows without excess blank space or clipping. State and size assertions do not establish the rendered result.
+- **Automated evidence:** [CSVParsingServiceTests](../AssetFlowTests/Services/CSVParsingServiceTests.swift), [CSVColumnMappingTests](../AssetFlowTests/Services/CSVColumnMappingTests.swift), [ImportViewModelTests](../AssetFlowTests/ViewModels/ImportViewModelTests.swift), and [BulkEntryViewModelTests](../AssetFlowTests/ViewModels/BulkEntryViewModelTests.swift) cover [import behavior](SPEC.md#4-csv-import-system): row errors, mapping, duplicates, and atomic replacement.
+- **Manual checks and limits:** Check file picking, mapping-sheet focus, preview feedback, and stale-draft controls in the app.
 
 #### Persistence, migration, and backup
 
