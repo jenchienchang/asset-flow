@@ -28,7 +28,7 @@ Commit only the changes that are already staged, and only after the user approve
    - Include a body in every commit, explaining the motivation and summarizing meaningful included changes.
    - Wrap body paragraphs, bullets, and footer lines so each line is 72 characters or fewer.
    - If the user supplied a rationale, incorporate it as the "why".
-   - Describe the concept-level purpose and list meaningful included changes.
+   - Use bullet points when they make meaningful changes easier to scan; otherwise, use prose.
    - Do not describe the iterative workflow of implementation, review, or revision.
 
 1. Show the complete proposed commit message, including the subject and entire body, to the user in a code block. Stop and wait for explicit approval of that exact message. The initial request to commit authorizes preparation only; it does not authorize running `git commit`.
@@ -42,15 +42,12 @@ Commit only the changes that are already staged, and only after the user approve
 
 ## Message Shape
 
-Use this shape for every generated commit:
+Use this shape for every generated commit. Add bullet points after the prose body when they make meaningful included changes easier to read:
 
 ```text
 <type>[optional (scope)][!]: <subject>
 
-<Why this change is being made, wrapped to 72 columns.>
-
-- <Included change, wrapped to 72 columns.>
-- <Another included change.>
+<Why this change is being made and what it changes, wrapped to 72 columns.>
 
 BREAKING CHANGE: <Description, when applicable>
 ```
