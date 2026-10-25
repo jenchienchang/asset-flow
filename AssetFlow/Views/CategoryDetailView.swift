@@ -19,6 +19,14 @@ import Charts
 import SwiftData
 import SwiftUI
 
+enum CategoryValueChartSeries {
+  static let value = 0
+
+  static func minimum(segment: Int) -> Int {
+    segment + 1
+  }
+}
+
 /// Category detail view for editing properties and viewing history.
 ///
 /// Shows editable fields (name, target allocation), assets in the category,
@@ -193,6 +201,7 @@ struct CategoryDetailView: View {
           data: points,
           dateKeyPath: \.date,
           valueOf: { $0.totalValue.doubleValue },
+          seriesOf: { _ in CategoryValueChartSeries.value },
           color: .blue,
           height: ChartConstants.standardChartHeight,
           tooltipContent: { entry in
@@ -220,7 +229,8 @@ struct CategoryDetailView: View {
               LineMark(
                 x: .value("Date", entry.date),
                 y: .value("Current minimum", entry.amount.doubleValue),
-                series: .value("Segment", entry.segment)
+                series: .value(
+                  "Segment", CategoryValueChartSeries.minimum(segment: entry.segment))
               )
               .foregroundStyle(.orange)
               .lineStyle(StrokeStyle(dash: [6, 4]))
