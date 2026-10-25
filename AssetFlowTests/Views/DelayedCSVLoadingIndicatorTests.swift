@@ -15,8 +15,6 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-import AppKit
-import SwiftUI
 import Testing
 
 @testable import AssetFlow
@@ -24,57 +22,67 @@ import Testing
 @Suite("Delayed CSV Loading Indicator Tests")
 @MainActor
 struct DelayedCSVLoadingIndicatorTests {
-  @Test("A quick CSV load never inserts a loading row")
+  @Test("A quick CSV load keeps delayed progress hidden")
   func quickLoadDoesNotFlash() async {
-    let host = NSHostingView(rootView: indicator(isLoading: true))
-    let window = windowForHost(host)
-    defer { window.close() }
+    let visibility = DelayedCSVLoadingVisibility()
+    let delay = DelayGate()
+    let loading = Task {
+      await visibility.update(isLoading: true) {
+        await delay.wait()
+      }
+    }
 
-    #expect(host.fittingSize.height == 0)
-    try? await Task.sleep(for: .milliseconds(50))
-    host.rootView = indicator(isLoading: false)
-    try? await Task.sleep(for: .milliseconds(300))
-    #expect(host.fittingSize.height == 0)
+    await delay.waitUntilStarted()
+    #expect(!visibility.isVisible)
+    loading.cancel()
+    await visibility.update(isLoading: false) {}
+    delay.release()
+    await loading.value
+    #expect(!visibility.isVisible)
   }
 
-  @Test("A longer CSV load shows progress after the delay")
+  @Test("A longer CSV load reveals progress after the delay")
   func longLoadShowsProgress() async {
-    let host = NSHostingView(rootView: indicator(isLoading: false))
-    let window = windowForHost(host)
-    defer { window.close() }
-
-    #expect(host.fittingSize.height == 0)
-    host.rootView = indicator(isLoading: true)
-    #expect(await waitForHeight(30, in: host))
-    host.rootView = indicator(isLoading: false)
-    #expect(await waitForHeight(0, in: host))
-  }
-
-  private func waitForHeight<Content: View>(
-    _ expectedHeight: CGFloat,
-    in host: NSHostingView<Content>
-  ) async -> Bool {
-    let deadline = ContinuousClock.now.advanced(by: .seconds(10))
-    while ContinuousClock.now < deadline {
-      host.layoutSubtreeIfNeeded()
-      if host.fittingSize.height == expectedHeight { return true }
-      try? await Task.sleep(for: .milliseconds(20))
+    let visibility = DelayedCSVLoadingVisibility()
+    let delay = DelayGate()
+    let loading = Task {
+      await visibility.update(isLoading: true) {
+        await delay.wait()
+      }
     }
-    return false
+
+    await delay.waitUntilStarted()
+    #expect(!visibility.isVisible)
+    delay.release()
+    await loading.value
+    #expect(visibility.isVisible)
+    await visibility.update(isLoading: false) {}
+    #expect(!visibility.isVisible)
   }
 
-  private func indicator(isLoading: Bool) -> some View {
-    DelayedCSVLoadingIndicator(isLoading: isLoading, delay: .milliseconds(200)) {
-      Color.clear.frame(width: 100, height: 30)
+  @MainActor
+  private final class DelayGate {
+    private var waiting: CheckedContinuation<Void, Never>?
+    private var started: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+      await withCheckedContinuation { continuation in
+        waiting = continuation
+        started?.resume()
+        started = nil
+      }
     }
-  }
 
-  private func windowForHost<Content: View>(_ host: NSHostingView<Content>) -> NSWindow {
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 200, height: 100),
-      styleMask: [.titled], backing: .buffered, defer: false)
-    window.contentView = host
-    window.makeKeyAndOrderFront(nil)
-    return window
+    func waitUntilStarted() async {
+      if waiting != nil { return }
+      await withCheckedContinuation { continuation in
+        started = continuation
+      }
+    }
+
+    func release() {
+      waiting?.resume()
+      waiting = nil
+    }
   }
 }

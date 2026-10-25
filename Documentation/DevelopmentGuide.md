@@ -56,7 +56,7 @@ The command compiles the app and writes products to Xcode's build directory; ins
 xcodebuild -project AssetFlow.xcodeproj -scheme AssetFlow test -destination 'platform=macOS'
 ```
 
-CI runs the same Xcode test operation. Coding agents use the [build skill](../.codex/skills/build/SKILL.md) for compilation and the [test skill](../.codex/skills/test/SKILL.md) for Swift tests, including their host-access and log-inspection rules. The [test instructions](../AssetFlowTests/AGENTS.md) and [`TestingStrategy.md`](TestingStrategy.md) explain test structure and the evidence each test type provides. Python tests have a separate entry point below.
+CI runs the same Xcode test operation. When a failed Swift test run has a result bundle, CI prints and uploads a compact JSON report with the failed test names and assertions. Coding agents use the [build skill](../.codex/skills/build/SKILL.md) for compilation and the [test skill](../.codex/skills/test/SKILL.md) for Swift tests, including their host-access and log-inspection rules. The [test instructions](../AssetFlowTests/AGENTS.md) and [`TestingStrategy.md`](TestingStrategy.md) explain test structure and the evidence each test type provides. Python tests have a separate entry point below.
 
 For routine app changes, build, run the relevant Swift tests, and exercise affected interactions where needed. Formatting and linting run through installed hooks at commit time; they are not an extra required step after every edit. A documentation-only change normally needs link and example checks instead of an app build.
 

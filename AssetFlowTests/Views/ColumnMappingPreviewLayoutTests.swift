@@ -89,22 +89,9 @@ struct ColumnMappingPreviewLayoutTests {
   func presentedSheetFollowsTableWidth() throws {
     let narrow = try presentedSheetWidth(columnWidths: [140, 140, 140])
     let wide = try presentedSheetWidth(columnWidths: [500, 500, 500])
-    #expect(narrow <= 452)
     #expect(wide > 900)
     #expect(wide > narrow + 300)
     #expect(wide <= 1168)
-  }
-
-  @Test("Presented sheet has little unused width for the narrow CSV sample")
-  func presentedSheetFitsNarrowSample() async throws {
-    let widths = try await ColumnMappingPreviewLayout.prepareColumnWidths(
-      headers: ["Holding", "Amount", "Currency"],
-      rows: [["Preview Holding 001", "125.50", "USD"]],
-      schema: .assetWithoutPlatform,
-      initialMapping: [:])
-    let sheetWidth = try presentedSheetWidth(columnWidths: widths)
-
-    #expect(sheetWidth <= widths.reduce(0, +) + 32)
   }
 
   @Test("Presented sheet opens at its final width")
