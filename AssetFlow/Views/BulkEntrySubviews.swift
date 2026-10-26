@@ -418,36 +418,58 @@ struct BulkEntryCSVHeaderLoadingSlot: View {
   let onCancel: () -> Void
 
   var body: some View {
+    BulkEntryCSVHeaderStatusSlot {
+      DelayedCSVLoadingIndicator(isLoading: isLoading) {
+        BulkEntryCSVHeaderLoadingStatus(onCancel: onCancel)
+      }
+    }
+  }
+}
+
+struct BulkEntryCSVHeaderStatusSlot<Status: View>: View {
+  let status: Status
+
+  init(@ViewBuilder status: () -> Status) {
+    self.status = status()
+  }
+
+  var body: some View {
     Spacer(minLength: 0)
       .frame(minHeight: 24)
       .overlay(alignment: .trailing) {
-        DelayedCSVLoadingIndicator(isLoading: isLoading) {
-          ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-              ProgressView()
-                .controlSize(.small)
-                .accessibilityLabel("Loading CSV…")
-              Text("Loading CSV…")
-                .lineLimit(1)
-                .accessibilityHidden(true)
-              Button("Cancel", action: onCancel)
-            }
-
-            HStack(spacing: 8) {
-              ProgressView()
-                .controlSize(.small)
-                .accessibilityLabel("Loading CSV…")
-              Button(action: onCancel) {
-                Image(systemName: "xmark.circle")
-              }
-              .accessibilityLabel("Cancel")
-              .helpWhenUnlocked(LocalizedStringKey("Cancel"))
-            }
-          }
-          .font(.callout)
-        }
+        status
       }
       .clipped()
+  }
+}
+
+struct BulkEntryCSVHeaderLoadingStatus: View {
+  let onCancel: () -> Void
+
+  var body: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 8) {
+        ProgressView()
+          .controlSize(.small)
+          .accessibilityLabel("Loading CSV…")
+        Text("Loading CSV…")
+          .lineLimit(1)
+          .accessibilityHidden(true)
+        Button("Cancel", action: onCancel)
+      }
+
+      HStack(spacing: 8) {
+        ProgressView()
+          .controlSize(.small)
+          .accessibilityLabel("Loading CSV…")
+        Button(action: onCancel) {
+          Image(systemName: "xmark.circle")
+        }
+        .accessibilityLabel("Cancel")
+        .helpWhenUnlocked(LocalizedStringKey("Cancel"))
+      }
+    }
+    .font(.callout)
   }
 }
 

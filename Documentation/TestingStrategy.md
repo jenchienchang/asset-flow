@@ -6,7 +6,7 @@ Swift application tests use Swift Testing on macOS. Python repository-tooling te
 
 ## Swift Application Tests
 
-Use pure service and model tests for calculations and validation, ViewModel tests for state transitions, and integration tests with isolated SwiftData containers for persistence and cross-component behavior. Source-contract tests inspect specific view declarations. Offscreen render tests create samples and can assert fitting sizes or that images were produced. The project has no native UI automation target, so interaction, visual quality, and accessibility still need interactive macOS review.
+Use pure service and model tests for calculations and validation, ViewModel tests for state transitions, and integration tests with isolated SwiftData containers for persistence and cross-component behavior. Source-contract tests inspect specific view declarations. Offscreen view tests should use representative widths to check explicit component limits or compare control positions across relevant states. Do not use whole-screen size checks merely to prove that a view rendered; they do not establish useful screen behavior. The project has no native UI automation target, so interaction, visual quality, and accessibility still need interactive macOS review.
 
 ### Risk and verification map
 
@@ -22,8 +22,8 @@ Use pure service and model tests for calculations and validation, ViewModel test
 
 #### CSV import and Bulk Entry
 
-- **Automated evidence:** [CSVParsingServiceTests](../AssetFlowTests/Services/CSVParsingServiceTests.swift), [CSVColumnMappingTests](../AssetFlowTests/Services/CSVColumnMappingTests.swift), [ImportViewModelTests](../AssetFlowTests/ViewModels/ImportViewModelTests.swift), and [BulkEntryViewModelTests](../AssetFlowTests/ViewModels/BulkEntryViewModelTests.swift) cover [import behavior](SPEC.md#4-csv-import-system): row errors, mapping, duplicates, and atomic replacement. [ColumnMappingPreviewLayoutTests](../AssetFlowTests/Views/ColumnMappingPreviewLayoutTests.swift) check preview sizing, scrolling, and the alternating-row color policy.
-- **Manual checks and limits:** Check file picking, mapping-sheet focus, preview feedback, and stale-draft controls in the app. Inspect row contrast in light and dark appearance; the color-policy test does not assert rendered pixels.
+- **Automated evidence:** [CSVParsingServiceTests](../AssetFlowTests/Services/CSVParsingServiceTests.swift), [CSVColumnMappingTests](../AssetFlowTests/Services/CSVColumnMappingTests.swift), [ImportViewModelTests](../AssetFlowTests/ViewModels/ImportViewModelTests.swift), and [BulkEntryViewModelTests](../AssetFlowTests/ViewModels/BulkEntryViewModelTests.swift) cover [import behavior](SPEC.md#4-csv-import-system): row errors, mapping, duplicates, and atomic replacement. [ColumnMappingPreviewLayoutTests](../AssetFlowTests/Views/ColumnMappingPreviewLayoutTests.swift) check preview sizing, scrolling, and the alternating-row color policy. [BulkEntryCSVHeaderLoadingSlotTests](../AssetFlowTests/Views/BulkEntryCSVHeaderLoadingSlotTests.swift) check that rendering the CSV status in the header gap leaves button positions unchanged at representative widths.
+- **Manual checks and limits:** Check file picking, mapping-sheet focus, preview feedback, stale-draft controls, and delayed CSV progress placement at narrow and wide widths in the app. Inspect row contrast in light and dark appearance; the color-policy test does not assert rendered pixels.
 
 #### Persistence, migration, and backup
 
@@ -37,8 +37,8 @@ Use pure service and model tests for calculations and validation, ViewModel test
 
 #### Presentation, localization, and app lock
 
-- **Automated evidence:** [CategoryGoalLocalizationTests](../AssetFlowTests/Integration/CategoryGoalLocalizationTests.swift), [RebalancingColumnTests](../AssetFlowTests/Integration/RebalancingColumnTests.swift), [CategoryGoalPreviewTests](../AssetFlowTests/Integration/CategoryGoalPreviewTests.swift), and [AuthenticationServiceTests](../AssetFlowTests/Services/AuthenticationServiceTests.swift) check catalogs, source contracts, render samples, and authentication state.
-- **Manual checks and limits:** Follow the [interaction design](UserInterfaceDesign.md) in English and Traditional Chinese at wide and narrow widths. Use VoiceOver and native mouse and keyboard events through lock transitions; render files and source checks do not prove interaction or visual accessibility. On supported Macs with and without enrolled Touch ID or a paired Apple Watch, verify the macOS authentication dialog and Settings wording. Mock-based service tests establish the selected policy and failure state, not hardware-specific method availability.
+- **Automated evidence:** [CategoryGoalLocalizationTests](../AssetFlowTests/Integration/CategoryGoalLocalizationTests.swift), [RebalancingColumnTests](../AssetFlowTests/Integration/RebalancingColumnTests.swift), [CategoryGoalPreviewTests](../AssetFlowTests/Integration/CategoryGoalPreviewTests.swift), and [AuthenticationServiceTests](../AssetFlowTests/Services/AuthenticationServiceTests.swift) check catalogs, source contracts, localized help width limits, and authentication state.
+- **Manual checks and limits:** Follow the [interaction design](UserInterfaceDesign.md) in English and Traditional Chinese at wide and narrow widths. Use VoiceOver and native mouse and keyboard events through lock transitions; size and source checks do not prove interaction or visual accessibility. On supported Macs with and without enrolled Touch ID or a paired Apple Watch, verify the macOS authentication dialog and Settings wording. Mock-based service tests establish the selected policy and failure state, not hardware-specific method availability.
 
 The [SPEC success criteria](SPEC.md#17-success-criteria) identify expected outcomes. Use the corresponding [BusinessLogic worked examples](BusinessLogic.md#portfolio-performance) and [rebalancing rules](BusinessLogic.md#rebalancing-engine) to derive expected values and invariants; do not infer an expected result from the implementation under test.
 
@@ -118,7 +118,7 @@ The following are recommended manual checks. They are not established by the Swi
 
 When using red-green-refactor, first write a compiling test and minimal stubs, then confirm RED is an assertion failure. Implement the behavior, confirm GREEN, and run the relevant regressions before refactoring. Use `#expect` for assertions and `#require` when the remainder of a test needs a value. Keep fixtures deterministic and independent.
 
-Judge coverage by the behaviors and failure boundaries asserted, not by an unmeasured percentage or a fixed file count. A service result, a ViewModel state assertion, a source-contract check, an offscreen render, and an interactive observation are different kinds of evidence. Record any unverified behavior as a gap rather than describing the suite as complete.
+Judge coverage by the behaviors and failure boundaries asserted, not by an unmeasured percentage or a fixed file count. A service result, a ViewModel state assertion, a source-contract check, an offscreen component geometry check, and an interactive observation are different kinds of evidence. Record any unverified behavior as a gap rather than describing the suite as complete.
 
 When diagnosing a Swift test failure, separate compilation or actor-isolation errors from assertion failures. A suite-wide SIGTRAP immediately after relationship access can indicate a prematurely released `ModelContainer`; inspect the retained fixture and captured test log before rerunning. The [test skill](../.codex/skills/test/SKILL.md) owns runner and log details.
 

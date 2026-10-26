@@ -37,55 +37,29 @@ struct BulkEntryCSVLoadingLocalizationTests {
 @Suite("Bulk Entry CSV Header Loading Slot Tests", .serialized)
 @MainActor
 struct BulkEntryCSVHeaderLoadingSlotTests {
-  @Test("Showing CSV progress keeps the header buttons in place")
-  func loadingDoesNotMoveButtons() async throws {
-    let probe = ButtonOriginProbe()
-    let host = NSHostingView(rootView: HeaderHarness(isLoading: false, probe: probe))
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 700, height: 100),
-      styleMask: [.titled], backing: .buffered, defer: false)
-    window.contentView = host
-    window.makeKeyAndOrderFront(nil)
-    defer { window.close() }
-
-    try? await Task.sleep(for: .milliseconds(50))
-    window.displayIfNeeded()
-    let buttonView = try #require(probe.view)
-    let initialButtonX = buttonView.convert(.zero, to: nil).x
-    let initialHeight = host.fittingSize.height
-    let originalHeader = NSHostingView(
-      rootView: HeaderHarness(isLoading: false, probe: ButtonOriginProbe(), useSlot: false))
-    #expect(initialButtonX > 0)
-    #expect(initialHeight == originalHeader.fittingSize.height)
-
-    let before = try bitmapData(of: host)
-    host.rootView = HeaderHarness(isLoading: true, probe: probe)
-    #expect(try await waitForBitmapChange(from: before, in: host, window: window))
-
-    let currentButtonView = try #require(probe.view)
-    #expect(abs(currentButtonView.convert(.zero, to: nil).x - initialButtonX) <= 1)
-    #expect(host.fittingSize.height == initialHeight)
+  @Test(
+    "Visible CSV status preserves header geometry at narrow and wide widths",
+    arguments: [CGFloat(460), CGFloat(700)])
+  func loadingDoesNotMoveButtons(width: CGFloat) throws {
+    let hidden = try headerGeometry(width: width, showsStatus: false)
+    let visible = try headerGeometry(width: width, showsStatus: true)
+    #expect(abs(visible.buttonX - hidden.buttonX) <= 1)
+    #expect(visible.height == hidden.height)
   }
 
-  @Test(
-    "The delayed indicator paints inside wide and narrow header gaps",
-    arguments: [CGFloat(460), CGFloat(700)])
-  func loadingIndicatorIsVisible(width: CGFloat) async throws {
+  private func headerGeometry(width: CGFloat, showsStatus: Bool) throws
+    -> (buttonX: CGFloat, height: CGFloat)
+  {
     let probe = ButtonOriginProbe()
-    let host = NSHostingView(rootView: HeaderHarness(isLoading: false, probe: probe, width: width))
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: width, height: 100),
-      styleMask: [.titled], backing: .buffered, defer: false)
-    window.contentView = host
-    window.makeKeyAndOrderFront(nil)
-    defer { window.close() }
-
-    try? await Task.sleep(for: .milliseconds(50))
-    window.displayIfNeeded()
-    let before = try bitmapData(of: host)
-
-    host.rootView = HeaderHarness(isLoading: true, probe: probe, width: width)
-    #expect(try await waitForBitmapChange(from: before, in: host, window: window))
+    let host = NSHostingView(
+      rootView: HeaderHarness(showsStatus: showsStatus, probe: probe, width: width))
+    host.frame = NSRect(x: 0, y: 0, width: width, height: 100)
+    let height = host.fittingSize.height
+    host.layoutSubtreeIfNeeded()
+    let buttonView = try #require(probe.view)
+    #expect(buttonView.isDescendant(of: host))
+    #expect(buttonView.bounds.width > 0)
+    return (buttonView.convert(.zero, to: host).x, height)
   }
 
   @Test("A stale Bulk Entry draft still lets users cancel either CSV load")
@@ -142,28 +116,6 @@ struct BulkEntryCSVHeaderLoadingSlotTests {
     }
   }
 
-  private func bitmapData<Content: View>(of host: NSHostingView<Content>) throws -> Data {
-    let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-    host.cacheDisplay(in: host.bounds, to: bitmap)
-    return try #require(bitmap.tiffRepresentation)
-  }
-
-  private func waitForBitmapChange<Content: View>(
-    from before: Data,
-    in host: NSHostingView<Content>,
-    window: NSWindow
-  ) async throws -> Bool {
-    let deadline = ContinuousClock.now.advanced(by: .seconds(15))
-    while ContinuousClock.now < deadline {
-      window.makeKeyAndOrderFront(nil)
-      host.layoutSubtreeIfNeeded()
-      window.displayIfNeeded()
-      if try bitmapData(of: host) != before { return true }
-      try await Task.sleep(for: .milliseconds(50))
-    }
-    return false
-  }
-
   private final class ButtonOriginProbe {
     weak var view: NSView?
   }
@@ -209,20 +161,17 @@ struct BulkEntryCSVHeaderLoadingSlotTests {
   }
 
   private struct HeaderHarness: View {
-    let isLoading: Bool
+    let showsStatus: Bool
     let probe: ButtonOriginProbe
-    var useSlot = true
-    var width: CGFloat = 700
+    let width: CGFloat
 
     var body: some View {
       HStack(spacing: 12) {
         Text("Broker A")
           .font(.title3)
         Text("1/2")
-        if useSlot {
-          BulkEntryCSVHeaderLoadingSlot(isLoading: isLoading, onCancel: {})
-        } else {
-          Spacer()
+        BulkEntryCSVHeaderStatusSlot {
+          if showsStatus { BulkEntryCSVHeaderLoadingStatus(onCancel: {}) }
         }
         Button("Add Asset") {}
           .background(ButtonOriginMarker(probe: probe))
