@@ -190,6 +190,7 @@ struct BulkEntryView: View {
           preparedColumnWidths: viewModel.pendingPreviewColumnWidths,
           initialMapping: viewModel.pendingPartialMapping,
           parentSize: geometry.size,
+          showsAlternatingRowBackgrounds: true,
           onConfirm: { mapping in
             startCSVImportTask(target: .asset(platform: viewModel.pendingCSVPlatform)) {
               @MainActor in
@@ -217,6 +218,7 @@ struct BulkEntryView: View {
           preparedColumnWidths: viewModel.pendingCashFlowPreviewColumnWidths,
           initialMapping: viewModel.pendingCashFlowPartialMapping,
           parentSize: geometry.size,
+          showsAlternatingRowBackgrounds: true,
           onConfirm: { mapping in
             startCSVImportTask(target: .cashFlow) { @MainActor in
               _ = await viewModel.confirmCashFlowColumnMapping(mapping)

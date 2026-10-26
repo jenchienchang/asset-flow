@@ -28,6 +28,14 @@ enum ColumnMappingPreviewLayout {
   static let pickerRowHeight: CGFloat = 36
   static let dividerHeight: CGFloat = 1
 
+  static func dataRowBackgroundColor(
+    at rowIndex: Int, showsAlternatingRowBackgrounds: Bool
+  ) -> NSColor? {
+    guard showsAlternatingRowBackgrounds && !rowIndex.isMultiple(of: 2) else { return nil }
+    // Plain rows inherit the sheet surface; the palette's first color is darker there.
+    return NSColor.alternatingContentBackgroundColors.dropFirst().first
+  }
+
   nonisolated static func displayValue(_ value: String) -> String {
     guard value.rangeOfCharacter(from: .newlines) != nil else { return value }
 
@@ -223,6 +231,7 @@ struct ColumnMappingSheet: View {
   let preparedColumnWidths: [CGFloat]
   let initialMapping: [CanonicalColumn: Int]
   let parentSize: CGSize
+  let showsAlternatingRowBackgrounds: Bool
   let onConfirm: (CSVColumnMapping) -> Void
   let onCancel: () -> Void
 
@@ -236,6 +245,7 @@ struct ColumnMappingSheet: View {
     preparedColumnWidths: [CGFloat],
     initialMapping: [CanonicalColumn: Int],
     parentSize: CGSize,
+    showsAlternatingRowBackgrounds: Bool = false,
     onConfirm: @escaping (CSVColumnMapping) -> Void,
     onCancel: @escaping () -> Void
   ) {
@@ -245,6 +255,7 @@ struct ColumnMappingSheet: View {
     self.preparedColumnWidths = preparedColumnWidths
     self.initialMapping = initialMapping
     self.parentSize = parentSize
+    self.showsAlternatingRowBackgrounds = showsAlternatingRowBackgrounds
     self.onConfirm = onConfirm
     self.onCancel = onCancel
 
@@ -404,7 +415,15 @@ struct ColumnMappingSheet: View {
       ForEach(sampleRows.indices, id: \.self) { rowIndex in
         ColumnMappingPreviewDataRow(
           values: sampleRows[rowIndex],
-          columnWidths: columnWidths)
+          columnWidths: columnWidths
+        )
+        .background {
+          if let backgroundColor = ColumnMappingPreviewLayout.dataRowBackgroundColor(
+            at: rowIndex, showsAlternatingRowBackgrounds: showsAlternatingRowBackgrounds)
+          {
+            Color(nsColor: backgroundColor)
+          }
+        }
       }
     }
   }

@@ -178,6 +178,21 @@ struct ColumnMappingPreviewLayoutTests {
     #expect(tall.height <= 640)
   }
 
+  @Test("Bulk Entry stripes every second data row with the system color")
+  func alternatingDataRowBackgrounds() throws {
+    let expected = try #require(NSColor.alternatingContentBackgroundColors.dropFirst().first)
+    let background = { (index: Int, enabled: Bool) in
+      ColumnMappingPreviewLayout.dataRowBackgroundColor(
+        at: index, showsAlternatingRowBackgrounds: enabled)
+    }
+
+    #expect(background(0, true) == nil)
+    #expect(background(1, true)?.isEqual(expected) == true)
+    #expect(background(2, true) == nil)
+    #expect(background(3, true)?.isEqual(expected) == true)
+    #expect(background(1, false) == nil)
+  }
+
   private func presentedSheetWidth(columnWidths: [CGFloat]) throws -> CGFloat {
     try presentedSheetSize(columnWidths: columnWidths, rowCount: 1).width
   }
