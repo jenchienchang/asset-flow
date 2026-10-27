@@ -43,6 +43,28 @@ struct BulkEntryCSVLoadingTracker {
   }
 }
 
+/// Keeps the import target until completion, after SwiftUI dismisses the file picker.
+struct BulkEntryCSVFileImportPresentation {
+  private(set) var target: CSVImportTarget?
+  var isPresented = false
+
+  mutating func request(_ target: CSVImportTarget) {
+    self.target = target
+    isPresented = true
+  }
+
+  mutating func cancel() {
+    target = nil
+    isPresented = false
+  }
+
+  mutating func complete() -> CSVImportTarget? {
+    let completedTarget = target
+    cancel()
+    return completedTarget
+  }
+}
+
 /// Full-screen view for bulk snapshot entry with a platform-grouped table.
 ///
 /// Displays all assets from the most recent snapshot, grouped by platform,
@@ -55,7 +77,7 @@ struct BulkEntryView: View {
 
   @State private var showZeroPendingConfirmation = false
   @State private var zeroPendingCount = 0
-  @State private var csvImportTarget: CSVImportTarget?
+  @State private var csvFileImport = BulkEntryCSVFileImportPresentation()
   @State private var showError = false
   @State private var errorMessage = ""
   @State private var showImportResult = false
@@ -82,15 +104,16 @@ struct BulkEntryView: View {
     self.onSave = onSave
   }
 
-  /// Derived binding that maps `csvImportTarget` to the Bool that
-  /// `.fileImporter(isPresented:)` expects.  The setter is a no-op:
-  /// `csvImportTarget` is cleared inside the `onCompletion` callback
-  /// (which always fires — both on selection and cancel) so the target
-  /// context is still available when the callback reads it.
-  private var showCSVFileImporter: Binding<Bool> {
+  private var csvImportRequest: Binding<CSVImportTarget?> {
     Binding(
-      get: { csvImportTarget != nil },
-      set: { _ in }
+      get: { csvFileImport.target },
+      set: { target in
+        if let target {
+          csvFileImport.request(target)
+        } else {
+          csvFileImport.cancel()
+        }
+      }
     )
   }
 
@@ -110,7 +133,7 @@ struct BulkEntryView: View {
           BulkEntryContentArea(
             viewModel: viewModel,
             cachedCategoryNames: $cachedCategoryNames,
-            csvImportTarget: $csvImportTarget,
+            csvImportTarget: csvImportRequest,
             csvLoadingTracker: csvLoadingTracker,
             isSourceDataStale: viewModel.isSourceDataStale,
             onCancelCSVImport: { csvImportTask?.cancel() }
@@ -139,11 +162,11 @@ struct BulkEntryView: View {
         viewModel.markSourceDataStale()
       }
       .fileImporter(
-        isPresented: showCSVFileImporter,
-        allowedContentTypes: [.commaSeparatedText, .plainText]
+        isPresented: $csvFileImport.isPresented,
+        allowedContentTypes: [.commaSeparatedText, .plainText],
+        allowsMultipleSelection: false
       ) { result in
-        let target = csvImportTarget
-        csvImportTarget = nil
+        let target = csvFileImport.complete()
         guard let target else { return }
 
         switch result {
@@ -156,7 +179,8 @@ struct BulkEntryView: View {
           showImportResultAlert(for: viewModel.lastImportFeedback)
           viewModel.lastImportFeedback = nil
 
-        case .success(let url):
+        case .success(let urls):
+          guard let url = urls.first else { return }
           startCSVImportTask(target: target) { @MainActor in
             switch target {
             case .asset(let platform):
@@ -175,6 +199,8 @@ struct BulkEntryView: View {
             }
           }
         }
+      } onCancellation: {
+        csvFileImport.cancel()
       }
       .sheet(
         isPresented: $viewModel.showColumnMappingSheet,

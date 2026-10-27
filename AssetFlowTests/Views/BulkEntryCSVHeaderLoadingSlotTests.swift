@@ -181,3 +181,46 @@ struct BulkEntryCSVHeaderLoadingSlotTests {
     }
   }
 }
+
+@Suite("Bulk Entry CSV File Import Presentation Tests")
+@MainActor
+struct BulkEntryCSVFileImportPresentationTests {
+  @Test("Canceling the file picker allows asset and cash flow requests to reopen it")
+  func cancelAllowsReopening() {
+    var presentation = BulkEntryCSVFileImportPresentation()
+
+    presentation.request(.asset(platform: "Broker A"))
+    #expect(presentation.isPresented)
+    #expect(presentation.target == .asset(platform: "Broker A"))
+
+    presentation.isPresented = false  // SwiftUI dismisses before the cancellation callback.
+    presentation.cancel()
+    #expect(!presentation.isPresented)
+    #expect(presentation.target == nil)
+
+    presentation.request(.asset(platform: "Broker A"))
+    #expect(presentation.isPresented)
+    #expect(presentation.target == .asset(platform: "Broker A"))
+
+    presentation.isPresented = false
+    presentation.cancel()
+    presentation.request(.cashFlow)
+    #expect(presentation.isPresented)
+    #expect(presentation.target == .cashFlow)
+  }
+
+  @Test("Successful selection retains the target until the completion callback")
+  func completionAfterDismissalRetainsTarget() {
+    var presentation = BulkEntryCSVFileImportPresentation()
+    presentation.request(.cashFlow)
+
+    presentation.isPresented = false  // SwiftUI dismisses before onCompletion.
+    #expect(presentation.complete() == .cashFlow)
+    #expect(!presentation.isPresented)
+    #expect(presentation.target == nil)
+
+    presentation.request(.asset(platform: "Broker B"))
+    #expect(presentation.isPresented)
+    #expect(presentation.complete() == .asset(platform: "Broker B"))
+  }
+}
