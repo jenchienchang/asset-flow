@@ -37,7 +37,9 @@ struct BulkEntryRowView: View, Equatable {
   var body: some View {
     let isExcluded = !row.isIncluded
     let parsedValue = Decimal.parse(localValueText)
-    let localIsUpdated = row.isIncluded && parsedValue != nil && parsedValue != Decimal(0)
+    let localIsUpdated =
+      row.isIncluded && parsedValue != nil && parsedValue != Decimal(0)
+      && !row.hasMissingCurrency
     let localValidationError = !localValueText.isEmpty && parsedValue == nil
     let localZeroValueError = row.isIncluded && parsedValue == Decimal(0)
 
@@ -95,8 +97,16 @@ struct BulkEntryRowView: View, Equatable {
       .modifier(cellStyle)
 
       Group {
-        if row.isNewRow {
+        if row.isNewAsset {
           BulkEntryCurrencyPicker(selection: currencyBinding)
+            .accessibilityLabel("Currency for \(row.assetName)")
+            .disabled(isExcluded)
+            .overlay(
+              RoundedRectangle(cornerRadius: 6)
+                .stroke(row.isIncluded && row.hasMissingCurrency ? .red : .clear, lineWidth: 1.5)
+            )
+            .helpWhenUnlocked(
+              row.hasMissingCurrency ? "Select a currency before saving." : nil)
         } else {
           Text(row.currency.uppercased())
             .font(.callout)
@@ -375,6 +385,7 @@ struct BulkEntryCurrencyPicker: View {
 
   var body: some View {
     Picker("", selection: $selection) {
+      Text("Select Currency").tag("")
       ForEach(CurrencyService.shared.currencies) { currency in
         Text(currency.code).tag(currency.code)
       }

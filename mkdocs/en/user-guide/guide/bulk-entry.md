@@ -44,7 +44,7 @@ Assets are organized into collapsible platform sections, sorted alphabetically. 
 Rows are color-coded to help you track progress:
 
 - **Green background**: The value has been entered or imported (updated).
-- **No highlight**: The asset is included but hasn't been given a value yet (pending). It will be saved with a value of 0.
+- **No highlight**: The asset is pending because it has no value or, for a new asset, no currency. A blank value becomes 0 after confirmation; a missing currency must be selected before saving.
 - **Dimmed (50% opacity)**: The asset is excluded and won't be saved.
 
 ### Progress Toolbar
@@ -52,7 +52,7 @@ Rows are color-coded to help you track progress:
 The toolbar at the top shows real-time progress with colored indicators:
 
 - **Green**: Updated assets (value entered or imported)
-- **Orange**: Pending assets (included but no value yet)
+- **Orange**: Pending assets (included but missing a value or required currency)
 - **Gray**: Excluded assets
 
 ## Adding Assets and Platforms
@@ -80,11 +80,15 @@ Each platform section has an **Import CSV** button that lets you import values f
 When you import:
 
 - **Matched assets** (same name, case-insensitive) have their New Value updated with the CSV value and receive a blue **CSV** badge.
-- **Unmatched assets** are added as new rows with a blue **CSV** badge.
+- **Unmatched assets** are added as new rows with a blue **CSV** badge and an editable currency picker.
 
 If your CSV uses different column names, a **column mapping sheet** appears where you can assign each column to the correct field. The **Platform** option is not shown here since the platform is already determined by which section you're importing into. If the CSV headers already match the expected names, the mapping sheet is skipped. For more details on column mapping, see [Import CSV — Column Mapping](import-csv.md#column-mapping).
 
 After the import, an alert summarizes the results — how many assets were updated, how many were added, and any rows that were skipped due to platform or currency mismatches.
+
+The **Currency** column is optional. A recognized CSV currency is preselected for a new asset, and you can change it in that asset's picker. If you skip the currency column, leave a cell blank, or supply an unrecognized code, a new asset without a prior choice has an empty picker. Select a currency for each included new asset before saving. The import alert identifies unrecognized codes.
+
+If you import another CSV for the same platform, your currency choice stays with a matching new asset when the new file has no recognized currency for it. A recognized currency in the new CSV takes precedence; the result alert calls out any change to your choice.
 
 ![CSV import result](../../assets/images/bulk-entry-csv-import.png)
 
@@ -98,6 +102,7 @@ The toolbar displays validation warnings that must be resolved before saving:
 
 - **Zero-value assets**: "N assets have a value of 0. Exclude them or enter a non-zero value." Fields with a value of 0 are highlighted with a red border.
 - **Missing names**: "Some new assets are missing a name." New asset rows must have a name before saving.
+- **Missing currencies**: New assets with an empty currency picker remain pending. Select a currency for each included row before saving.
 
 The **Save Snapshot** button is disabled until all validation issues are resolved.
 

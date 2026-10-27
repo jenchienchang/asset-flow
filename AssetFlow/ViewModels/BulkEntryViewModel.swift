@@ -18,6 +18,14 @@
 import Foundation
 import SwiftData
 
+private struct AssetCSVApplyResult {
+  var matchedCount = 0
+  var newCount = 0
+  var currencyMismatches: [String] = []
+  var unrecognizedCurrencies: [String] = []
+  var currencyChanges: [String] = []
+}
+
 @Observable
 @MainActor
 final class BulkEntryViewModel {
@@ -53,6 +61,7 @@ final class BulkEntryViewModel {
   @ObservationIgnored private var _platformGrouping: [(platform: String, rowIndices: [Int])] = []
   @ObservationIgnored private var _rowIDToIndex: [UUID: Int] = [:]
   @ObservationIgnored private var _cashFlowRowIDToIndex: [UUID: Int] = [:]
+  @ObservationIgnored private var _explicitCurrencyRowIDs: Set<UUID> = []
 
   // MARK: - Pending Commit Buffers (observation-ignored)
 
@@ -210,12 +219,20 @@ final class BulkEntryViewModel {
     applyAssetRowDelta(old: old, new: rows[index])
   }
 
-  /// Currency does not affect any toolbar stat contribution — no delta update needed.
   func updateRowCurrency(_ rowID: UUID, to currency: String) {
-    guard let index = _rowIDToIndex[rowID],
-      rows[index].currency != currency
-    else { return }
-    rows[index].currency = currency
+    guard let index = _rowIDToIndex[rowID] else { return }
+    let resolvedCurrency = CurrencyService.shared.currency(for: currency)?.code ?? ""
+    if rows[index].isNewAsset {
+      if resolvedCurrency.isEmpty {
+        _explicitCurrencyRowIDs.remove(rowID)
+      } else {
+        _explicitCurrencyRowIDs.insert(rowID)
+      }
+    }
+    guard rows[index].currency != resolvedCurrency else { return }
+    let old = rows[index]
+    rows[index].currency = resolvedCurrency
+    applyAssetRowDelta(old: old, new: rows[index])
   }
 
   func updateRowCategoryName(_ rowID: UUID, to name: String?) {
@@ -327,6 +344,7 @@ final class BulkEntryViewModel {
     }
     _pendingValues.removeValue(forKey: rowID)
     _pendingNames.removeValue(forKey: rowID)
+    _explicitCurrencyRowIDs.remove(rowID)
     rows.removeAll { $0.id == rowID && $0.source == .manualNew }
     rebuildStructuralCaches()
   }
@@ -480,6 +498,12 @@ final class BulkEntryViewModel {
     let includedRows = rows.filter(\.isIncluded)
     guard !includedRows.isEmpty else {
       throw SnapshotError.noAssetsIncluded
+    }
+
+    if let row = includedRows.first(where: {
+      $0.isNewAsset && CurrencyService.shared.currency(for: $0.currency) == nil
+    }) {
+      throw BulkEntryError.missingAssetCurrency(row.assetName)
     }
 
     // Guard against duplicate date (race condition: another snapshot may have
@@ -711,7 +735,9 @@ final class BulkEntryViewModel {
       errors: [message],
       parserWarnings: [],
       platformMismatches: [],
-      currencyMismatches: [])
+      currencyMismatches: [],
+      unrecognizedCurrencies: [],
+      currencyChanges: [])
     lastImportFeedback = result.feedback
     return result
   }
@@ -733,7 +759,9 @@ final class BulkEntryViewModel {
       errors: [],
       parserWarnings: [],
       platformMismatches: [],
-      currencyMismatches: [])
+      currencyMismatches: [],
+      unrecognizedCurrencies: [],
+      currencyChanges: [])
   }
 
   private func cancelledCashFlowImport() -> CashFlowCSVImportResult {
@@ -764,10 +792,45 @@ final class BulkEntryViewModel {
         errors: errors,
         parserWarnings: parserWarnings,
         platformMismatches: resolved.mismatches,
-        currencyMismatches: [])
+        currencyMismatches: [],
+        unrecognizedCurrencies: [],
+        currencyChanges: [])
     }
 
-    // Clear previous CSV values for this platform
+    let previousUserCurrencies = selectedCurrenciesForCSVAssets(on: platform)
+    clearCSVAssetRows(for: platform)
+    let applied = applyCSVAssetRows(
+      resolved.rows, forPlatform: platform,
+      previousUserCurrencies: previousUserCurrencies)
+
+    rebuildStructuralCaches()
+    recomputeToolbarStats()
+    return CSVImportResult(
+      matchedCount: applied.matchedCount,
+      newCount: applied.newCount,
+      errors: errors,
+      parserWarnings: parserWarnings,
+      platformMismatches: resolved.mismatches,
+      currencyMismatches: applied.currencyMismatches,
+      unrecognizedCurrencies: applied.unrecognizedCurrencies,
+      currencyChanges: applied.currencyChanges
+    )
+  }
+
+  private func selectedCurrenciesForCSVAssets(on platform: String) -> [String: String] {
+    // Replacement changes row IDs. Keep only currencies chosen by the user,
+    // matched by normalized name within the selected platform.
+    var choices: [String: String] = [:]
+    for row in rows
+    where row.platform == platform && row.source == .csv && row.asset == nil
+      && _explicitCurrencyRowIDs.contains(row.id)
+    {
+      choices[row.assetName.normalizedForIdentity] = row.currency
+    }
+    return choices
+  }
+
+  private func clearCSVAssetRows(for platform: String) {
     for index in rows.indices
     where rows[index].platform == platform && rows[index].source == .csv {
       if rows[index].asset != nil {
@@ -776,61 +839,134 @@ final class BulkEntryViewModel {
       }
     }
     rows.removeAll { $0.platform == platform && $0.source == .csv && $0.asset == nil }
+    _explicitCurrencyRowIDs.formIntersection(Set(rows.map(\.id)))
+  }
 
-    let mainCurrency = SettingsService.shared.mainCurrency
-
-    // Pre-build lookup: normalizedName → row index for the target platform.
-    // Avoids O(m×n) repeated normalization inside the CSV row loop.
-    var nameIndex: [String: Int] = [:]
-    for (idx, row) in rows.enumerated() where row.platform == platform {
-      nameIndex[row.assetName.normalizedForIdentity] = idx
+  private func applyCSVAssetRows(
+    _ csvRows: [AssetCSVRow], forPlatform platform: String,
+    previousUserCurrencies: [String: String]
+  ) -> AssetCSVApplyResult {
+    var supportedCurrencies: [String: String] = [:]
+    for currency in CurrencyService.shared.currencies {
+      supportedCurrencies[currency.code.uppercased()] = currency.code
     }
 
-    var matchedCount = 0
-    var newCount = 0
-    var currencyMismatches: [String] = []
+    var nameIndex: [String: Int] = [:]
+    for (index, row) in rows.enumerated() where row.platform == platform {
+      nameIndex[row.assetName.normalizedForIdentity] = index
+    }
 
-    for csvRow in resolved.rows {
-      let normalizedCSVName = csvRow.assetName.normalizedForIdentity
-      if let index = nameIndex[normalizedCSVName] {
-        if !csvRow.currency.isEmpty,
-          csvRow.currency.uppercased() != rows[index].currency.uppercased()
+    var result = AssetCSVApplyResult()
+    for csvRow in csvRows {
+      let normalizedName = csvRow.assetName.normalizedForIdentity
+      let knownCurrency = supportedCurrencies[csvRow.currency.uppercased()]
+      let previousChoice = previousUserCurrencies[normalizedName].flatMap {
+        supportedCurrencies[$0.uppercased()]
+      }
+      if let index = nameIndex[normalizedName] {
+        if applyCSVAssetRow(
+          csvRow, at: index, knownCurrency: knownCurrency,
+          previousChoice: previousChoice, result: &result)
         {
-          currencyMismatches.append(csvRow.assetName)
-          continue
+          result.matchedCount += 1
+        } else {
+          result.currencyMismatches.append(csvRow.assetName)
         }
-        rows[index].newValueText = "\(csvRow.marketValue)"
-        rows[index].source = .csv
-        matchedCount += 1
       } else {
-        let newRow = BulkEntryRow(
-          id: UUID(),
-          asset: nil,
-          assetName: csvRow.assetName,
-          platform: platform,
-          currency: csvRow.currency.isEmpty ? mainCurrency : csvRow.currency,
-          previousValue: nil,
-          newValueText: "\(csvRow.marketValue)",
-          isIncluded: true,
-          source: .csv,
-          categoryName: nil
-        )
-        nameIndex[normalizedCSVName] = rows.count
-        rows.append(newRow)
-        newCount += 1
+        appendCSVAssetRow(
+          csvRow, platform: platform, knownCurrency: knownCurrency,
+          previousChoice: previousChoice, result: &result)
+        nameIndex[normalizedName] = rows.count - 1
+        result.newCount += 1
       }
     }
+    return result
+  }
 
-    rebuildStructuralCaches()
-    recomputeToolbarStats()
-    return CSVImportResult(
-      matchedCount: matchedCount,
-      newCount: newCount,
-      errors: errors,
-      parserWarnings: parserWarnings,
-      platformMismatches: resolved.mismatches,
-      currencyMismatches: currencyMismatches
+  private func applyCSVAssetRow(
+    _ csvRow: AssetCSVRow, at index: Int, knownCurrency: String?,
+    previousChoice: String?, result: inout AssetCSVApplyResult
+  ) -> Bool {
+    if rows[index].asset != nil {
+      guard
+        csvRow.currency.isEmpty
+          || csvRow.currency.uppercased() == rows[index].currency.uppercased()
+      else { return false }
+    } else {
+      let rowID = rows[index].id
+      let currentChoice =
+        _explicitCurrencyRowIDs.contains(rowID)
+        ? CurrencyService.shared.currency(for: rows[index].currency)?.code : previousChoice
+      if let knownCurrency {
+        if let currentChoice, currentChoice != knownCurrency {
+          result.currencyChanges.append(
+            currencyChangeWarning(
+              for: csvRow.assetName, from: currentChoice, to: knownCurrency))
+          _explicitCurrencyRowIDs.remove(rowID)
+        }
+        rows[index].currency = knownCurrency
+      } else {
+        rows[index].currency = currentChoice ?? ""
+        if currentChoice != nil {
+          _explicitCurrencyRowIDs.insert(rowID)
+        } else {
+          _explicitCurrencyRowIDs.remove(rowID)
+        }
+      }
+      if knownCurrency == nil && !csvRow.currency.isEmpty {
+        result.unrecognizedCurrencies.append(unrecognizedCurrencyWarning(for: csvRow))
+      }
+    }
+    rows[index].newValueText = "\(csvRow.marketValue)"
+    rows[index].source = .csv
+    return true
+  }
+
+  private func appendCSVAssetRow(
+    _ csvRow: AssetCSVRow, platform: String, knownCurrency: String?,
+    previousChoice: String?, result: inout AssetCSVApplyResult
+  ) {
+    if let previousChoice, let knownCurrency, previousChoice != knownCurrency {
+      result.currencyChanges.append(
+        currencyChangeWarning(
+          for: csvRow.assetName, from: previousChoice, to: knownCurrency))
+    }
+    if knownCurrency == nil && !csvRow.currency.isEmpty {
+      result.unrecognizedCurrencies.append(unrecognizedCurrencyWarning(for: csvRow))
+    }
+    let currency = knownCurrency ?? previousChoice ?? ""
+    let newRow = BulkEntryRow(
+      id: UUID(),
+      asset: nil,
+      assetName: csvRow.assetName,
+      platform: platform,
+      currency: currency,
+      previousValue: nil,
+      newValueText: "\(csvRow.marketValue)",
+      isIncluded: true,
+      source: .csv,
+      categoryName: nil
     )
+    rows.append(newRow)
+    if previousChoice == currency && !currency.isEmpty {
+      _explicitCurrencyRowIDs.insert(newRow.id)
+    }
+  }
+
+  private func unrecognizedCurrencyWarning(for row: AssetCSVRow) -> String {
+    String(
+      localized:
+        "Unrecognized CSV currency '\(row.currency)' for '\(row.assetName)'. Verify its currency before saving.",
+      table: "Snapshot")
+  }
+
+  private func currencyChangeWarning(
+    for name: String, from oldCode: String, to newCode: String
+  ) -> String {
+    String(
+      localized:
+        "Currency for '\(name)' changed from '\(oldCode)' to '\(newCode)' in this CSV.",
+      table: "Snapshot")
   }
 
   // MARK: - Private
@@ -954,6 +1090,7 @@ final class BulkEntryViewModel {
         if row.isPending { stats.pendingCount += 1 }
         if row.hasZeroValueError { stats.zeroValueCount += 1 }
         if row.hasEmptyName { stats.invalidNewRowCount += 1 }
+        if row.hasMissingCurrency { stats.missingAssetCurrencyCount += 1 }
         if row.hasValidationError { stats.validationErrorCount += 1 }
       } else {
         stats.excludedCount += 1
@@ -976,6 +1113,7 @@ final class BulkEntryViewModel {
       if row.isPending { c.pendingCount = 1 }
       if row.hasZeroValueError { c.zeroValueCount = 1 }
       if row.hasEmptyName { c.invalidNewRowCount = 1 }
+      if row.hasMissingCurrency { c.missingAssetCurrencyCount = 1 }
       if row.hasValidationError { c.validationErrorCount = 1 }
     } else {
       c.excludedCount = 1
@@ -1019,6 +1157,8 @@ final class BulkEntryViewModel {
     stats.includedCount += newC.includedCount - oldC.includedCount
     stats.zeroValueCount += newC.zeroValueCount - oldC.zeroValueCount
     stats.invalidNewRowCount += newC.invalidNewRowCount - oldC.invalidNewRowCount
+    stats.missingAssetCurrencyCount +=
+      newC.missingAssetCurrencyCount - oldC.missingAssetCurrencyCount
     stats.validationErrorCount += newC.validationErrorCount - oldC.validationErrorCount
     stats.emptyCashFlowAmountCount +=
       newC.emptyCashFlowAmountCount - oldC.emptyCashFlowAmountCount

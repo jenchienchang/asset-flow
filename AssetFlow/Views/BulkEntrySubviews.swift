@@ -48,6 +48,7 @@ struct BulkEntryToolbar: View {
       BulkEntryValidationWarnings(
         zeroValueCount: stats.zeroValueCount,
         hasInvalidNewRows: stats.hasInvalidNewRows,
+        missingAssetCurrencyCount: stats.missingAssetCurrencyCount,
         hasEmptyCashFlowDescriptions: stats.hasEmptyCashFlowDescriptions,
         hasEmptyCashFlowAmounts: stats.hasEmptyCashFlowAmounts,
         hasCashFlowValidationErrors: stats.hasCashFlowValidationErrors
@@ -164,6 +165,7 @@ struct BulkEntryProgressStats: View {
 struct BulkEntryValidationWarnings: View {
   let zeroValueCount: Int
   let hasInvalidNewRows: Bool
+  let missingAssetCurrencyCount: Int
   let hasEmptyCashFlowDescriptions: Bool
   let hasEmptyCashFlowAmounts: Bool
   let hasCashFlowValidationErrors: Bool
@@ -184,6 +186,12 @@ struct BulkEntryValidationWarnings: View {
       result.append(
         String(
           localized: "Some new assets are missing a name.",
+          table: "Snapshot"))
+    }
+    if missingAssetCurrencyCount > 0 {
+      result.append(
+        String(
+          localized: "\(missingAssetCurrencyCount) new assets need a currency.",
           table: "Snapshot"))
     }
     if hasEmptyCashFlowDescriptions {

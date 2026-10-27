@@ -19,12 +19,18 @@ import Foundation
 
 enum BulkEntryError: LocalizedError, Equatable {
   case sourceDataChanged
+  case missingAssetCurrency(String)
 
   var errorDescription: String? {
     switch self {
     case .sourceDataChanged:
       String(
         localized: "The source data changed. Reload Bulk Entry before saving.",
+        table: "Snapshot")
+
+    case .missingAssetCurrency(let name):
+      String(
+        localized: "Select a supported currency for '\(name)' before saving.",
         table: "Snapshot")
     }
   }
@@ -40,6 +46,7 @@ struct BulkEntryToolbarStats: Equatable {
   var includedCount = 0
   var zeroValueCount = 0
   var invalidNewRowCount = 0
+  var missingAssetCurrencyCount = 0
   var validationErrorCount = 0
   var emptyCashFlowAmountCount = 0
   var emptyCashFlowDescriptionCount = 0
@@ -54,6 +61,7 @@ struct BulkEntryToolbarStats: Equatable {
     includedCount > 0
       && zeroValueCount == 0
       && invalidNewRowCount == 0
+      && missingAssetCurrencyCount == 0
       && validationErrorCount == 0
       && emptyCashFlowAmountCount == 0
       && cashFlowValidationErrorCount == 0
@@ -69,11 +77,14 @@ struct CSVImportResult {
   let parserWarnings: [String]
   let platformMismatches: [String]
   let currencyMismatches: [String]
+  let unrecognizedCurrencies: [String]
+  let currencyChanges: [String]
 
   var totalImported: Int { matchedCount + newCount }
   var hasErrors: Bool { !errors.isEmpty }
   var hasWarnings: Bool {
     !parserWarnings.isEmpty || !platformMismatches.isEmpty || !currencyMismatches.isEmpty
+      || !unrecognizedCurrencies.isEmpty || !currencyChanges.isEmpty
   }
 
   var feedback: CSVImportFeedback {
@@ -127,6 +138,8 @@ struct CSVImportResult {
     for warning in parserWarnings {
       lines.append(warning)
     }
+    lines.append(contentsOf: unrecognizedCurrencies)
+    lines.append(contentsOf: currencyChanges)
 
     if !platformMismatches.isEmpty {
       let names = platformMismatches.joined(separator: ", ")
@@ -178,8 +191,15 @@ struct BulkEntryRow: Identifiable, Equatable {
   var categoryName: String?
 
   var newValue: Decimal? { Decimal.parse(newValueText) }
-  var isUpdated: Bool { isIncluded && newValue != nil && !hasZeroValueError }
-  var isPending: Bool { isIncluded && (newValueText.isEmpty || newValue == nil) }
+  var hasMissingCurrency: Bool {
+    isNewAsset && currency.trimmingCharacters(in: .whitespaces).isEmpty
+  }
+  var isUpdated: Bool {
+    isIncluded && newValue != nil && !hasZeroValueError && !hasMissingCurrency
+  }
+  var isPending: Bool {
+    isIncluded && (newValueText.isEmpty || newValue == nil || hasMissingCurrency)
+  }
   var hasValidationError: Bool { !newValueText.isEmpty && newValue == nil }
   var hasZeroValueError: Bool { isIncluded && newValue == Decimal(0) }
   var isNewRow: Bool { source == .manualNew }

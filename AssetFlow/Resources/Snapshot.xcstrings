@@ -86,6 +86,16 @@
         }
       }
     },
+    "%lld new assets need a currency.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 項新資產需要選擇幣別。"
+          }
+        }
+      }
+    },
     "%lld existing cash flows updated.": {
       "localizations": {
         "zh-Hant": {
@@ -359,6 +369,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "部分新資產尚未命名。"
+          }
+        }
+      }
+    },
+    "Select a supported currency for '%@' before saving.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存前請為「%@」選擇支援的幣別。"
+          }
+        }
+      }
+    },
+    "Currency for '%@' changed from '%@' to '%@' in this CSV.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%1$@」的幣別已從「%2$@」改為本次 CSV 的「%3$@」。"
+          }
+        }
+      }
+    },
+    "Unrecognized CSV currency '%@' for '%@'. Verify its currency before saving.": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%2$@」的 CSV 幣別「%1$@」無法辨識。儲存前請確認幣別。"
           }
         }
       }

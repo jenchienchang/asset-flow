@@ -1,6 +1,36 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Currency for %@" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的幣別"
+          }
+        }
+      }
+    },
+    "Select Currency" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇幣別"
+          }
+        }
+      }
+    },
+    "Select a currency before saving." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存前請選擇幣別。"
+          }
+        }
+      }
+    },
     "Target calculation" : {
       "localizations" : {
         "en" : {

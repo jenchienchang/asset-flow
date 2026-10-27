@@ -46,6 +46,18 @@ struct BulkEntryRowTests {
     #expect(row.isUpdated == false)
   }
 
+  @Test("new asset with a value waits for a currency")
+  func newAssetWithoutCurrencyIsPending() {
+    var row = makeBulkEntryRow(currency: "", previousValue: nil, source: .csv)
+    row.newValueText = "100"
+
+    #expect(row.isPending)
+    #expect(!row.isUpdated)
+
+    row.isIncluded = false
+    #expect(!row.isPending)
+  }
+
   @Test("hasValidationError is true when text is non-empty but not a valid decimal")
   func hasValidationErrorWithInvalidText() {
     var row = makeBulkEntryRow()
@@ -561,6 +573,111 @@ struct BulkEntryViewModelTests {
     #expect(newRow?.platform == "Vanguard")
   }
 
+  @Test("CSV assets without a mapped currency need individual choices")
+  func importedAssetsWithoutCurrencyNeedChoices() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let csv = "Asset Name,Market Value\nFund A,100\nFund B,200"
+
+    _ = await viewModel.importCSV(data: Data(csv.utf8), forPlatform: "Broker")
+
+    #expect(viewModel.rows.count == 2)
+    #expect(viewModel.rows.allSatisfy { $0.currency.isEmpty })
+    #expect(viewModel.toolbarStats.pendingCount == 2)
+    #expect(!viewModel.toolbarStats.canSave)
+
+    let firstID = try #require(viewModel.rows.first?.id)
+    viewModel.updateRowCurrency(firstID, to: "EUR")
+    #expect(!viewModel.toolbarStats.canSave)
+    #expect(viewModel.toolbarStats.pendingCount == 1)
+
+    let secondID = try #require(viewModel.rows.last?.id)
+    viewModel.updateRowCurrency(secondID, to: "TWD")
+    #expect(viewModel.toolbarStats.canSave)
+    #expect(viewModel.toolbarStats.pendingCount == 0)
+  }
+
+  @Test("unknown CSV currency leaves new asset awaiting selection")
+  func unknownCSVCurrencyNeedsChoice() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let csv = "Asset Name,Market Value,Currency\nFund A,100,ZZZ\nFund B,200,eur"
+
+    let result = await viewModel.importCSV(data: Data(csv.utf8), forPlatform: "Broker")
+
+    #expect(result.errors.isEmpty)
+    #expect(viewModel.rows.first(where: { $0.assetName == "Fund A" })?.currency == "")
+    #expect(viewModel.rows.first(where: { $0.assetName == "Fund B" })?.currency == "EUR")
+    #expect(viewModel.lastImportFeedback?.message.contains("ZZZ") == true)
+    #expect(!viewModel.toolbarStats.canSave)
+  }
+
+  @Test("blank CSV currency cell leaves only that new asset pending")
+  func blankCSVCurrencyCellNeedsChoice() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let csv = "Asset Name,Market Value,Currency\nFund A,100,\nFund B,200,USD"
+
+    _ = await viewModel.importCSV(data: Data(csv.utf8), forPlatform: "Broker")
+
+    #expect(viewModel.rows.first(where: { $0.assetName == "Fund A" })?.currency == "")
+    #expect(viewModel.rows.first(where: { $0.assetName == "Fund B" })?.currency == "USD")
+    #expect(viewModel.toolbarStats.pendingCount == 1)
+  }
+
+  @Test("excluded new asset without currency does not block saving")
+  func excludedAssetWithoutCurrencyCanSave() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let csv = "Asset Name,Market Value,Currency\nFund A,100,\nFund B,200,USD"
+
+    _ = await viewModel.importCSV(data: Data(csv.utf8), forPlatform: "Broker")
+    let rowID = try #require(viewModel.rows.first(where: { $0.assetName == "Fund A" })?.id)
+    viewModel.toggleInclude(rowID: rowID)
+
+    #expect(viewModel.toolbarStats.canSave)
+    let snapshot = try viewModel.saveSnapshot()
+    #expect(snapshot.assetValues?.count == 1)
+  }
+
+  @Test("missing new asset currency cannot be saved through the view model")
+  func missingAssetCurrencyBlocksDirectSave() async {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let csv = "Asset Name,Market Value\nFund A,100"
+    _ = await viewModel.importCSV(data: Data(csv.utf8), forPlatform: "Broker")
+
+    #expect(throws: BulkEntryError.missingAssetCurrency("Fund A")) {
+      try viewModel.saveSnapshot()
+    }
+    #expect(viewModel.savedSnapshot == nil)
+  }
+
+  @Test("unselected manual draft currency is cleared when matched by CSV")
+  func matchingNewDraftRowNeedsExplicitCurrency() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let rowID = viewModel.addManualRow(forPlatform: "Broker")
+    viewModel.updateRowAssetName(rowID, to: "Fund A")
+    let csv = "Asset Name,Market Value\nFund A,100"
+
+    _ = await viewModel.importCSV(data: Data(csv.utf8), forPlatform: "Broker")
+    #expect(viewModel.rows.first?.currency == "")
+  }
+
+  @Test("explicit manual draft currency is kept when CSV has no currency")
+  func matchingNewDraftRowPreservesChosenCurrency() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let rowID = viewModel.addManualRow(forPlatform: "Broker")
+    viewModel.updateRowAssetName(rowID, to: "Fund A")
+    viewModel.updateRowCurrency(rowID, to: "EUR")
+    let csv = "Asset Name,Market Value\nFund A,100"
+
+    _ = await viewModel.importCSV(data: Data(csv.utf8), forPlatform: "Broker")
+    #expect(viewModel.rows.first?.currency == "EUR")
+  }
+
   @Test("re-importing CSV for same platform replaces previous CSV values")
   func reImportCSVReplacesValues() async throws {
     let container = TestDataManager.createInMemoryContainer()
@@ -582,6 +699,133 @@ struct BulkEntryViewModelTests {
     let csv2 = "Asset Name,Market Value\nStock A,1800\n".data(using: .utf8)!
     await viewModel.importCSV(data: csv2, forPlatform: "Vanguard")
     #expect(viewModel.rows.first?.newValueText == "1800")
+  }
+
+  @Test("reimport without currency keeps a choice made on the prior CSV row")
+  func reimportPreservesChosenCurrency() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let firstCSV = "Asset Name,Market Value\nFund A,100"
+    _ = await viewModel.importCSV(data: Data(firstCSV.utf8), forPlatform: "Broker")
+    let rowID = try #require(viewModel.rows.first?.id)
+    viewModel.updateRowCurrency(rowID, to: "EUR")
+
+    let secondCSV = "Asset Name,Market Value\nFund A,200"
+    _ = await viewModel.importCSV(data: Data(secondCSV.utf8), forPlatform: "Broker")
+
+    #expect(viewModel.rows.first?.currency == "EUR")
+    #expect(viewModel.rows.first?.newValueText == "200")
+    #expect(viewModel.toolbarStats.canSave)
+  }
+
+  @Test("unknown currency on reimport keeps a prior user choice")
+  func reimportUnknownCurrencyPreservesChoice() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let firstCSV = "Asset Name,Market Value\nFund A,100"
+    _ = await viewModel.importCSV(data: Data(firstCSV.utf8), forPlatform: "Broker")
+    let rowID = try #require(viewModel.rows.first?.id)
+    viewModel.updateRowCurrency(rowID, to: "EUR")
+
+    let secondCSV = "Asset Name,Market Value,Currency\nFund A,200,ZZZ"
+    _ = await viewModel.importCSV(data: Data(secondCSV.utf8), forPlatform: "Broker")
+
+    #expect(viewModel.rows.first?.currency == "EUR")
+    #expect(viewModel.lastImportFeedback?.message.contains("ZZZ") == true)
+  }
+
+  @Test("recognized currency on reimport replaces a prior choice with feedback")
+  func reimportKnownCurrencyReportsChange() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let firstCSV = "Asset Name,Market Value\nFund A,100"
+    _ = await viewModel.importCSV(data: Data(firstCSV.utf8), forPlatform: "Broker")
+    let rowID = try #require(viewModel.rows.first?.id)
+    viewModel.updateRowCurrency(rowID, to: "EUR")
+
+    let secondCSV = "Asset Name,Market Value,Currency\nFund A,200,TWD"
+    _ = await viewModel.importCSV(data: Data(secondCSV.utf8), forPlatform: "Broker")
+
+    #expect(viewModel.rows.first?.currency == "TWD")
+    #expect(viewModel.rows.first?.newValueText == "200")
+    #expect(viewModel.lastImportFeedback?.severity == .warning)
+    #expect(viewModel.lastImportFeedback?.message.contains("Fund A") == true)
+    #expect(viewModel.lastImportFeedback?.message.contains("EUR") == true)
+    #expect(viewModel.lastImportFeedback?.message.contains("TWD") == true)
+  }
+
+  @Test("reimport without currency does not keep an earlier CSV currency")
+  func reimportDoesNotKeepUnchosenCSVCurrency() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let firstCSV = "Asset Name,Market Value,Currency\nFund A,100,EUR"
+    _ = await viewModel.importCSV(data: Data(firstCSV.utf8), forPlatform: "Broker")
+
+    let secondCSV = "Asset Name,Market Value\nFund A,200"
+    _ = await viewModel.importCSV(data: Data(secondCSV.utf8), forPlatform: "Broker")
+
+    #expect(viewModel.rows.first?.currency == "")
+    #expect(!viewModel.toolbarStats.canSave)
+  }
+
+  @Test("matching manual draft row uses recognized CSV currency and reports change")
+  func matchingManualDraftKnownCurrencyReportsChange() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let rowID = viewModel.addManualRow(forPlatform: "Broker")
+    viewModel.updateRowAssetName(rowID, to: "Fund A")
+    viewModel.updateRowCurrency(rowID, to: "EUR")
+
+    let csv = "Asset Name,Market Value,Currency\nFund A,200,TWD"
+    _ = await viewModel.importCSV(data: Data(csv.utf8), forPlatform: "Broker")
+
+    #expect(viewModel.rows.first?.currency == "TWD")
+    #expect(viewModel.rows.first?.newValueText == "200")
+    #expect(viewModel.lastImportFeedback?.message.contains("EUR") == true)
+  }
+
+  @Test("mapped currency on reimport replaces a prior user choice")
+  func mappedReimportCurrencyReportsChange() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let firstCSV = "Asset Name,Market Value\nFund A,100"
+    _ = await viewModel.importCSV(data: Data(firstCSV.utf8), forPlatform: "Broker")
+    let rowID = try #require(viewModel.rows.first?.id)
+    viewModel.updateRowCurrency(rowID, to: "EUR")
+
+    let secondCSV = "Symbol,Price,Denomination\nFund A,200,TWD"
+    await viewModel.loadCSVForMapping(data: Data(secondCSV.utf8), forPlatform: "Broker")
+    #expect(viewModel.showColumnMappingSheet)
+    let mapping = CSVColumnMapping(
+      schema: .assetWithoutPlatform,
+      columnMap: [.assetName: 0, .marketValue: 1, .currency: 2],
+      rawHeaders: ["Symbol", "Price", "Denomination"])
+    _ = await viewModel.confirmColumnMapping(mapping)
+
+    #expect(viewModel.rows.first?.currency == "TWD")
+    #expect(viewModel.lastImportFeedback?.message.contains("EUR") == true)
+    #expect(viewModel.lastImportFeedback?.message.contains("TWD") == true)
+  }
+
+  @Test("skipped currency column on reimport keeps a prior user choice")
+  func skippedReimportCurrencyPreservesChoice() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let firstCSV = "Asset Name,Market Value\nFund A,100"
+    _ = await viewModel.importCSV(data: Data(firstCSV.utf8), forPlatform: "Broker")
+    let rowID = try #require(viewModel.rows.first?.id)
+    viewModel.updateRowCurrency(rowID, to: "EUR")
+
+    let secondCSV = "Symbol,Price,Denomination\nFund A,200,TWD"
+    await viewModel.loadCSVForMapping(data: Data(secondCSV.utf8), forPlatform: "Broker")
+    let mapping = CSVColumnMapping(
+      schema: .assetWithoutPlatform,
+      columnMap: [.assetName: 0, .marketValue: 1],
+      rawHeaders: ["Symbol", "Price", "Denomination"])
+    _ = await viewModel.confirmColumnMapping(mapping)
+
+    #expect(viewModel.rows.first?.currency == "EUR")
+    #expect(viewModel.rows.first?.newValueText == "200")
   }
 
   // MARK: - Add Manual Row / Platform Tests
@@ -1262,6 +1506,25 @@ struct BulkEntryViewModelTests {
     #expect(importResult.newCount == 1)
   }
 
+  @Test("skipping Currency in column mapping leaves new asset currency blank")
+  func skippedMappedCurrencyNeedsChoice() async throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
+    let csv = "Symbol,Price,Denomination\nFund A,100,EUR"
+    await viewModel.loadCSVForMapping(data: Data(csv.utf8), forPlatform: "Broker")
+    #expect(viewModel.showColumnMappingSheet)
+
+    let mapping = CSVColumnMapping(
+      schema: .assetWithoutPlatform,
+      columnMap: [.assetName: 0, .marketValue: 1],
+      rawHeaders: ["Symbol", "Price", "Denomination"])
+    let result = await viewModel.confirmColumnMapping(mapping)
+
+    #expect(result?.newCount == 1)
+    #expect(viewModel.rows.first?.currency == "")
+    #expect(!viewModel.toolbarStats.canSave)
+  }
+
   @Test("loadCSVForMapping reports malformed asset CSV syntax")
   func testLoadCSVForMappingReportsMalformedAssetSyntax() async {
     let container = TestDataManager.createInMemoryContainer()
@@ -1320,6 +1583,8 @@ struct BulkEntryViewModelTests {
     let previousCSV = "Asset Name,Market Value\nStock A,1500\nBond B,2500\n".data(
       using: .utf8)!
     await viewModel.importCSV(data: previousCSV, forPlatform: "Vanguard")
+    let bondID = try #require(viewModel.rows.first(where: { $0.assetName == "Bond B" })?.id)
+    viewModel.updateRowCurrency(bondID, to: "EUR")
 
     let mixedCSV =
       "Asset Name,Market Value\nStock A,2000\nNew Fund,not-a-number\n".data(using: .utf8)!
@@ -1332,6 +1597,7 @@ struct BulkEntryViewModelTests {
     #expect(stockRow.newValueText == "1500")
     #expect(stockRow.source == .csv)
     #expect(bondRow.newValueText == "2500")
+    #expect(bondRow.currency == "EUR")
     #expect(bondRow.source == .csv)
     #expect(viewModel.rows.contains(where: { $0.assetName == "New Fund" }) == false)
   }
