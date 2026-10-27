@@ -2007,14 +2007,14 @@
 <p>Rows are color-coded to help you track progress:</p>
 <ul>
 <li><strong>Green background</strong>: The value has been entered or imported (updated).</li>
-<li><strong>No highlight</strong>: The asset is included but hasn't been given a value yet (pending). It will be saved with a value of 0.</li>
+<li><strong>No highlight</strong>: The asset is pending because it has no value or, for a new asset, no currency. A blank value becomes 0 after confirmation; a missing currency must be selected before saving.</li>
 <li><strong>Dimmed (50% opacity)</strong>: The asset is excluded and won't be saved.</li>
 </ul>
 <h3 id="progress-toolbar">Progress Toolbar<a class="headerlink" href="#progress-toolbar" title="Permanent link">&para;</a></h3>
 <p>The toolbar at the top shows real-time progress with colored indicators:</p>
 <ul>
 <li><strong>Green</strong>: Updated assets (value entered or imported)</li>
-<li><strong>Orange</strong>: Pending assets (included but no value yet)</li>
+<li><strong>Orange</strong>: Pending assets (included but missing a value or required currency)</li>
 <li><strong>Gray</strong>: Excluded assets</li>
 </ul>
 <h2 id="adding-assets-and-platforms">Adding Assets and Platforms<a class="headerlink" href="#adding-assets-and-platforms" title="Permanent link">&para;</a></h2>
@@ -2034,10 +2034,12 @@
 <p>When you import:</p>
 <ul>
 <li><strong>Matched assets</strong> (same name, case-insensitive) have their New Value updated with the CSV value and receive a blue <strong>CSV</strong> badge.</li>
-<li><strong>Unmatched assets</strong> are added as new rows with a blue <strong>CSV</strong> badge.</li>
+<li><strong>Unmatched assets</strong> are added as new rows with a blue <strong>CSV</strong> badge and an editable currency picker.</li>
 </ul>
 <p>If your CSV uses different column names, a <strong>column mapping sheet</strong> appears where you can assign each column to the correct field. The <strong>Platform</strong> option is not shown here since the platform is already determined by which section you're importing into. If the CSV headers already match the expected names, the mapping sheet is skipped. For more details on column mapping, see <a href="../import-csv/#column-mapping">Import CSV — Column Mapping</a>.</p>
 <p>After the import, an alert summarizes the results — how many assets were updated, how many were added, and any rows that were skipped due to platform or currency mismatches.</p>
+<p>The <strong>Currency</strong> column is optional. A recognized CSV currency is preselected for a new asset, and you can change it in that asset's picker. If you skip the currency column, leave a cell blank, or supply an unrecognized code, a new asset without a prior choice has an empty picker. Select a currency for each included new asset before saving. The import alert identifies unrecognized codes.</p>
+<p>If you import another CSV for the same platform, your currency choice stays with a matching new asset when the new file has no recognized currency for it. A recognized currency in the new CSV takes precedence; the result alert calls out any change to your choice.</p>
 <p><img alt="CSV import result" src="../../../assets/images/bulk-entry-csv-import.png" /></p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -2048,6 +2050,7 @@
 <ul>
 <li><strong>Zero-value assets</strong>: "N assets have a value of 0. Exclude them or enter a non-zero value." Fields with a value of 0 are highlighted with a red border.</li>
 <li><strong>Missing names</strong>: "Some new assets are missing a name." New asset rows must have a name before saving.</li>
+<li><strong>Missing currencies</strong>: New assets with an empty currency picker remain pending. Select a currency for each included row before saving.</li>
 </ul>
 <p>The <strong>Save Snapshot</strong> button is disabled until all validation issues are resolved.</p>
 <h2 id="cash-flow-operations">Cash Flow Operations<a class="headerlink" href="#cash-flow-operations" title="Permanent link">&para;</a></h2>
@@ -2117,7 +2120,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="April 12, 2026 11:09:54 UTC">April 12, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 27, 2026 13:18:11 UTC">October 27, 2026</span>
   </span>
 
     
