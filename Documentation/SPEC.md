@@ -131,7 +131,7 @@ ______________________________________________________________________
 
 - **Start empty**: Creates snapshot with no asset entries
 - **Bulk Entry** (default): Opens a full-screen editable table seeded from the latest snapshot before the selected date, grouped by platform. Users enter new market values directly. Features include:
-  - Per-platform "Add Asset" button for inline asset creation (name, currency, category)
+  - Per-platform "Add Asset" button for inline asset creation (name, currency, category); the currency starts unselected and must be chosen before saving an included new asset
   - "Add Platform" toolbar button for creating new platform groups
   - Category picker for new assets (deferred DB creation until save)
   - Per-platform CSV import to populate values from exported brokerage data

@@ -830,7 +830,7 @@ struct BulkEntryViewModelTests {
 
   // MARK: - Add Manual Row / Platform Tests
 
-  @Test("addManualRow appends row with correct platform and defaults")
+  @Test("addManualRow leaves currency unselected")
   func addManualRowAppendsCorrectRow() {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
@@ -849,7 +849,31 @@ struct BulkEntryViewModelTests {
     #expect(row.asset == nil)
     #expect(row.previousValue == nil)
     #expect(row.isIncluded == true)
-    #expect(row.currency == SettingsService.shared.mainCurrency)
+    #expect(row.currency.isEmpty)
+    #expect(row.hasMissingCurrency)
+    #expect(viewModel.toolbarStats.missingAssetCurrencyCount == 1)
+  }
+
+  @Test("manually added asset requires a currency before saving")
+  func manualNewAssetRequiresCurrency() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let viewModel = BulkEntryViewModel(
+      modelContext: container.mainContext, date: makeDate(2026, 3, 15))
+    let rowID = viewModel.addManualRow(forPlatform: "Broker")
+    viewModel.updateRowAssetName(rowID, to: "Fund A")
+    viewModel.updateRowValue(rowID, to: "100")
+
+    #expect(viewModel.toolbarStats.missingAssetCurrencyCount == 1)
+    #expect(!viewModel.toolbarStats.canSave)
+    #expect(throws: BulkEntryError.missingAssetCurrency("Fund A")) {
+      try viewModel.saveSnapshot()
+    }
+
+    viewModel.updateRowCurrency(rowID, to: "EUR")
+    #expect(viewModel.toolbarStats.missingAssetCurrencyCount == 0)
+    #expect(viewModel.toolbarStats.canSave)
+    let snapshot = try viewModel.saveSnapshot()
+    #expect(snapshot.assetValues?.first?.asset?.currency == "EUR")
   }
 
   @Test("addPlatform creates new group with one empty row")
@@ -867,6 +891,7 @@ struct BulkEntryViewModelTests {
     #expect(viewModel.platformGroups[0].platform == "Fidelity")
     #expect(viewModel.platformGroups[0].rows.count == 1)
     #expect(viewModel.platformGroups[0].rows[0].source == .manualNew)
+    #expect(viewModel.platformGroups[0].rows[0].currency.isEmpty)
   }
 
   @Test("addPlatform rejects duplicate platform name (case-insensitive)")
@@ -964,8 +989,10 @@ struct BulkEntryViewModelTests {
     viewModel.addManualRow(forPlatform: "P1")
     viewModel.addManualRow(forPlatform: "P1")
     viewModel.updateRowAssetName(viewModel.rows[0].id, to: "Stock A")
+    viewModel.updateRowCurrency(viewModel.rows[0].id, to: "USD")
     viewModel.updateRowValue(viewModel.rows[0].id, to: "100")
     viewModel.updateRowAssetName(viewModel.rows[1].id, to: "stock a")
+    viewModel.updateRowCurrency(viewModel.rows[1].id, to: "USD")
     viewModel.updateRowValue(viewModel.rows[1].id, to: "200")
 
     // canSave is true because duplicate names are now validated at save time
@@ -982,8 +1009,10 @@ struct BulkEntryViewModelTests {
     viewModel.addManualRow(forPlatform: "P1")
     viewModel.addManualRow(forPlatform: "P1")
     viewModel.updateRowAssetName(viewModel.rows[0].id, to: "Stock A")
+    viewModel.updateRowCurrency(viewModel.rows[0].id, to: "USD")
     viewModel.updateRowValue(viewModel.rows[0].id, to: "100")
     viewModel.updateRowAssetName(viewModel.rows[1].id, to: "stock a")
+    viewModel.updateRowCurrency(viewModel.rows[1].id, to: "USD")
     viewModel.updateRowValue(viewModel.rows[1].id, to: "200")
 
     #expect(throws: SnapshotError.self) {
@@ -1001,8 +1030,10 @@ struct BulkEntryViewModelTests {
     viewModel.addManualRow(forPlatform: "P1")
     viewModel.addManualRow(forPlatform: "P2")
     viewModel.updateRowAssetName(viewModel.rows[0].id, to: "Stock A")
+    viewModel.updateRowCurrency(viewModel.rows[0].id, to: "USD")
     viewModel.updateRowValue(viewModel.rows[0].id, to: "100")
     viewModel.updateRowAssetName(viewModel.rows[1].id, to: "Stock A")
+    viewModel.updateRowCurrency(viewModel.rows[1].id, to: "USD")
     viewModel.updateRowValue(viewModel.rows[1].id, to: "200")
 
     let snapshot = try viewModel.saveSnapshot()
@@ -1020,6 +1051,7 @@ struct BulkEntryViewModelTests {
     viewModel.addManualRow(forPlatform: "P1")
     viewModel.addManualRow(forPlatform: "P1")
     viewModel.updateRowAssetName(viewModel.rows[0].id, to: "Stock A")
+    viewModel.updateRowCurrency(viewModel.rows[0].id, to: "USD")
     viewModel.updateRowValue(viewModel.rows[0].id, to: "100")
     viewModel.updateRowAssetName(viewModel.rows[1].id, to: "stock a")
     viewModel.updateRowValue(viewModel.rows[1].id, to: "200")
@@ -1060,6 +1092,7 @@ struct BulkEntryViewModelTests {
       modelContext: context, date: makeDate(2026, 3, 15))
     viewModel.addPlatform(name: "Fidelity")
     viewModel.updateRowAssetName(viewModel.rows[0].id, to: "Stock X")
+    viewModel.updateRowCurrency(viewModel.rows[0].id, to: "USD")
     viewModel.updateRowValue(viewModel.rows[0].id, to: "1000")
     viewModel.updateRowCategoryName(viewModel.rows[0].id, to: "Equities")
 
@@ -1084,12 +1117,15 @@ struct BulkEntryViewModelTests {
     viewModel.addManualRow(forPlatform: "Fidelity")
 
     viewModel.updateRowAssetName(viewModel.rows[0].id, to: "Fund A")
+    viewModel.updateRowCurrency(viewModel.rows[0].id, to: "USD")
     viewModel.updateRowValue(viewModel.rows[0].id, to: "100")
     viewModel.updateRowCategoryName(viewModel.rows[0].id, to: "New Category")
     viewModel.updateRowAssetName(viewModel.rows[1].id, to: "Fund B")
+    viewModel.updateRowCurrency(viewModel.rows[1].id, to: "USD")
     viewModel.updateRowValue(viewModel.rows[1].id, to: "200")
     viewModel.updateRowCategoryName(viewModel.rows[1].id, to: " new category ")
     viewModel.updateRowAssetName(viewModel.rows[2].id, to: "Fund C")
+    viewModel.updateRowCurrency(viewModel.rows[2].id, to: "USD")
     viewModel.updateRowValue(viewModel.rows[2].id, to: "300")
     viewModel.updateRowCategoryName(viewModel.rows[2].id, to: "Other Category")
 

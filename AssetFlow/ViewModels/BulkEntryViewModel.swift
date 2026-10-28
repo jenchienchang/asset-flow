@@ -316,7 +316,7 @@ final class BulkEntryViewModel {
       asset: nil,
       assetName: "",
       platform: platform,
-      currency: SettingsService.shared.mainCurrency,
+      currency: "",
       previousValue: nil,
       newValueText: "",
       isIncluded: true,

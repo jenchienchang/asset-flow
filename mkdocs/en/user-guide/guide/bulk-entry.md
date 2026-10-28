@@ -63,7 +63,7 @@ Click **Add Asset** in a platform's header to append a new row. Fill in:
 
 - **Asset Name** — must be unique within the platform (case-insensitive)
 - **Category** — pick from existing categories, or select "New Category…" to create one inline
-- **Currency** — defaults to your main currency
+- **Currency** — starts unselected; choose the asset's currency before saving
 
 New assets are marked with a green **NEW** badge. Use the trash icon to remove a new row if you change your mind.
 

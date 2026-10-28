@@ -210,7 +210,7 @@ With no import-level platform selected, each asset row keeps its CSV platform or
 
 With no import-level category selected, existing assets keep their categories and new assets remain uncategorized. A selected category applies to all imported assets in **Override All** mode, or only to uncategorized assets in **Fill Empty Only** mode. A newly entered category name reuses an existing category when the names match without case; otherwise it creates a category without a goal.
 
-An explicit asset CSV currency changes the matched asset's stored currency. A blank currency preserves an existing asset's currency; a new asset remains blank and inherits the display currency when converted. An explicit cash-flow CSV currency is stored on the new operation; a blank one remains blank and inherits the display currency when converted. Bulk Entry's manually added asset rows and new cash-flow rows start with the current display currency. New assets from a Bulk Entry CSV instead use a recognized CSV currency or remain blank until the user selects one.
+An explicit asset CSV currency changes the matched asset's stored currency. A blank currency preserves an existing asset's currency; a new asset remains blank and inherits the display currency when converted. An explicit cash-flow CSV currency is stored on the new operation; a blank one remains blank and inherits the display currency when converted. Bulk Entry's manually added asset rows start without a currency, and included rows require a choice before saving; new cash-flow rows start with the current display currency. New assets from a Bulk Entry CSV use a recognized CSV currency or remain blank until the user selects one.
 
 ### Duplicate and Replacement Policy
 
