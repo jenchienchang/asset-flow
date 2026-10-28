@@ -33,9 +33,7 @@
       "always"
     ],
     "subject-case": [
-      2,
-      "always",
-      "lower-case"
+      0
     ],
     "trailer-exists": [
       0,

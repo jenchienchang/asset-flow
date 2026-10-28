@@ -158,7 +158,7 @@ uv run --group docs mkdocs build
 
 ### Commits and pull requests
 
-Use Conventional Commits with an optional scope: `type(scope): subject`. Allowed types are `feat`, `fix`, `refactor`, `ci`, `build`, `chore`, `docs`, `style`, `test`, `perf`, and `revert`. Mark a breaking change with `!` or a `BREAKING CHANGE:` footer. Every commit has a body, with every body line at most 72 characters. For example:
+Use Conventional Commits with an optional scope: `type(scope): subject`. Allowed types are `feat`, `fix`, `refactor`, `ci`, `build`, `chore`, `docs`, `style`, `test`, `perf`, and `revert`, all lowercase. The subject may contain uppercase words. Mark a breaking change with `!` or a `BREAKING CHANGE:` footer. Every commit has a body, with every body line at most 72 characters. For example:
 
 ```text
 docs(development): clarify contributor setup
