@@ -1,0 +1,7 @@
+/* Center standalone documentation screenshots within the text column. */
+.md-typeset p > img[src*="assets/images/"]:only-child:not([align]) {
+  display: block;
+  margin-inline: auto;
+  max-width: 100%;
+  height: auto;
+}
