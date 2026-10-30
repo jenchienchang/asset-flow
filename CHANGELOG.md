@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.8.0](https://github.com/jenchienchang/asset-flow/compare/v0.7.1...v0.8.0) (2026-10-28)
+
+### ⚠ BREAKING CHANGES
+
+- **goals:** Percentage goals apply to funds remaining after protected balances. New v4 backups require this version or later.
+
+### Features
+
+- **bulk-entry:** require currencies for new csv assets ([777a42e](https://github.com/jenchienchang/asset-flow/commit/777a42e3b9c1865932c5e8b68fbb91164b02e2e8))
+- **bulk-entry:** require currency for manually added assets ([a640ada](https://github.com/jenchienchang/asset-flow/commit/a640ada6b9b25d204819a20a42c5abb7c056b6b3))
+- **bulk-entry:** stripe csv mapping preview rows ([a774955](https://github.com/jenchienchang/asset-flow/commit/a774955026697de060354ec89de55670262cb733))
+- **csv:** show all rows in adaptive mapping previews ([8e29ec3](https://github.com/jenchienchang/asset-flow/commit/8e29ec333dea7fa1514e5f1f61dd9e4e6f52be65))
+- **goals:** add minimum balances and constrained rebalancing ([e3191c0](https://github.com/jenchienchang/asset-flow/commit/e3191c001b1b4430c09d1676174ca2666b0fbf3b))
+
+### Bug Fixes
+
+- **asset:** handle unavailable rates in value history ([0a9182d](https://github.com/jenchienchang/asset-flow/commit/0a9182dbddac581ef3f8e06c18ec72290c31220f))
+- **auth:** describe available unlock methods accurately ([cd31845](https://github.com/jenchienchang/asset-flow/commit/cd31845adb440a2b36a5eebe7f711acbf65260fe))
+- **backup:** prevent ditto stderr from delaying completion ([25868ad](https://github.com/jenchienchang/asset-flow/commit/25868ada90418b3f51858b88b24857f0f2839673))
+- **bulk-entry:** restore csv import after picker cancellation ([f25bb7a](https://github.com/jenchienchang/asset-flow/commit/f25bb7a6211f447fdde3c0800b90f53823e09689))
+- **category:** separate value and minimum chart series ([cc8aec3](https://github.com/jenchienchang/asset-flow/commit/cc8aec36bff123fb2b53b32d4dfc064245e3a360))
+- **release:** synchronize and verify xcode marketing versions ([69b66f8](https://github.com/jenchienchang/asset-flow/commit/69b66f801eb11418ea76241ff4fa1a14a374a1fd))
+- **tests:** track csv cancellation with a boolean ([6420dc3](https://github.com/jenchienchang/asset-flow/commit/6420dc3fe798a434c3a047174b819149adb8882a))
+
 ## [0.7.1](https://github.com/jenchienchang/asset-flow/compare/v0.7.0...v0.7.1) (2026-10-02)
 
 ### Features
