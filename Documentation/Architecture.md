@@ -51,7 +51,7 @@ The app target uses default main-actor isolation. Views, observable ViewModels, 
 
 Ordinary editing paths change or insert models in the shared context and rely on its autosave. Restore has deliberate persistence boundaries: `BackupService` saves any pending context changes as a rollback checkpoint, disables autosave during replacement, and performs the graph replacement in a main-actor transaction. It applies restored settings only after that transaction succeeds. The Debug-only disposable preview-data seed also calls `save()` explicitly.
 
-Dependencies are supplied at the boundary where they matter: ViewModels can receive a `ModelContext` and `ModelFetching` for persistence reads, `ExchangeRateService` accepts a `URLSession`, and `AuthenticationService` accepts an `LAContext` factory for isolated tests. Production uses shared settings, authentication, and currency services where app-wide state is intended. [`APIDesign.md`](APIDesign.md) owns their detailed interfaces.
+Dependencies are supplied at the boundary where they matter: ViewModels can receive a `ModelContext` and `ModelFetching` for persistence reads, `ExchangeRateService` accepts a `URLSession`, request loader, and request coordinator, and `AuthenticationService` accepts an `LAContext` factory for isolated tests. Production uses shared settings, authentication, and currency services where app-wide state is intended. [`APIDesign.md`](APIDesign.md) owns their detailed interfaces.
 
 ## State, Observation, and Refresh
 

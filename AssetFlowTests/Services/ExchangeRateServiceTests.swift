@@ -21,29 +21,25 @@ import Testing
 
 @testable import AssetFlow
 
-// Top-level mock URLProtocol for testing
-private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
-  nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+private final class MockHTTPClient: @unchecked Sendable {
+  private let lock = NSLock()
+  private var callCount = 0
+  private let handler: @Sendable (URLRequest, Int) async throws -> (HTTPURLResponse, Data)
 
-  override class func canInit(with request: URLRequest) -> Bool { true }
-  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-  override func startLoading() {
-    guard let handler = Self.requestHandler else {
-      client?.urlProtocolDidFinishLoading(self)
-      return
-    }
-    do {
-      let (response, data) = try handler(request)
-      client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-      client?.urlProtocol(self, didLoad: data)
-      client?.urlProtocolDidFinishLoading(self)
-    } catch {
-      client?.urlProtocol(self, didFailWithError: error)
-    }
+  init(handler: @escaping @Sendable (URLRequest, Int) async throws -> (HTTPURLResponse, Data)) {
+    self.handler = handler
   }
 
-  override func stopLoading() {}
+  var requestCount: Int { lock.withLock { callCount } }
+
+  func loadData(from url: URL) async throws -> (Data, URLResponse) {
+    let requestNumber = lock.withLock {
+      callCount += 1
+      return callCount
+    }
+    let (response, data) = try await handler(URLRequest(url: url), requestNumber)
+    return (data, response)
+  }
 }
 
 private actor CancellationSignal {
@@ -61,6 +57,24 @@ private actor CancellationSignal {
 
   func reset() {
     pendingSignals = 0
+  }
+}
+
+private actor RequestGate {
+  private var isOpen = false
+  private var waiters: [CheckedContinuation<Void, Never>] = []
+
+  func wait() async {
+    guard !isOpen else { return }
+    await withCheckedContinuation { waiters.append($0) }
+  }
+
+  func open() {
+    isOpen = true
+    for waiter in waiters {
+      waiter.resume()
+    }
+    waiters.removeAll()
   }
 }
 
@@ -85,46 +99,6 @@ private final class CancellationTrackingURLProtocol: URLProtocol, @unchecked Sen
   }
 }
 
-private final class CoalescingURLProtocol: URLProtocol, @unchecked Sendable {
-  static let started = CancellationSignal()
-  static let stopped = CancellationSignal()
-  private static let releaseSemaphore = DispatchSemaphore(value: 0)
-
-  static func reset() async {
-    await started.reset()
-    await stopped.reset()
-  }
-
-  static func allowRequestToFinish() async {
-    releaseSemaphore.signal()
-  }
-
-  override class func canInit(with request: URLRequest) -> Bool { true }
-  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-  override func startLoading() {
-    let request = request
-    Task { await Self.started.signal() }
-    Self.releaseSemaphore.wait()
-    let response = HTTPURLResponse(
-      url: request.url!,
-      statusCode: 200,
-      httpVersion: nil,
-      headerFields: nil
-    )!
-    let date = requestedAPIResponseDate(from: request)
-    let data = "{\"date\":\"\(date)\",\"usd\":{\"eur\":0.92}}"
-      .data(using: .utf8)!
-    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-    client?.urlProtocol(self, didLoad: data)
-    client?.urlProtocolDidFinishLoading(self)
-  }
-
-  override func stopLoading() {
-    Task { await Self.stopped.signal() }
-  }
-}
-
 private func requestedAPIResponseDate(from request: URLRequest) -> String {
   guard
     let component = request.url?.pathComponents.first(where: {
@@ -137,14 +111,34 @@ private func requestedAPIResponseDate(from request: URLRequest) -> String {
   return String(component[component.index(after: atIndex)...])
 }
 
-@Suite("ExchangeRate Service Tests", .serialized)
+@Suite("ExchangeRate Service Tests")
 @MainActor
 struct ExchangeRateServiceTests {
 
-  private func createMockSession() -> URLSession {
-    let config = URLSessionConfiguration.ephemeral
-    config.protocolClasses = [MockURLProtocol.self]
-    return URLSession(configuration: config)
+  private func createMockService(
+    handler: @escaping @Sendable (URLRequest, Int) async throws -> (HTTPURLResponse, Data)
+  ) -> ExchangeRateService {
+    createMockService(client: MockHTTPClient(handler: handler))
+  }
+
+  private func createMockService(
+    client: MockHTTPClient,
+    requestCoordinator: ExchangeRateRequestCoordinator = ExchangeRateRequestCoordinator()
+  ) -> ExchangeRateService {
+    ExchangeRateService(
+      requestCoordinator: requestCoordinator,
+      loadData: { url in try await client.loadData(from: url) }
+    )
+  }
+
+  private func coordinator(signalingSecondWaiter signal: CancellationSignal)
+    -> ExchangeRateRequestCoordinator
+  {
+    ExchangeRateRequestCoordinator(onWaiterRegistered: { _, count in
+      if count == 2 {
+        Task { await signal.signal() }
+      }
+    })
   }
 
   private func waitForSignal(_ signal: CancellationSignal, attempts: Int = 200) async -> Bool {
@@ -159,12 +153,7 @@ struct ExchangeRateServiceTests {
 
   @Test("Goal-only currency triggers fetching even with no foreign-currency assets")
   func goalOnlyCurrencyFetch() async throws {
-    let session = createMockSession()
-    defer {
-      session.invalidateAndCancel()
-      MockURLProtocol.requestHandler = nil
-    }
-    MockURLProtocol.requestHandler = { request in
+    let service = createMockService { request, _ in
       let json =
         "{\"date\": \"\(requestedAPIResponseDate(from: request))\", \"usd\": {\"twd\": 30}}"
       return (
@@ -179,7 +168,7 @@ struct ExchangeRateServiceTests {
     let snapshot = Snapshot(date: Date(timeIntervalSince1970: 1_700_000_000))
     container.mainContext.insert(category)
     container.mainContext.insert(snapshot)
-    let result = await ExchangeRateService(session: session).fetchMissingRates(
+    let result = await service.fetchMissingRates(
       snapshots: [snapshot], displayCurrency: "USD", modelContext: container.mainContext)
     #expect(result.count == 1)
     #expect(snapshot.exchangeRate?.rates["twd"] == 30)
@@ -193,8 +182,7 @@ struct ExchangeRateServiceTests {
 
   @Test("Fetch rates returns valid parsed rates")
   func testFetchRatesSuccess() async throws {
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { request in
+    let service = createMockService { request, _ in
       let json = """
         {"date": "\(requestedAPIResponseDate(from: request))", "usd": {"eur": 0.92, "twd": 31.5, "jpy": 149.5}}
         """
@@ -207,7 +195,6 @@ struct ExchangeRateServiceTests {
       return (response, json.data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
     let rates = try await service.fetchRates(
       for: Date(), baseCurrency: "usd")
 
@@ -218,8 +205,7 @@ struct ExchangeRateServiceTests {
 
   @Test("Fetch rates preserves high-precision decimal values")
   func testFetchRatesPreservesPrecision() async throws {
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { request in
+    let service = createMockService { request, _ in
       let json = """
         {"date": "\(requestedAPIResponseDate(from: request))", "usd": {"eur": 0.920000000000000000123456789}}
         """
@@ -232,7 +218,6 @@ struct ExchangeRateServiceTests {
       return (response, json.data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
     let rates = try await service.fetchRates(for: Date(), baseCurrency: "usd")
 
     #expect(rates["eur"] == Decimal(string: "0.920000000000000000123456789")!)
@@ -240,12 +225,9 @@ struct ExchangeRateServiceTests {
 
   @Test("Fetch rates throws networkUnavailable on error")
   func testFetchRatesNetworkError() async throws {
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { _ in
+    let service = createMockService { _, _ in
       throw URLError(.notConnectedToInternet)
     }
-
-    let service = ExchangeRateService(session: session)
 
     await #expect(throws: ExchangeRateError.self) {
       _ = try await service.fetchRates(for: Date(), baseCurrency: "usd")
@@ -254,8 +236,7 @@ struct ExchangeRateServiceTests {
 
   @Test("Fetch rates throws ratesNotFound on 404")
   func testFetchRatesNotFound() async throws {
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { _ in
+    let service = createMockService { _, _ in
       let response = HTTPURLResponse(
         url: URL(string: "https://example.com")!,
         statusCode: 404,
@@ -265,8 +246,6 @@ struct ExchangeRateServiceTests {
       return (response, Data())
     }
 
-    let service = ExchangeRateService(session: session)
-
     await #expect(throws: ExchangeRateError.ratesNotFound) {
       _ = try await service.fetchRates(for: Date(), baseCurrency: "usd")
     }
@@ -274,8 +253,7 @@ struct ExchangeRateServiceTests {
 
   @Test("Fetch rates throws invalidResponse on malformed JSON")
   func testFetchRatesInvalidJSON() async throws {
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { _ in
+    let service = createMockService { _, _ in
       let response = HTTPURLResponse(
         url: URL(string: "https://example.com")!,
         statusCode: 200,
@@ -285,8 +263,6 @@ struct ExchangeRateServiceTests {
       return (response, "not json".data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
-
     await #expect(throws: ExchangeRateError.invalidResponse) {
       _ = try await service.fetchRates(for: Date(), baseCurrency: "usd")
     }
@@ -294,8 +270,7 @@ struct ExchangeRateServiceTests {
 
   @Test("Fetch rates rejects an empty rates dictionary")
   func testFetchRatesRejectsEmptyRates() async throws {
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { request in
+    let service = createMockService { request, _ in
       let json = """
         {"date": "\(requestedAPIResponseDate(from: request))", "usd": {}}
         """
@@ -308,8 +283,6 @@ struct ExchangeRateServiceTests {
       return (response, json.data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
-
     await #expect(throws: ExchangeRateError.invalidResponse) {
       _ = try await service.fetchRates(for: Date(), baseCurrency: "usd")
     }
@@ -317,8 +290,7 @@ struct ExchangeRateServiceTests {
 
   @Test("Fetch rates rejects non-positive rates")
   func testFetchRatesRejectsNonPositiveRates() async throws {
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { request in
+    let service = createMockService { request, _ in
       let json = """
         {"date": "\(requestedAPIResponseDate(from: request))", "usd": {"eur": 0, "twd": -1}}
         """
@@ -331,8 +303,6 @@ struct ExchangeRateServiceTests {
       return (response, json.data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
-
     await #expect(throws: ExchangeRateError.invalidResponse) {
       _ = try await service.fetchRates(for: Date(), baseCurrency: "usd")
     }
@@ -340,11 +310,10 @@ struct ExchangeRateServiceTests {
 
   @Test("Fetch rates rejects a response for a different date")
   func testFetchRatesRejectsWrongResponseDate() async throws {
-    let session = createMockSession()
     let json = """
       {"date": "2000-01-01", "usd": {"eur": 0.92}}
       """
-    MockURLProtocol.requestHandler = { _ in
+    let service = createMockService { _, _ in
       let response = HTTPURLResponse(
         url: URL(string: "https://example.com")!,
         statusCode: 200,
@@ -354,7 +323,6 @@ struct ExchangeRateServiceTests {
       return (response, json.data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
     let date = Date(timeIntervalSince1970: 1_771_747_200)
 
     await #expect(throws: ExchangeRateError.invalidResponse) {
@@ -378,13 +346,12 @@ struct ExchangeRateServiceTests {
 
   @Test("Concurrent requests for the same date and base share one network request")
   func testFetchRatesDoesNotDuplicateConcurrentRequests() async throws {
-    let session = createMockSession()
-    let lock = NSLock()
-    var networkCallCount = 0
-    MockURLProtocol.requestHandler = { request in
-      lock.lock()
-      networkCallCount += 1
-      lock.unlock()
+    let gate = RequestGate()
+    let requestStarted = CancellationSignal()
+    let secondWaiterRegistered = CancellationSignal()
+    let client = MockHTTPClient { request, _ in
+      await requestStarted.signal()
+      await gate.wait()
       let json = """
         {"date": "\(requestedAPIResponseDate(from: request))", "usd": {"eur": 0.92}}
         """
@@ -397,31 +364,74 @@ struct ExchangeRateServiceTests {
       return (response, json.data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
+    let service = createMockService(
+      client: client,
+      requestCoordinator: coordinator(signalingSecondWaiter: secondWaiterRegistered)
+    )
     let date = Date(timeIntervalSince1970: 1_771_747_200)
-    try await withThrowingTaskGroup(of: [String: Decimal].self) { group in
-      for _ in 0..<2 {
-        group.addTask {
-          try await service.fetchRates(for: date, baseCurrency: "USD")
-        }
-      }
-      for try await rates in group {
-        #expect(rates["eur"] == Decimal(string: "0.92")!)
-      }
-    }
+    let firstTask = Task { try await service.fetchRates(for: date, baseCurrency: "USD") }
+    let firstRequestStarted = await waitForSignal(requestStarted)
+    let secondTask = Task { try await service.fetchRates(for: date, baseCurrency: "USD") }
+    let secondWaiterJoined = await waitForSignal(secondWaiterRegistered)
+    await gate.open()
+    let firstResult = await firstTask.result
+    let secondResult = await secondTask.result
 
-    #expect(networkCallCount == 1)
+    #expect(firstRequestStarted)
+    #expect(secondWaiterJoined)
+    #expect(try firstResult.get()["eur"] == Decimal(string: "0.92")!)
+    #expect(try secondResult.get()["eur"] == Decimal(string: "0.92")!)
+    #expect(client.requestCount == 1)
+  }
+
+  @Test("Separate coordinators use their own handlers for concurrent same-key requests")
+  func testSeparateCoordinatorsKeepHandlersIsolated() async throws {
+    let gate = RequestGate()
+    let firstStarted = CancellationSignal()
+    let secondStarted = CancellationSignal()
+    let firstClient = MockHTTPClient { request, _ in
+      await firstStarted.signal()
+      await gate.wait()
+      let response = HTTPURLResponse(
+        url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+      let json =
+        "{\"date\":\"\(requestedAPIResponseDate(from: request))\",\"usd\":{\"eur\":0.92}}"
+      return (response, Data(json.utf8))
+    }
+    let secondClient = MockHTTPClient { request, _ in
+      await secondStarted.signal()
+      await gate.wait()
+      let response = HTTPURLResponse(
+        url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+      let json =
+        "{\"date\":\"\(requestedAPIResponseDate(from: request))\",\"usd\":{\"eur\":0.85}}"
+      return (response, Data(json.utf8))
+    }
+    let firstService = createMockService(client: firstClient)
+    let secondService = createMockService(client: secondClient)
+    let date = Date(timeIntervalSince1970: 1_771_747_200)
+
+    let firstTask = Task { try await firstService.fetchRates(for: date, baseCurrency: "USD") }
+    #expect(await waitForSignal(firstStarted))
+    let secondTask = Task { try await secondService.fetchRates(for: date, baseCurrency: "USD") }
+    let secondHandlerStarted = await waitForSignal(secondStarted)
+    await gate.open()
+
+    #expect(secondHandlerStarted)
+    #expect(try await firstTask.value["eur"] == Decimal(string: "0.92")!)
+    #expect(try await secondTask.value["eur"] == Decimal(string: "0.85")!)
+    #expect(firstClient.requestCount == 1)
+    #expect(secondClient.requestCount == 1)
   }
 
   // MARK: - Currency List Tests
 
   @Test("Fetch currency list returns valid dict")
   func testFetchCurrencyListSuccess() async throws {
-    let session = createMockSession()
     let json = """
       {"usd": "United States Dollar", "eur": "Euro", "twd": "New Taiwan Dollar"}
       """
-    MockURLProtocol.requestHandler = { _ in
+    let service = createMockService { _, _ in
       let response = HTTPURLResponse(
         url: URL(string: "https://example.com")!,
         statusCode: 200,
@@ -431,7 +441,6 @@ struct ExchangeRateServiceTests {
       return (response, json.data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
     let list = try await service.fetchCurrencyList()
 
     #expect(list["usd"] == "United States Dollar")
@@ -461,10 +470,12 @@ struct ExchangeRateServiceTests {
     return snapshot
   }
 
-  private func mockSuccessHandler(baseCurrency: String) -> (URLRequest) throws -> (
-    HTTPURLResponse, Data
-  ) {
-    { request in
+  private func mockSuccessHandler(baseCurrency: String)
+    -> @Sendable (URLRequest, Int) throws -> (
+      HTTPURLResponse, Data
+    )
+  {
+    { request, _ in
       let json = """
         {"date": "\(requestedAPIResponseDate(from: request))", "\(baseCurrency)": {"eur": 0.92, "twd": 31.5, "jpy": 149.5, "usd": 1.0}}
         """
@@ -490,10 +501,7 @@ struct ExchangeRateServiceTests {
     er.snapshot = snapshot
     context.insert(er)
 
-    var networkCallCount = 0
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { _ in
-      networkCallCount += 1
+    let client = MockHTTPClient { _, _ in
       let response = HTTPURLResponse(
         url: URL(string: "https://example.com")!,
         statusCode: 200,
@@ -503,14 +511,14 @@ struct ExchangeRateServiceTests {
       return (response, "{}".data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
+    let service = createMockService(client: client)
     _ = await service.fetchMissingRates(
       snapshots: [snapshot],
       displayCurrency: "USD",
       modelContext: context
     )
 
-    #expect(networkCallCount == 0)
+    #expect(client.requestCount == 0)
   }
 
   @Test("fetchMissingRates retries malformed cached rates")
@@ -527,10 +535,7 @@ struct ExchangeRateServiceTests {
     er.snapshot = snapshot
     context.insert(er)
 
-    var networkCallCount = 0
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { request in
-      networkCallCount += 1
+    let client = MockHTTPClient { request, _ in
       let json = """
         {"date": "\(requestedAPIResponseDate(from: request))", "usd": {"eur": 0.92}}
         """
@@ -543,14 +548,14 @@ struct ExchangeRateServiceTests {
       return (response, json.data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
+    let service = createMockService(client: client)
     _ = await service.fetchMissingRates(
       snapshots: [snapshot],
       displayCurrency: "USD",
       modelContext: context
     )
 
-    #expect(networkCallCount == 1)
+    #expect(client.requestCount == 1)
     #expect(snapshot.exchangeRate?.rates["eur"] == Decimal(string: "0.92")!)
   }
 
@@ -569,10 +574,7 @@ struct ExchangeRateServiceTests {
     er.snapshot = snapshot
     context.insert(er)
 
-    var networkCallCount = 0
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { request in
-      networkCallCount += 1
+    let client = MockHTTPClient { request, _ in
       let json = """
         {"date": "\(requestedAPIResponseDate(from: request))", "usd": {"eur": 0.92}}
         """
@@ -585,14 +587,14 @@ struct ExchangeRateServiceTests {
       return (response, json.data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
+    let service = createMockService(client: client)
     let results = await service.fetchMissingRates(
       snapshots: [snapshot],
       displayCurrency: "USD",
       modelContext: context
     )
 
-    #expect(networkCallCount == 1)
+    #expect(client.requestCount == 1)
     #expect(results.first?.status == .fetched)
     #expect(snapshot.exchangeRate?.fetchDate == snapshot.date)
   }
@@ -606,7 +608,10 @@ struct ExchangeRateServiceTests {
     await CancellationTrackingURLProtocol.reset()
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [CancellationTrackingURLProtocol.self]
-    let service = ExchangeRateService(session: URLSession(configuration: configuration))
+    let service = ExchangeRateService(
+      session: URLSession(configuration: configuration),
+      requestCoordinator: ExchangeRateRequestCoordinator()
+    )
 
     let fetchTask = Task {
       await service.fetchMissingRates(
@@ -631,20 +636,37 @@ struct ExchangeRateServiceTests {
     let context = container.mainContext
     let snapshot1 = createSnapshotWithAsset(currency: "EUR", container: container)
     let snapshot2 = createSnapshotWithAsset(currency: "EUR", container: container)
+    snapshot2.date = snapshot1.date
 
-    await CoalescingURLProtocol.reset()
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.protocolClasses = [CoalescingURLProtocol.self]
-    let service = ExchangeRateService(session: URLSession(configuration: configuration))
+    let gate = RequestGate()
+    let requestStarted = CancellationSignal()
+    let firstTaskCompleted = CancellationSignal()
+    let secondWaiterRegistered = CancellationSignal()
+    let client = MockHTTPClient { request, _ in
+      await requestStarted.signal()
+      await gate.wait()
+      try Task.checkCancellation()
+      let response = HTTPURLResponse(
+        url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+      let json =
+        "{\"date\":\"\(requestedAPIResponseDate(from: request))\",\"usd\":{\"eur\":0.92}}"
+      return (response, Data(json.utf8))
+    }
+    let service = createMockService(
+      client: client,
+      requestCoordinator: coordinator(signalingSecondWaiter: secondWaiterRegistered)
+    )
 
     let firstTask = Task {
-      await service.fetchMissingRates(
+      let results = await service.fetchMissingRates(
         snapshots: [snapshot1],
         displayCurrency: "USD",
         modelContext: context
       )
+      await firstTaskCompleted.signal()
+      return results
     }
-    #expect(await waitForSignal(CoalescingURLProtocol.started))
+    let firstRequestStarted = await waitForSignal(requestStarted)
 
     let secondTask = Task {
       await service.fetchMissingRates(
@@ -653,22 +675,22 @@ struct ExchangeRateServiceTests {
         modelContext: context
       )
     }
-    for _ in 0..<100 {
-      await Task.yield()
-    }
+    let secondWaiterJoined = await waitForSignal(secondWaiterRegistered)
 
     firstTask.cancel()
+    let firstCompletedBeforeRelease = await waitForSignal(firstTaskCompleted)
+    await gate.open()
     let firstResults = await firstTask.value
-
-    #expect(firstResults.first?.status == .cancelled)
-    #expect(!(await waitForSignal(CoalescingURLProtocol.stopped, attempts: 10)))
-
-    await CoalescingURLProtocol.allowRequestToFinish()
     let secondResults = await secondTask.value
 
+    #expect(firstRequestStarted)
+    #expect(secondWaiterJoined)
+    #expect(firstCompletedBeforeRelease)
+    #expect(firstResults.first?.status == .cancelled)
     #expect(secondResults.first?.status == .fetched)
     #expect(snapshot1.exchangeRate == nil)
     #expect(snapshot2.exchangeRate != nil)
+    #expect(client.requestCount == 1)
   }
 
   @Test("fetchMissingRates skips snapshots that don't need conversion")
@@ -677,10 +699,7 @@ struct ExchangeRateServiceTests {
     let context = container.mainContext
     let snapshot = createSnapshotWithAsset(currency: "USD", container: container)
 
-    var networkCallCount = 0
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { _ in
-      networkCallCount += 1
+    let client = MockHTTPClient { _, _ in
       let response = HTTPURLResponse(
         url: URL(string: "https://example.com")!,
         statusCode: 200,
@@ -690,14 +709,14 @@ struct ExchangeRateServiceTests {
       return (response, "{}".data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
+    let service = createMockService(client: client)
     _ = await service.fetchMissingRates(
       snapshots: [snapshot],
       displayCurrency: "USD",
       modelContext: context
     )
 
-    #expect(networkCallCount == 0)
+    #expect(client.requestCount == 0)
     #expect(snapshot.exchangeRate == nil)
   }
 
@@ -707,10 +726,7 @@ struct ExchangeRateServiceTests {
     let context = container.mainContext
     let snapshot = createSnapshotWithAsset(currency: "EUR", container: container)
 
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = mockSuccessHandler(baseCurrency: "usd")
-
-    let service = ExchangeRateService(session: session)
+    let service = createMockService(handler: mockSuccessHandler(baseCurrency: "usd"))
     _ = await service.fetchMissingRates(
       snapshots: [snapshot],
       displayCurrency: "USD",
@@ -749,11 +765,8 @@ struct ExchangeRateServiceTests {
     av2.asset = asset2
     context.insert(av2)
 
-    var requestCount = 0
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { request in
-      requestCount += 1
-      if requestCount == 1 {
+    let service = createMockService { request, requestNumber in
+      if requestNumber == 1 {
         // First request fails with 404
         let response = HTTPURLResponse(
           url: URL(string: "https://example.com")!,
@@ -777,7 +790,6 @@ struct ExchangeRateServiceTests {
       }
     }
 
-    let service = ExchangeRateService(session: session)
     _ = await service.fetchMissingRates(
       snapshots: [snapshot1, snapshot2],
       displayCurrency: "USD",
@@ -796,10 +808,7 @@ struct ExchangeRateServiceTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    var networkCallCount = 0
-    let session = createMockSession()
-    MockURLProtocol.requestHandler = { _ in
-      networkCallCount += 1
+    let client = MockHTTPClient { _, _ in
       let response = HTTPURLResponse(
         url: URL(string: "https://example.com")!,
         statusCode: 200,
@@ -809,13 +818,13 @@ struct ExchangeRateServiceTests {
       return (response, "{}".data(using: .utf8)!)
     }
 
-    let service = ExchangeRateService(session: session)
+    let service = createMockService(client: client)
     _ = await service.fetchMissingRates(
       snapshots: [],
       displayCurrency: "USD",
       modelContext: context
     )
 
-    #expect(networkCallCount == 0)
+    #expect(client.requestCount == 0)
   }
 }

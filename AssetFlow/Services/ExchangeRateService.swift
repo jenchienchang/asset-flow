@@ -88,7 +88,7 @@ private struct ExchangeRateAPIResponse: Decodable {
   }
 }
 
-private actor ExchangeRateRequestCoordinator {
+actor ExchangeRateRequestCoordinator {
   private final class CancellationAwareWaiter: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<[String: Decimal], Error>?
@@ -128,7 +128,12 @@ private actor ExchangeRateRequestCoordinator {
     var waiters: Set<UUID>
   }
 
+  private let onWaiterRegistered: (@Sendable (String, Int) -> Void)?
   private var inFlight: [String: InFlightRequest] = [:]
+
+  init(onWaiterRegistered: (@Sendable (String, Int) -> Void)? = nil) {
+    self.onWaiterRegistered = onWaiterRegistered
+  }
 
   func fetch(
     key: String,
@@ -136,15 +141,19 @@ private actor ExchangeRateRequestCoordinator {
   ) async throws -> [String: Decimal] {
     let waiterID = UUID()
     let task: Task<[String: Decimal], Error>
+    let waiterCount: Int
 
     if var request = inFlight[key] {
       request.waiters.insert(waiterID)
       task = request.task
+      waiterCount = request.waiters.count
       inFlight[key] = request
     } else {
       task = Task { try await operation() }
+      waiterCount = 1
       inFlight[key] = InFlightRequest(task: task, waiters: [waiterID])
     }
+    onWaiterRegistered?(key, waiterCount)
 
     defer {
       self.release(key: key, waiterID: waiterID)
@@ -194,14 +203,20 @@ private actor ExchangeRateRequestCoordinator {
 
 /// Service for fetching exchange rates from the fawazahmed0 currency API.
 ///
-/// Uses cdn.jsdelivr.net as CDN host. Accepts a `URLSession` for testability.
+/// Uses cdn.jsdelivr.net as CDN host. Accepts a session or data loader for testability.
 final class ExchangeRateService: @unchecked Sendable {
-  private let session: URLSession
-  private static let requestCoordinator = ExchangeRateRequestCoordinator()
+  private let loadData: @Sendable (URL) async throws -> (Data, URLResponse)
+  private let requestCoordinator: ExchangeRateRequestCoordinator
+  private static let sharedRequestCoordinator = ExchangeRateRequestCoordinator()
   private static let apiTimeZone = TimeZone.current
 
-  init(session: URLSession = .shared) {
-    self.session = session
+  init(
+    session: URLSession = .shared,
+    requestCoordinator: ExchangeRateRequestCoordinator? = nil,
+    loadData: (@Sendable (URL) async throws -> (Data, URLResponse))? = nil
+  ) {
+    self.requestCoordinator = requestCoordinator ?? Self.sharedRequestCoordinator
+    self.loadData = loadData ?? { url in try await session.data(from: url) }
   }
 
   /// Fetches exchange rates for a given date and base currency.
@@ -219,9 +234,9 @@ final class ExchangeRateService: @unchecked Sendable {
       throw ExchangeRateError.invalidResponse
     }
 
-    let rates = try await Self.requestCoordinator.fetch(key: "\(dateString)|\(base)") {
+    let rates = try await requestCoordinator.fetch(key: "\(dateString)|\(base)") {
       try await Self.performFetch(
-        session: self.session,
+        loadData: self.loadData,
         dateString: dateString,
         baseCurrency: base
       )
@@ -245,7 +260,7 @@ final class ExchangeRateService: @unchecked Sendable {
   }
 
   private static func performFetch(
-    session: URLSession,
+    loadData: @Sendable (URL) async throws -> (Data, URLResponse),
     dateString: String,
     baseCurrency: String
   ) async throws -> [String: Decimal] {
@@ -259,7 +274,7 @@ final class ExchangeRateService: @unchecked Sendable {
     let data: Data
     let response: URLResponse
     do {
-      (data, response) = try await session.data(from: url)
+      (data, response) = try await loadData(url)
     } catch {
       if Task.isCancelled || (error as? URLError)?.code == .cancelled {
         throw CancellationError()
@@ -428,7 +443,7 @@ final class ExchangeRateService: @unchecked Sendable {
     let data: Data
     let response: URLResponse
     do {
-      (data, response) = try await session.data(from: url)
+      (data, response) = try await loadData(url)
     } catch {
       throw ExchangeRateError.networkUnavailable
     }
