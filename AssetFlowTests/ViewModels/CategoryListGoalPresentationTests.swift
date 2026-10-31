@@ -122,4 +122,28 @@ struct CategoryListGoalPresentationTests {
     #expect(!tc.vm.categoryRows[0].hasWarning)
     _ = tc.container.mainContext
   }
+
+  @Test("Invalid percentage sum has one actionable category-list warning")
+  func oneWarningForInvalidPercentageSum() throws {
+    let tc = fixture([(60, 60, nil), (40, 30, nil)])
+    let warning = try #require(tc.vm.targetAllocationSumWarning)
+    #expect(tc.vm.goalAssessment.plan?.status == .invalidPercentageSum(90))
+    #expect(
+      warning
+        == CategoryGoalPresentation.diagnostic(
+          RebalancingPlan(status: .invalidPercentageSum(90)), currency: "USD"))
+    #expect(tc.vm.planDiagnostic == nil)
+    _ = tc.container.mainContext
+  }
+
+  @Test("A funding diagnostic remains visible when the percentage sum is invalid")
+  func fundingDiagnosticRemainsVisible() {
+    let tc = fixture([(50, 60, 100)])
+    #expect(tc.vm.goalAssessment.plan?.status == .minimumsExceedPortfolio(50))
+    #expect(tc.vm.targetAllocationSumWarning != nil)
+    #expect(
+      tc.vm.planDiagnostic
+        == CategoryGoalPresentation.diagnostic(tc.vm.goalAssessment.plan, currency: "USD"))
+    _ = tc.container.mainContext
+  }
 }

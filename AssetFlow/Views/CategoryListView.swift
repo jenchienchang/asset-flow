@@ -56,10 +56,7 @@ struct CategoryListView: View {
         if let message = viewModel.goalAssessment.goalConversion.unavailableMessage {
           warningBanner(message)
         }
-        if let message = CategoryGoalPresentation.diagnostic(
-          viewModel.goalAssessment.plan, currency: SettingsService.shared.mainCurrency),
-          viewModel.goalAssessment.plan?.status != .noGoals
-        {
+        if let message = viewModel.planDiagnostic {
           warningBanner(message)
         }
         if let message = viewModel.conversionStatus.unavailableMessage {

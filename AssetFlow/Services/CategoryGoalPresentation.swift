@@ -88,10 +88,7 @@ enum CategoryGoalPresentation {
         table: "Rebalancing", bundle: bundle)
 
     case .invalidPercentageSum(let sum):
-      return String(
-        localized:
-          "Percentage targets sum to \(sum.formattedPercentage()). Set their total to 100% to calculate rebalancing.",
-        table: "Rebalancing", bundle: bundle)
+      return percentageSumWarning(sum, bundle: bundle)
 
     case .minimumsExceedPortfolio(let amount):
       return String(
@@ -105,5 +102,12 @@ enum CategoryGoalPresentation {
           "Protected balances leave a funding shortfall of \(formattedAmount(amount)). Add funds or change category goals to make funds available for rebalancing.",
         table: "Rebalancing", bundle: bundle)
     }
+  }
+
+  static func percentageSumWarning(_ sum: Decimal, bundle: Bundle = .main) -> String {
+    String(
+      localized:
+        "Percentage targets sum to \(sum.formattedPercentage()). Set their total to 100% to calculate rebalancing.",
+      table: "Rebalancing", bundle: bundle)
   }
 }

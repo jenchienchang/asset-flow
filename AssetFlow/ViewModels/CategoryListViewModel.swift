@@ -85,6 +85,12 @@ final class CategoryListViewModel {
   var hasSignificantDeviation = false
   var conversionStatus: CurrencyConversionStatus = .notNeeded
 
+  var planDiagnostic: String? {
+    guard let plan = goalAssessment.plan, plan.status != .noGoals else { return nil }
+    if case .invalidPercentageSum = plan.status, targetAllocationSumWarning != nil { return nil }
+    return CategoryGoalPresentation.diagnostic(plan, currency: settingsService.mainCurrency)
+  }
+
   init(
     modelContext: ModelContext,
     settingsService: SettingsService? = nil,
@@ -349,9 +355,6 @@ final class CategoryListViewModel {
 
     guard sum != 100 else { return nil }
 
-    return String(
-      localized:
-        "Target allocations sum to \(sum.formattedPercentage()) instead of 100%.",
-      table: "Category")
+    return CategoryGoalPresentation.percentageSumWarning(sum)
   }
 }

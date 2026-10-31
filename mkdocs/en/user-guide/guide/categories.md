@@ -25,6 +25,8 @@ Percentage targets distribute the **available allocation pool** after protected 
 
 Percentage targets must total 100% before percentage rebalancing suggestions are available. You can save them incrementally; minimum-only categories do not need a percentage. A specified 0% is different from leaving it blank: 0% targets the minimum, or zero if no minimum exists.
 
+If the targets do not total 100%, the category list shows one warning with the current total and what to change before rebalancing can be calculated.
+
 ## Category list and details
 
 ### Reading the category list

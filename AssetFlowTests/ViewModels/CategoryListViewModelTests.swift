@@ -351,7 +351,11 @@ struct CategoryListViewModelTests {
     let viewModel = CategoryListViewModel(modelContext: context)
     viewModel.loadCategories()
 
-    #expect(viewModel.targetAllocationSumWarning != nil)
+    #expect(viewModel.goalAssessment.plan == nil)
+    #expect(
+      viewModel.targetAllocationSumWarning
+        == CategoryGoalPresentation.diagnostic(
+          RebalancingPlan(status: .invalidPercentageSum(90)), currency: "USD"))
   }
 
   @Test("No warning when sum is 100%")
