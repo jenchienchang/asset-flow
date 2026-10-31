@@ -106,6 +106,7 @@ struct ColumnMappingPreviewLayoutTests {
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
       styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
     window.contentView = NSHostingView(
       rootView: PresentedMappingSheet(columnWidths: [500, 500, 500], rowCount: 1))
     window.makeKeyAndOrderFront(nil)
@@ -137,6 +138,7 @@ struct ColumnMappingPreviewLayoutTests {
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
       styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
     window.contentView = NSHostingView(
       rootView: PresentedMappingSheet(columnWidths: columnWidths, rowCount: 1))
     window.makeKeyAndOrderFront(nil)
@@ -154,6 +156,7 @@ struct ColumnMappingPreviewLayoutTests {
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
       styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
     window.contentView = NSHostingView(
       rootView: PresentedMappingSheet(columnWidths: columnWidths, rowCount: 1))
     window.makeKeyAndOrderFront(nil)
@@ -201,6 +204,7 @@ struct ColumnMappingPreviewLayoutTests {
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
       styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
     window.contentView = NSHostingView(
       rootView: PresentedMappingSheet(columnWidths: columnWidths, rowCount: rowCount))
     window.makeKeyAndOrderFront(nil)
@@ -276,6 +280,7 @@ struct ColumnMappingPreviewLayoutTests {
     let window = NSWindow(
       contentRect: NSRect(origin: .zero, size: host.fittingSize),
       styleMask: [], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
     window.contentView = host
     host.layoutSubtreeIfNeeded()
     return window

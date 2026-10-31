@@ -65,6 +65,10 @@ let tc = createSnapshotWithContext()
 let (context, snapshot) = (tc.context, tc.snapshot)
 ```
 
+## AppKit Window Lifetime
+
+When a Swift test creates an `NSWindow` with `init(contentRect:styleMask:backing:defer:)`, set `isReleasedWhenClosed = false` immediately after initialization. AppKit otherwise releases the window on `close()` while ARC also owns it, which can crash the test host. See [Apple's `NSWindow` documentation](https://developer.apple.com/documentation/appkit/nswindow/isreleasedwhenclosed).
+
 ## Running Tests
 
 Use the `/test` skill to run unit tests. See `.codex/skills/test/SKILL.md` for its required host-access and runner instructions.

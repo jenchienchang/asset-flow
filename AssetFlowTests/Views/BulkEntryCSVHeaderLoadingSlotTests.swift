@@ -81,6 +81,7 @@ struct BulkEntryCSVHeaderLoadingSlotTests {
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 800, height: 320),
       styleMask: [.titled], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
     window.contentView = host
     window.makeKeyAndOrderFront(nil)
     defer { window.close() }
