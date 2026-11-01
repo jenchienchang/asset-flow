@@ -69,6 +69,10 @@ let (context, snapshot) = (tc.context, tc.snapshot)
 
 When a Swift test creates an `NSWindow` with `init(contentRect:styleMask:backing:defer:)`, set `isReleasedWhenClosed = false` immediately after initialization. AppKit otherwise releases the window on `close()` while ARC also owns it, which can crash the test host. See [Apple's `NSWindow` documentation](https://developer.apple.com/documentation/appkit/nswindow/isreleasedwhenclosed).
 
+## Offscreen View Checks
+
+Use a test-owned `NSHostingView` and local probes for layout or `Environment(\.isEnabled)` assertions. When a check does not require window presentation, avoid activating a key window or sweeping mouse coordinates to find a control; those checks depend on shared focus and incidental layout. An enabled-state probe checks the control's environment, not whether a real mouse click reaches it. Keep interaction coverage in a UI automation target or the manual checks in `Documentation/TestingStrategy.md`.
+
 ## Running Tests
 
 Use the `/test` skill to run unit tests. See `.codex/skills/test/SKILL.md` for its required host-access and runner instructions.

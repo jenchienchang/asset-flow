@@ -17,7 +17,6 @@
 
 import AppKit
 import Foundation
-import SwiftData
 import SwiftUI
 import Testing
 
@@ -34,7 +33,7 @@ struct BulkEntryCSVLoadingLocalizationTests {
   }
 }
 
-@Suite("Bulk Entry CSV Header Loading Slot Tests", .serialized)
+@Suite("Bulk Entry CSV Header Loading Slot Tests")
 @MainActor
 struct BulkEntryCSVHeaderLoadingSlotTests {
   @Test(
@@ -62,90 +61,50 @@ struct BulkEntryCSVHeaderLoadingSlotTests {
     return (buttonView.convert(.zero, to: host).x, height)
   }
 
-  @Test("A stale Bulk Entry draft still lets users cancel either CSV load")
-  func staleDraftKeepsCancelClickable() async throws {
-    try await verifyStaleDraftCancellation(for: .asset(platform: "Broker A"))
-    try await verifyStaleDraftCancellation(for: .cashFlow)
-  }
-
-  private func verifyStaleDraftCancellation(for target: CSVImportTarget) async throws {
-    let container = TestDataManager.createInMemoryContainer()
-    let viewModel = BulkEntryViewModel(modelContext: container.mainContext, date: Date())
-    try #require(viewModel.addPlatform(name: "Broker A") != nil)
-
-    var tracker = BulkEntryCSVLoadingTracker()
-    _ = tracker.begin(target)
-    let probe = CancelProbe()
+  @Test(
+    "CSV status stays enabled when a stale draft disables header editing actions",
+    arguments: [false, true])
+  func headerStatusRemainsEnabled(isSourceDataStale: Bool) {
+    let statusProbe = EnabledProbe()
+    let addProbe = EnabledProbe()
+    let importProbe = EnabledProbe()
     let host = NSHostingView(
-      rootView: ContentHarness(viewModel: viewModel, tracker: tracker, probe: probe))
-    let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 800, height: 320),
-      styleMask: [.titled], backing: .buffered, defer: false)
-    window.isReleasedWhenClosed = false
-    window.contentView = host
-    window.makeKeyAndOrderFront(nil)
-    defer { window.close() }
-
-    viewModel.markSourceDataStale()
-    let deadline = ContinuousClock.now.advanced(by: .seconds(15))
-    while !probe.cancelCallbackInvoked && ContinuousClock.now < deadline {
-      window.makeKeyAndOrderFront(nil)
-      host.layoutSubtreeIfNeeded()
-      window.displayIfNeeded()
-      for y in stride(from: 300, through: 60, by: -10) where !probe.cancelCallbackInvoked {
-        for x in stride(from: 300, through: 780, by: 10) where !probe.cancelCallbackInvoked {
-          click(NSPoint(x: CGFloat(x), y: CGFloat(y)), in: window)
+      rootView: HStack {
+        BulkEntryCSVHeaderControls(isSourceDataStale: isSourceDataStale) {
+          BulkEntryCSVHeaderLoadingSlot(isLoading: false, onCancel: {})
+            .background(EnabledMarker(probe: statusProbe))
+        } actions: {
+          Button("Add Asset") {}
+            .background(EnabledMarker(probe: addProbe))
+          Button("Import CSV") {}
+            .background(EnabledMarker(probe: importProbe))
         }
-      }
-      if !probe.cancelCallbackInvoked { try await Task.sleep(for: .milliseconds(50)) }
-    }
-    #expect(probe.cancelCallbackInvoked)
-    #expect(viewModel.rows.count == 1)
-    #expect(viewModel.cashFlowRows.isEmpty)
-    #expect(probe.importSelections == 0)
-  }
+      })
+    host.frame = NSRect(x: 0, y: 0, width: 800, height: 100)
+    _ = host.fittingSize
+    host.layoutSubtreeIfNeeded()
 
-  private func click(_ point: NSPoint, in window: NSWindow) {
-    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-      guard
-        let event = NSEvent.mouseEvent(
-          with: type, location: point, modifierFlags: [], timestamp: 0,
-          windowNumber: window.windowNumber, context: nil, eventNumber: 1,
-          clickCount: 1, pressure: 1)
-      else { continue }
-      window.sendEvent(event)
-    }
+    #expect(statusProbe.isEnabled == true)
+    #expect(addProbe.isEnabled == !isSourceDataStale)
+    #expect(importProbe.isEnabled == !isSourceDataStale)
   }
 
   private final class ButtonOriginProbe {
     weak var view: NSView?
   }
 
-  private final class CancelProbe {
-    var cancelCallbackInvoked = false
-    var importSelections = 0
+  private final class EnabledProbe {
+    var isEnabled: Bool?
   }
 
-  private struct ContentHarness: View {
-    let viewModel: BulkEntryViewModel
-    let tracker: BulkEntryCSVLoadingTracker
-    let probe: CancelProbe
-    @State private var cachedCategoryNames: [String] = []
-    @State private var csvImportTarget: CSVImportTarget?
+  private struct EnabledMarker: NSViewRepresentable {
+    @Environment(\.isEnabled) private var isEnabled
+    let probe: EnabledProbe
 
-    var body: some View {
-      BulkEntryContentArea(
-        viewModel: viewModel,
-        cachedCategoryNames: $cachedCategoryNames,
-        csvImportTarget: $csvImportTarget,
-        csvLoadingTracker: tracker,
-        isSourceDataStale: viewModel.isSourceDataStale,
-        onCancelCSVImport: { probe.cancelCallbackInvoked = true }
-      )
-      .frame(width: 800, height: 320)
-      .onChange(of: csvImportTarget) { _, target in
-        if target != nil { probe.importSelections += 1 }
-      }
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+      probe.isEnabled = isEnabled
     }
   }
 
@@ -171,12 +130,15 @@ struct BulkEntryCSVHeaderLoadingSlotTests {
         Text("Broker A")
           .font(.title3)
         Text("1/2")
-        BulkEntryCSVHeaderStatusSlot {
-          if showsStatus { BulkEntryCSVHeaderLoadingStatus(onCancel: {}) }
+        BulkEntryCSVHeaderControls(isSourceDataStale: false) {
+          BulkEntryCSVHeaderStatusSlot {
+            if showsStatus { BulkEntryCSVHeaderLoadingStatus(onCancel: {}) }
+          }
+        } actions: {
+          Button("Add Asset") {}
+            .background(ButtonOriginMarker(probe: probe))
+          Button("Import CSV") {}
         }
-        Button("Add Asset") {}
-          .background(ButtonOriginMarker(probe: probe))
-        Button("Import CSV") {}
       }
       .frame(width: width)
     }

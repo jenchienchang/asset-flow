@@ -481,6 +481,28 @@ struct BulkEntryCSVHeaderLoadingStatus: View {
   }
 }
 
+/// Keeps CSV cancellation available when a stale draft disables editing.
+struct BulkEntryCSVHeaderControls<Status: View, Actions: View>: View {
+  let isSourceDataStale: Bool
+  let status: Status
+  let actions: Actions
+
+  init(
+    isSourceDataStale: Bool,
+    @ViewBuilder status: () -> Status,
+    @ViewBuilder actions: () -> Actions
+  ) {
+    self.isSourceDataStale = isSourceDataStale
+    self.status = status()
+    self.actions = actions()
+  }
+
+  @ViewBuilder var body: some View {
+    status
+    actions.disabled(isSourceDataStale)
+  }
+}
+
 // MARK: - Content Area
 
 /// Owns the `viewModel.rows.isEmpty` observation so that `BulkEntryView.body`
@@ -727,26 +749,26 @@ struct BulkEntryPlatformSection: View, Equatable {
         .font(.caption)
         .foregroundStyle(.secondary)
 
-      BulkEntryCSVHeaderLoadingSlot(isLoading: isCSVLoading, onCancel: onCancelCSVImport)
+      BulkEntryCSVHeaderControls(isSourceDataStale: isSourceDataStale) {
+        BulkEntryCSVHeaderLoadingSlot(isLoading: isCSVLoading, onCancel: onCancelCSVImport)
+      } actions: {
+        Button {
+          let rowID = viewModel.addManualRow(forPlatform: platform)
+          nameFieldFocusedRowID.wrappedValue = rowID
+        } label: {
+          Label("Add Asset", systemImage: "plus")
+            .font(.callout)
+        }
+        .helpWhenUnlocked("Add a new asset to this platform")
 
-      Button {
-        let rowID = viewModel.addManualRow(forPlatform: platform)
-        nameFieldFocusedRowID.wrappedValue = rowID
-      } label: {
-        Label("Add Asset", systemImage: "plus")
-          .font(.callout)
+        Button {
+          csvImportTarget.wrappedValue = .asset(platform: platform)
+        } label: {
+          Label("Import CSV", systemImage: "doc.text")
+            .font(.callout)
+        }
+        .helpWhenUnlocked("Import a CSV file to fill values for this platform")
       }
-      .disabled(isSourceDataStale)
-      .helpWhenUnlocked("Add a new asset to this platform")
-
-      Button {
-        csvImportTarget.wrappedValue = .asset(platform: platform)
-      } label: {
-        Label("Import CSV", systemImage: "doc.text")
-          .font(.callout)
-      }
-      .disabled(isSourceDataStale)
-      .helpWhenUnlocked("Import a CSV file to fill values for this platform")
     }
     .padding(.vertical, 8)
     .padding(.horizontal, 4)
@@ -820,25 +842,25 @@ struct BulkEntryCashFlowSection: View {
           .background(.quaternary, in: Capsule())
       }
 
-      BulkEntryCSVHeaderLoadingSlot(isLoading: isCSVLoading, onCancel: onCancelCSVImport)
+      BulkEntryCSVHeaderControls(isSourceDataStale: isSourceDataStale) {
+        BulkEntryCSVHeaderLoadingSlot(isLoading: isCSVLoading, onCancel: onCancelCSVImport)
+      } actions: {
+        Button {
+          viewModel.addManualCashFlowRow()
+        } label: {
+          Label("Add Cash Flow", systemImage: "plus")
+            .font(.callout)
+        }
+        .helpWhenUnlocked("Add a new cash flow operation")
 
-      Button {
-        viewModel.addManualCashFlowRow()
-      } label: {
-        Label("Add Cash Flow", systemImage: "plus")
-          .font(.callout)
+        Button {
+          csvImportTarget = .cashFlow
+        } label: {
+          Label("Import CSV", systemImage: "doc.text")
+            .font(.callout)
+        }
+        .helpWhenUnlocked("Import cash flows from a CSV file")
       }
-      .disabled(isSourceDataStale)
-      .helpWhenUnlocked("Add a new cash flow operation")
-
-      Button {
-        csvImportTarget = .cashFlow
-      } label: {
-        Label("Import CSV", systemImage: "doc.text")
-          .font(.callout)
-      }
-      .disabled(isSourceDataStale)
-      .helpWhenUnlocked("Import cash flows from a CSV file")
     }
     .padding(.vertical, 8)
     .padding(.horizontal, 4)
