@@ -80,9 +80,9 @@ enum SnapshotTimeBucket: Int, CaseIterable, Hashable {
   var localizedName: String {
     switch self {
     case .thisMonth: return String(localized: "This Month", table: "Snapshot")
-    case .past3Months: return String(localized: "Previous 3 Months", table: "Snapshot")
-    case .past6Months: return String(localized: "Previous 6 Months", table: "Snapshot")
-    case .pastYear: return String(localized: "Previous Year", table: "Snapshot")
+    case .past3Months: return String(localized: "Past 3 Months", table: "Snapshot")
+    case .past6Months: return String(localized: "Past 6 Months", table: "Snapshot")
+    case .pastYear: return String(localized: "Past Year", table: "Snapshot")
     case .older: return String(localized: "Older", table: "Snapshot")
     }
   }

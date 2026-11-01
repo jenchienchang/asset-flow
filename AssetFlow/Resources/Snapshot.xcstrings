@@ -267,6 +267,36 @@
         }
       }
     },
+    "Past 3 Months": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "三個月內"
+          }
+        }
+      }
+    },
+    "Past 6 Months": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "六個月內"
+          }
+        }
+      }
+    },
+    "Past Year": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一年內"
+          }
+        }
+      }
+    },
     "Platform name cannot be empty.": {
       "localizations": {
         "en": {
@@ -279,36 +309,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "平台名稱不能為空。"
-          }
-        }
-      }
-    },
-    "Previous 3 Months": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "前 3 個月"
-          }
-        }
-      }
-    },
-    "Previous 6 Months": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "前 6 個月"
-          }
-        }
-      }
-    },
-    "Previous Year": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "前一年"
           }
         }
       }

@@ -4,7 +4,7 @@ Snapshots are the core concept in AssetFlow. Each snapshot captures your entire 
 
 ## Snapshot List
 
-The left side of the Snapshots view shows all your snapshots, grouped by time period: **This Month**, **Previous 3 Months**, **Previous 6 Months**, **Previous Year**, and **Older**.
+The left side of the Snapshots view shows all your snapshots, grouped by time period: **This Month**, **Past 3 Months**, **Past 6 Months**, **Past Year**, and **Older**.
 
 Each row displays:
 
