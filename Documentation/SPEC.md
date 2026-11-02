@@ -260,8 +260,9 @@ Accessible via menu bar (AssetFlow > Settings) or keyboard shortcut (Cmd+,).
    - **Authentication method:** Uses the macOS system dialog with `LAPolicy.deviceOwnerAuthentication`. Touch ID, a paired Apple Watch, or the system password may be available according to device and system state; the app does not choose a fixed sequence. [Apple describes the policy's macOS behavior](https://developer.apple.com/documentation/localauthentication/lapolicy/deviceownerauthentication).
    - **Lock on App Switch timeout** — configurable delay before the app re-locks after switching to another app. Options: Immediately, After 1 Minute, After 5 Minutes, After 15 Minutes, Never.
    - **Lock on Screen Lock/Sleep timeout** — configurable delay before the app re-locks after the screen locks or the Mac goes to sleep. Same options as above.
+   - If both triggers occur before the app becomes active again, the first applicable timeout to expire locks it. Never for one trigger does not cancel the other's deadline.
    - **Auto-disable:** Setting both timeouts to "Never" turns the Enable App Lock setting off and unlocks the app. Re-enabling app lock after that resets both timeouts to "Immediately" and requires successful authentication.
-   - The lock screen offers an Unlock button. After an applicable timeout, returning to the foreground can trigger system authentication.
+   - The lock screen covers portfolio content when the applicable timeout expires, even if the app is still inactive. It offers an Unlock button; returning to the foreground can trigger system authentication.
    - Portfolio tooltips and hover interactions must stay hidden while the app is locked; see [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) for disclosure limits.
 
 ______________________________________________________________________

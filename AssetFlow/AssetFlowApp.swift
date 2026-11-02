@@ -16,11 +16,112 @@
 //
 
 import AppKit
+import Combine
 import SwiftData
 import SwiftUI
+import Synchronization
+
+typealias ScreenEventDispatcher = @Sendable (@escaping @MainActor () -> Void) -> Void
+
+private final class ScreenEventInbox: Sendable {
+  private let pendingTimes = Mutex<[Date]>([])
+
+  func record(at now: @Sendable () -> Date) {
+    pendingTimes.withLock { $0.append(now()) }
+  }
+
+  func drain() -> [Date] {
+    pendingTimes.withLock { times in
+      let events = times
+      times.removeAll()
+      return events
+    }
+  }
+
+  func clear() {
+    pendingTimes.withLock { $0.removeAll() }
+  }
+}
+
+@MainActor
+final class AppLockLifecycleDelegate: NSObject, NSApplicationDelegate {
+  let authService: AuthenticationService
+  private let workspaceNotificationCenter: NotificationCenter
+  private let screenLockNotificationCenter: NotificationCenter
+  private let eventTime: @Sendable () -> Date
+  private let dispatchScreenEvent: ScreenEventDispatcher
+  private let screenEventInbox = ScreenEventInbox()
+  private var screenSubscriptions: [AnyCancellable] = []
+
+  override convenience init() {
+    self.init(authService: .shared)
+  }
+
+  init(
+    authService: AuthenticationService,
+    workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
+    screenLockNotificationCenter: NotificationCenter = DistributedNotificationCenter.default(),
+    eventTime: @escaping @Sendable () -> Date = { Date() },
+    dispatchScreenEvent: @escaping ScreenEventDispatcher = { action in
+      Task { @MainActor in action() }
+    }
+  ) {
+    self.authService = authService
+    self.workspaceNotificationCenter = workspaceNotificationCenter
+    self.screenLockNotificationCenter = screenLockNotificationCenter
+    self.eventTime = eventTime
+    self.dispatchScreenEvent = dispatchScreenEvent
+    super.init()
+  }
+
+  func applicationDidFinishLaunching(_: Notification) {
+    authService.onSuccessfulAuthentication = { [weak self] in
+      self?.screenEventInbox.clear()
+    }
+    authService.lockOnLaunchIfNeeded()
+    let eventTime = eventTime
+    let dispatchScreenEvent = dispatchScreenEvent
+    let screenEventInbox = screenEventInbox
+    screenSubscriptions = [
+      workspaceNotificationCenter.publisher(for: NSWorkspace.screensDidSleepNotification)
+        .sink { [weak self] _ in
+          screenEventInbox.record(at: eventTime)
+          dispatchScreenEvent { [weak self] in self?.processPendingScreenEvents() }
+        },
+      screenLockNotificationCenter.publisher(for: Notification.Name("com.apple.screenIsLocked"))
+        .sink { [weak self] _ in
+          screenEventInbox.record(at: eventTime)
+          dispatchScreenEvent { [weak self] in self?.processPendingScreenEvents() }
+        },
+    ]
+  }
+
+  func applicationDidResignActive(_: Notification) {
+    authService.isAppActive = false
+    authService.recordBackground(trigger: .appSwitch)
+  }
+
+  func applicationDidBecomeActive(_: Notification) {
+    processPendingScreenEvents()
+    authService.isAppActive = true
+    authService.evaluateOnBecomeActive()
+  }
+
+  func screenDidLockOrSleep(at eventDate: Date = Date()) {
+    authService.recordBackground(trigger: .screenSleep, at: eventDate)
+  }
+
+  private func processPendingScreenEvents() {
+    for eventDate in screenEventInbox.drain() {
+      screenDidLockOrSleep(at: eventDate)
+    }
+  }
+}
 
 @main
 struct AssetFlowApp: App {
+  @NSApplicationDelegateAdaptor(AppLockLifecycleDelegate.self) private var appLockLifecycle
+
   let sharedModelContainer: ModelContainer
 
   init() {
@@ -220,35 +321,6 @@ struct AssetFlowApp: App {
         }
       }
       .environment(\.isAppLocked, authService.isLocked)
-      .onAppear {
-        authService.lockOnLaunchIfNeeded()
-      }
-      // ── App Activation Lifecycle ──
-      .onReceive(
-        NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)
-      ) { _ in
-        authService.isAppActive = false
-        authService.recordBackground(trigger: .appSwitch)
-      }
-      .onReceive(
-        NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
-      ) { _ in
-        authService.isAppActive = true
-        authService.evaluateOnBecomeActive()
-      }
-      // ── Screen Lock / Sleep ──
-      .onReceive(
-        NSWorkspace.shared.notificationCenter.publisher(
-          for: NSWorkspace.screensDidSleepNotification)
-      ) { _ in
-        authService.recordBackground(trigger: .screenSleep)
-      }
-      .onReceive(
-        DistributedNotificationCenter.default().publisher(
-          for: Notification.Name("com.apple.screenIsLocked"))
-      ) { _ in
-        authService.recordBackground(trigger: .screenSleep)
-      }
     }
     .modelContainer(sharedModelContainer)
     .windowStyle(.hiddenTitleBar)

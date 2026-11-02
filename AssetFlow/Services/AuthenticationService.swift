@@ -67,6 +67,35 @@ enum LockTrigger {
   case screenSleep
 }
 
+typealias LockScheduler =
+  @MainActor (
+    Date, @escaping @MainActor () -> Void
+  ) -> @MainActor () -> Void
+
+typealias LockSleeper = @MainActor (TimeInterval) async throws -> Void
+
+@MainActor
+func scheduleLockAtDeadline(
+  _ deadline: Date,
+  now: @escaping @MainActor () -> Date = { Date() },
+  sleep: @escaping LockSleeper = { delay in try await Task.sleep(for: .seconds(delay)) },
+  action: @escaping @MainActor () -> Void
+) -> @MainActor () -> Void {
+  let task = Task { @MainActor in
+    let remaining = deadline.timeIntervalSince(now())
+    if remaining > 0 {
+      do {
+        try await sleep(remaining)
+      } catch {
+        return
+      }
+    }
+    guard !Task.isCancelled else { return }
+    action()
+  }
+  return { task.cancel() }
+}
+
 /// Service for managing app-level authentication using LocalAuthentication.
 ///
 /// Requests `LAPolicy.deviceOwnerAuthentication`. macOS chooses among the
@@ -91,10 +120,25 @@ class AuthenticationService {
   /// Factory that creates a fresh `LAContext` per authentication attempt.
   private let laContextFactory: () -> LAContext
 
+  /// Schedules a deadline and returns a cancellation action.
+  private let lockScheduler: LockScheduler
+
+  /// Identifies the current deadline so an obsolete callback cannot lock a new session.
+  private var pendingLockID: UUID?
+  private var cancelPendingLock: (@MainActor () -> Void)?
+
+  /// Lets the app clear lifecycle notifications queued before a successful unlock.
+  @ObservationIgnored var onSuccessfulAuthentication: (@MainActor () -> Void)?
+
   /// Whether app lock is enabled by the user.
   var isAppLockEnabled: Bool {
     didSet {
       userDefaults.set(isAppLockEnabled, forKey: Constants.UserDefaultsKeys.appLockEnabled)
+      if !isAppLockEnabled {
+        cancelScheduledLock()
+        backgroundDate = nil
+        backgroundTrigger = nil
+      }
     }
   }
 
@@ -119,15 +163,14 @@ class AuthenticationService {
 
   /// Whether the app is currently the active (frontmost) application.
   /// Maintained by the app's notification handlers.
-  /// Initialized to `true` because the app starts active — `.onAppear` fires
-  /// before `didBecomeActiveNotification`, so `isAppActive` must already be
-  /// `true` for lock-on-launch auth to work without timing hacks.
+  /// Initialized to `true` so launch-time authentication can start before
+  /// the first `didBecomeActiveNotification` is delivered.
   var isAppActive: Bool = true
 
-  /// The date when the app entered the background. Managed by recordBackground/evaluateOnBecomeActive.
+  /// The event date that currently determines the earliest lock deadline.
   private(set) var backgroundDate: Date?
 
-  /// Which trigger caused the background event.
+  /// The trigger that currently determines the earliest lock deadline.
   private(set) var backgroundTrigger: LockTrigger?
 
   /// Whether an authentication dialog is currently being presented.
@@ -144,10 +187,14 @@ class AuthenticationService {
 
   private init(
     userDefaults: UserDefaults = .standard,
-    laContextFactory: @escaping () -> LAContext = { LAContext() }
+    laContextFactory: @escaping () -> LAContext = { LAContext() },
+    lockScheduler: @escaping LockScheduler = { deadline, action in
+      scheduleLockAtDeadline(deadline, action: action)
+    }
   ) {
     self.userDefaults = userDefaults
     self.laContextFactory = laContextFactory
+    self.lockScheduler = lockScheduler
 
     self.isAppLockEnabled =
       userDefaults.object(forKey: Constants.UserDefaultsKeys.appLockEnabled) as? Bool
@@ -175,7 +222,8 @@ class AuthenticationService {
   /// Each call creates a new instance with its own temporary UserDefaults suite,
   /// ensuring complete test isolation with no shared state between tests.
   static func createForTesting(
-    laContextFactory: @escaping () -> LAContext = { LAContext() }
+    laContextFactory: @escaping () -> LAContext = { LAContext() },
+    lockScheduler: @escaping LockScheduler = { _, _ in {} }
   ) -> AuthenticationService {
     let suiteName = "com.assetflow.testing.\(UUID().uuidString)"
     guard let testDefaults = UserDefaults(suiteName: suiteName) else {
@@ -183,7 +231,8 @@ class AuthenticationService {
     }
     return AuthenticationService(
       userDefaults: testDefaults,
-      laContextFactory: laContextFactory
+      laContextFactory: laContextFactory,
+      lockScheduler: lockScheduler
     )
   }
 
@@ -216,6 +265,10 @@ class AuthenticationService {
         localizedReason: reason
       )
       if success {
+        cancelScheduledLock()
+        backgroundDate = nil
+        backgroundTrigger = nil
+        onSuccessfulAuthentication?()
         withAnimation(.easeOut(duration: 0.2)) {
           isLocked = false
         }
@@ -233,29 +286,62 @@ class AuthenticationService {
 
   /// Records a background event. Called by notification handlers.
   ///
-  /// - `screenSleep` always overrides a pending `appSwitch` (higher priority).
+  /// - The earliest applicable lock deadline wins across both triggers.
+  /// - A `never` timeout does not change an existing deadline.
   /// - Ignored while `isAuthenticating` (prevents re-lock loops).
-  /// - Eagerly locks if the relevant timeout is `.immediately`.
-  func recordBackground(trigger: LockTrigger) {
+  /// - Eagerly locks if the relevant timeout has already elapsed.
+  func recordBackground(trigger: LockTrigger, at date: Date = Date()) {
     guard isAppLockEnabled, !isAuthenticating else { return }
-
     authWasCancelled = false
 
-    if backgroundDate == nil || trigger == .screenSleep {
-      backgroundDate = Date()
-      backgroundTrigger = trigger
+    let timeout = trigger == .appSwitch ? appSwitchTimeout : screenLockTimeout
+    if let previousDate = backgroundDate, let previousTrigger = backgroundTrigger {
+      let previousTimeout =
+        previousTrigger == .appSwitch ? appSwitchTimeout : screenLockTimeout
+      if previousTimeout != .never {
+        let previousDeadline = previousDate.addingTimeInterval(previousTimeout.seconds)
+        if timeout == .never || previousDeadline <= date.addingTimeInterval(timeout.seconds) {
+          if Date() >= previousDeadline { isLocked = true }
+          return
+        }
+      }
     }
 
-    let timeout = trigger == .appSwitch ? appSwitchTimeout : screenLockTimeout
+    guard timeout != .never else { return }
+    backgroundDate = date
+    backgroundTrigger = trigger
+    cancelScheduledLock()
+
     if timeout == .immediately {
       isLocked = true
+    } else {
+      let deadline = date.addingTimeInterval(timeout.seconds)
+      if Date() >= deadline {
+        isLocked = true
+      } else {
+        let id = UUID()
+        pendingLockID = id
+        cancelPendingLock = lockScheduler(deadline) { [weak self] in
+          guard let self, self.pendingLockID == id, self.isAppLockEnabled else { return }
+          self.pendingLockID = nil
+          self.cancelPendingLock = nil
+          self.isLocked = true
+        }
+      }
     }
+  }
+
+  private func cancelScheduledLock() {
+    cancelPendingLock?()
+    cancelPendingLock = nil
+    pendingLockID = nil
   }
 
   /// Evaluates the pending background event on return to foreground.
   /// Clears background state regardless of outcome.
   func evaluateOnBecomeActive() {
     defer {
+      cancelScheduledLock()
       backgroundDate = nil
       backgroundTrigger = nil
     }

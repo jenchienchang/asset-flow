@@ -25,6 +25,25 @@ import Testing
 @MainActor
 struct AuthenticationServiceTests {
 
+  @MainActor private final class MockLockScheduler {
+    var deadlines: [Date] = []
+    var actions: [@MainActor () -> Void] = []
+    var cancelled: Set<Int> = []
+
+    func schedule(
+      at deadline: Date, action: @escaping @MainActor () -> Void
+    ) -> @MainActor () -> Void {
+      let index = actions.count
+      deadlines.append(deadline)
+      actions.append(action)
+      return { self.cancelled.insert(index) }
+    }
+
+    func fire(_ index: Int) {
+      actions[index]()
+    }
+  }
+
   // MARK: - Mock LAContext
 
   /// Mock LAContext subclass for testing without real biometric hardware.
@@ -62,6 +81,18 @@ struct AuthenticationServiceTests {
       laContextFactory: { mock }
     )
     return (service, mock)
+  }
+
+  private func createServiceWithScheduler() -> (
+    service: AuthenticationService, scheduler: MockLockScheduler
+  ) {
+    let scheduler = MockLockScheduler()
+    let service = AuthenticationService.createForTesting(
+      lockScheduler: { deadline, action in
+        scheduler.schedule(at: deadline, action: action)
+      }
+    )
+    return (service, scheduler)
   }
 
   // MARK: - Default Values
@@ -224,8 +255,272 @@ struct AuthenticationServiceTests {
     #expect(service.backgroundTrigger == .appSwitch)
   }
 
-  @Test("recordBackground screenSleep overrides pending appSwitch")
-  func testRecordBackgroundScreenSleepOverridesAppSwitch() {
+  @Test("Delayed app-switch timeout locks while the app remains inactive")
+  func testDelayedAppSwitchLocksInBackground() {
+    let (service, scheduler) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .oneMinute
+    service.isAppActive = false
+
+    service.recordBackground(trigger: .appSwitch)
+
+    #expect(service.isLocked == false)
+    #expect(scheduler.deadlines == [service.backgroundDate!.addingTimeInterval(60)])
+    guard scheduler.actions.count == 1 else { return }
+    scheduler.fire(0)
+    #expect(service.isLocked == true)
+  }
+
+  @Test("Returning before the deadline prevents a delayed lock")
+  func testReturnBeforeDeadlineCancelsLock() {
+    let (service, scheduler) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .oneMinute
+    service.isAppActive = false
+
+    service.recordBackground(trigger: .appSwitch)
+    service.isAppActive = true
+    service.evaluateOnBecomeActive()
+
+    #expect(scheduler.deadlines.count == 1)
+    #expect(scheduler.cancelled.contains(0))
+    guard scheduler.actions.count == 1 else { return }
+    scheduler.fire(0)
+    #expect(service.isLocked == false)
+  }
+
+  @Test("Disabling app lock cancels a pending deadline")
+  func testDisablingAppLockCancelsDeadline() {
+    let (service, scheduler) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .oneMinute
+
+    service.recordBackground(trigger: .appSwitch)
+    service.isAppLockEnabled = false
+
+    #expect(scheduler.cancelled.contains(0))
+    #expect(service.backgroundDate == nil)
+    scheduler.fire(0)
+    #expect(service.isLocked == false)
+  }
+
+  @Test("Repeated app-switch events retain the original deadline")
+  func testRepeatedAppSwitchRetainsDeadline() {
+    let (service, scheduler) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .oneMinute
+
+    service.recordBackground(trigger: .appSwitch)
+    service.recordBackground(trigger: .appSwitch)
+
+    #expect(scheduler.deadlines.count == 1)
+    #expect(scheduler.cancelled.isEmpty)
+  }
+
+  @Test("A longer screen timeout preserves the earlier app-switch deadline")
+  func testLongerScreenTimeoutPreservesAppSwitchDeadline() {
+    let (service, scheduler) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .oneMinute
+    service.screenLockTimeout = .fiveMinutes
+    service.isAppActive = false
+
+    service.recordBackground(trigger: .appSwitch)
+    let appSwitchDate = service.backgroundDate!
+    service.recordBackground(trigger: .screenSleep)
+
+    #expect(scheduler.deadlines == [appSwitchDate.addingTimeInterval(60)])
+    #expect(scheduler.cancelled.isEmpty)
+    #expect(service.backgroundTrigger == .appSwitch)
+    guard scheduler.actions.count == 1 else { return }
+    scheduler.fire(0)
+    #expect(service.isLocked == true)
+  }
+
+  @Test("A Never screen timeout preserves the app-switch deadline")
+  func testNeverScreenTimeoutPreservesAppSwitchDeadline() {
+    let (service, scheduler) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .oneMinute
+    service.screenLockTimeout = .never
+
+    service.recordBackground(trigger: .appSwitch)
+    let appSwitchDate = service.backgroundDate!
+    service.recordBackground(trigger: .screenSleep)
+
+    #expect(scheduler.deadlines == [appSwitchDate.addingTimeInterval(60)])
+    #expect(scheduler.cancelled.isEmpty)
+    #expect(service.backgroundTrigger == .appSwitch)
+    guard scheduler.actions.count == 1 else { return }
+    scheduler.fire(0)
+    #expect(service.isLocked)
+  }
+
+  @Test("A shorter screen timeout advances the lock deadline")
+  func testShorterScreenTimeoutAdvancesDeadline() {
+    let (service, scheduler) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .fiveMinutes
+    service.screenLockTimeout = .oneMinute
+
+    service.recordBackground(trigger: .appSwitch)
+    service.recordBackground(trigger: .screenSleep)
+
+    #expect(scheduler.deadlines.count == 2)
+    #expect(scheduler.cancelled.contains(0))
+    #expect(service.backgroundTrigger == .screenSleep)
+    guard scheduler.actions.count == 2 else { return }
+    scheduler.fire(0)
+    #expect(service.isLocked == false)
+    scheduler.fire(1)
+    #expect(service.isLocked)
+  }
+
+  @Test("A shorter app-switch timeout advances a screen deadline")
+  func testShorterAppSwitchTimeoutAdvancesDeadline() {
+    let (service, scheduler) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.screenLockTimeout = .fiveMinutes
+    service.appSwitchTimeout = .oneMinute
+
+    service.recordBackground(trigger: .screenSleep)
+    service.recordBackground(trigger: .appSwitch)
+
+    #expect(scheduler.deadlines.count == 2)
+    #expect(scheduler.cancelled.contains(0))
+    #expect(service.backgroundTrigger == .appSwitch)
+    guard scheduler.actions.count == 2 else { return }
+    scheduler.fire(0)
+    #expect(service.isLocked == false)
+    scheduler.fire(1)
+    #expect(service.isLocked)
+  }
+
+  @Test("Never does not schedule a background lock")
+  func testNeverDoesNotScheduleLock() {
+    let (service, scheduler) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .never
+
+    service.recordBackground(trigger: .appSwitch)
+
+    #expect(scheduler.deadlines.isEmpty)
+    #expect(service.isLocked == false)
+  }
+
+  @Test("A late-starting task does not sleep past its deadline")
+  func testLateTaskStartUsesDeadline() async {
+    let start = Date(timeIntervalSince1970: 1_000)
+    let deadline = start.addingTimeInterval(60)
+    var currentTime = start
+    var sleeps: [TimeInterval] = []
+
+    await withCheckedContinuation { continuation in
+      _ = scheduleLockAtDeadline(
+        deadline,
+        now: { currentTime },
+        sleep: { delay in sleeps.append(delay) },
+        action: { continuation.resume() }
+      )
+      currentTime = deadline.addingTimeInterval(10)
+    }
+
+    #expect(sleeps.isEmpty)
+  }
+
+  @Test("An event handled after its timeout locks immediately")
+  func testLateScreenEventLocksAtOriginalDeadline() {
+    let (service, scheduler) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.screenLockTimeout = .oneMinute
+    let eventTime = Date().addingTimeInterval(-120)
+
+    service.recordBackground(trigger: .screenSleep, at: eventTime)
+
+    #expect(service.backgroundDate == eventTime)
+    #expect(service.isLocked)
+    #expect(scheduler.deadlines.isEmpty)
+  }
+
+  @Test("A new app switch at the unlock clock value still locks")
+  func testAppSwitchAtUnlockClockValueLocks() {
+    let (service, _) = createService()
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .immediately
+    let clockValue = Date(timeIntervalSince1970: 1_000)
+    service.lastUnlockDate = clockValue
+
+    service.recordBackground(trigger: .appSwitch, at: clockValue)
+
+    #expect(service.isLocked)
+  }
+
+  @Test("A new app switch after a clock rollback still locks")
+  func testAppSwitchAfterClockRollbackLocks() {
+    let (service, _) = createService()
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .immediately
+    service.lastUnlockDate = Date(timeIntervalSince1970: 2_000)
+
+    service.recordBackground(trigger: .appSwitch, at: Date(timeIntervalSince1970: 1_000))
+
+    #expect(service.isLocked)
+  }
+
+  @Test("Successful authentication ends the previous lock deadline")
+  func testSuccessfulAuthenticationCancelsPendingDeadline() async {
+    let scheduler = MockLockScheduler()
+    let mock = MockLAContext()
+    let service = AuthenticationService.createForTesting(
+      laContextFactory: { mock },
+      lockScheduler: { deadline, action in scheduler.schedule(at: deadline, action: action) }
+    )
+    service.isAppLockEnabled = true
+    service.screenLockTimeout = .oneMinute
+    service.recordBackground(trigger: .screenSleep)
+    #expect(scheduler.deadlines.count == 1)
+
+    let succeeded = await service.authenticate()
+    scheduler.fire(0)
+
+    #expect(succeeded)
+    #expect(scheduler.cancelled.contains(0))
+    #expect(service.backgroundDate == nil)
+    #expect(service.isLocked == false)
+  }
+
+  @Test("A delayed event schedules only the remaining time from receipt")
+  func testDelayedScreenEventKeepsOriginalDeadline() {
+    let (service, scheduler) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.screenLockTimeout = .oneMinute
+    let eventTime = Date().addingTimeInterval(-30)
+
+    service.recordBackground(trigger: .screenSleep, at: eventTime)
+
+    #expect(service.isLocked == false)
+    #expect(scheduler.deadlines == [eventTime.addingTimeInterval(60)])
+  }
+
+  @Test("A task starting before its deadline sleeps for the remaining interval")
+  func testTimelyTaskStartUsesRemainingInterval() async {
+    let now = Date(timeIntervalSince1970: 1_000)
+    var sleeps: [TimeInterval] = []
+
+    await withCheckedContinuation { continuation in
+      _ = scheduleLockAtDeadline(
+        now.addingTimeInterval(60),
+        now: { now },
+        sleep: { delay in sleeps.append(delay) },
+        action: { continuation.resume() }
+      )
+    }
+
+    #expect(sleeps == [60])
+  }
+
+  @Test("Immediate screen lock advances a pending app-switch deadline")
+  func testImmediateScreenLockAdvancesAppSwitch() {
     let (service, _) = createService()
     service.isAppLockEnabled = true
     service.appSwitchTimeout = .fiveMinutes
@@ -237,7 +532,7 @@ struct AuthenticationServiceTests {
     #expect(service.backgroundTrigger == .appSwitch)
     #expect(service.isLocked == false)
 
-    // Second: screenSleep overrides with new timestamp and trigger
+    // The immediate screen event moves the deadline earlier.
     service.recordBackground(trigger: .screenSleep)
     #expect(service.backgroundTrigger == .screenSleep)
     #expect(service.backgroundDate != nil)
