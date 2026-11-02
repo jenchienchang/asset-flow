@@ -19,29 +19,8 @@ import AppKit
 import Combine
 import SwiftData
 import SwiftUI
-import Synchronization
 
 typealias ScreenEventDispatcher = @Sendable (@escaping @MainActor () -> Void) -> Void
-
-private final class ScreenEventInbox: Sendable {
-  private let pendingTimes = Mutex<[Date]>([])
-
-  func record(at now: @Sendable () -> Date) {
-    pendingTimes.withLock { $0.append(now()) }
-  }
-
-  func drain() -> [Date] {
-    pendingTimes.withLock { times in
-      let events = times
-      times.removeAll()
-      return events
-    }
-  }
-
-  func clear() {
-    pendingTimes.withLock { $0.removeAll() }
-  }
-}
 
 @MainActor
 final class AppLockLifecycleDelegate: NSObject, NSApplicationDelegate {
@@ -50,7 +29,7 @@ final class AppLockLifecycleDelegate: NSObject, NSApplicationDelegate {
   private let screenLockNotificationCenter: NotificationCenter
   private let eventTime: @Sendable () -> Date
   private let dispatchScreenEvent: ScreenEventDispatcher
-  private let screenEventInbox = ScreenEventInbox()
+  private let screenEventInbox: LockEventInbox
   private var screenSubscriptions: [AnyCancellable] = []
 
   override convenience init() {
@@ -61,7 +40,7 @@ final class AppLockLifecycleDelegate: NSObject, NSApplicationDelegate {
     authService: AuthenticationService,
     workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
     screenLockNotificationCenter: NotificationCenter = DistributedNotificationCenter.default(),
-    eventTime: @escaping @Sendable () -> Date = { Date() },
+    eventTime: (@Sendable () -> Date)? = nil,
     dispatchScreenEvent: @escaping ScreenEventDispatcher = { action in
       Task { @MainActor in action() }
     }
@@ -69,15 +48,13 @@ final class AppLockLifecycleDelegate: NSObject, NSApplicationDelegate {
     self.authService = authService
     self.workspaceNotificationCenter = workspaceNotificationCenter
     self.screenLockNotificationCenter = screenLockNotificationCenter
-    self.eventTime = eventTime
+    self.eventTime = eventTime ?? authService.clock.now
+    self.screenEventInbox = authService.eventInbox
     self.dispatchScreenEvent = dispatchScreenEvent
     super.init()
   }
 
   func applicationDidFinishLaunching(_: Notification) {
-    authService.onSuccessfulAuthentication = { [weak self] in
-      self?.screenEventInbox.clear()
-    }
     authService.lockOnLaunchIfNeeded()
     let eventTime = eventTime
     let dispatchScreenEvent = dispatchScreenEvent
@@ -102,19 +79,16 @@ final class AppLockLifecycleDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationDidBecomeActive(_: Notification) {
-    processPendingScreenEvents()
     authService.isAppActive = true
     authService.evaluateOnBecomeActive()
   }
 
-  func screenDidLockOrSleep(at eventDate: Date = Date()) {
+  func screenDidLockOrSleep(at eventDate: Date? = nil) {
     authService.recordBackground(trigger: .screenSleep, at: eventDate)
   }
 
   private func processPendingScreenEvents() {
-    for eventDate in screenEventInbox.drain() {
-      screenDidLockOrSleep(at: eventDate)
-    }
+    authService.processPendingScreenEvents()
   }
 }
 

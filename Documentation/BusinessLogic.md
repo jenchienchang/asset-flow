@@ -237,3 +237,7 @@ Bulk Entry CSV import changes **draft** rows rather than a saved snapshot. For a
 ## Calculation and validation outcomes
 
 Domain results distinguish **zero** (a valid numeric value or pending placeholder), **absent** (no row or goal), **invalid** (bad input or arithmetic), **unavailable** (missing required conversion or inputs), and **stale** (asset absent from the latest snapshot). An unavailable result must not be replaced with a mixed native-currency total or a compliant-looking goal state. Imported and edited data remain the source of truth; totals, shares, returns, and plans are recomputed from it. User-facing messages and controls belong in [`UserInterfaceDesign.md`](UserInterfaceDesign.md), while app-lock behavior belongs in [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md#app-lock-optional) and [`Architecture.md`](Architecture.md).
+
+### App-lock references
+
+See [App Lock](SecurityAndPrivacy.md#app-lock-optional) for behavior and protection limits, and the [app-lock transition table](Architecture.md#app-lock-transition-table) for timeout and lifecycle rules.

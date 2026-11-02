@@ -56,6 +56,48 @@ struct AppLockLifecycleTests {
     }
   }
 
+  @Test("Queued notification snapshots the timeout before settings change")
+  func queuedNotificationKeepsTimeoutSnapshot() {
+    let center = NotificationCenter()
+    let deferred = DeferredScreenEvents()
+    let service = AuthenticationService.createForTesting()
+    service.isAppLockEnabled = true
+    service.screenLockTimeout = .immediately
+    let delegate = AppLockLifecycleDelegate(
+      authService: service,
+      workspaceNotificationCenter: center,
+      dispatchScreenEvent: { deferred.enqueue($0) })
+    delegate.applicationDidFinishLaunching(
+      Notification(name: NSApplication.didFinishLaunchingNotification))
+    service.isLocked = false
+    center.post(name: NSWorkspace.screensDidSleepNotification, object: nil)
+    service.screenLockTimeout = .never
+    deferred.runAll()
+    #expect(service.isLocked)
+  }
+
+  @Test("Disable and re-enable discard already received screen notifications")
+  func disableEndsQueuedCycle() {
+    let center = NotificationCenter()
+    let deferred = DeferredScreenEvents()
+    let service = AuthenticationService.createForTesting()
+    service.isAppLockEnabled = true
+    let delegate = AppLockLifecycleDelegate(
+      authService: service,
+      workspaceNotificationCenter: center,
+      dispatchScreenEvent: { deferred.enqueue($0) })
+    delegate.applicationDidFinishLaunching(
+      Notification(name: NSApplication.didFinishLaunchingNotification))
+    center.post(name: NSWorkspace.screensDidSleepNotification, object: nil)
+    service.isAppLockEnabled = false
+    service.isAppLockEnabled = true
+    deferred.runAll()
+    #expect(!service.isLocked)
+    center.post(name: NSWorkspace.screensDidSleepNotification, object: nil)
+    deferred.runAll()
+    #expect(service.isLocked)
+  }
+
   @Test("Launch locks the app before any main window appears")
   func launchWithoutMainWindow() {
     let service = AuthenticationService.createForTesting()
@@ -321,7 +363,7 @@ struct AppLockLifecycleTests {
 
     delegate.applicationDidResignActive(
       Notification(name: NSApplication.didResignActiveNotification))
-    service.setBackgroundDateForTesting(Date().addingTimeInterval(-120))
+    service.recordBackground(trigger: .appSwitch, at: Date().addingTimeInterval(-120))
     workspaceCenter.post(name: NSWorkspace.screensDidSleepNotification, object: nil)
     delegate.applicationDidBecomeActive(
       Notification(name: NSApplication.didBecomeActiveNotification))
@@ -395,7 +437,7 @@ struct AppLockLifecycleTests {
     service.appSwitchTimeout = .oneMinute
     service.isAppActive = false
     service.recordBackground(trigger: .appSwitch)
-    service.setBackgroundDateForTesting(Date().addingTimeInterval(-61))
+    service.recordBackground(trigger: .appSwitch, at: Date().addingTimeInterval(-61))
     let delegate = AppLockLifecycleDelegate(authService: service)
 
     delegate.applicationDidBecomeActive(

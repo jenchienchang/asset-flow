@@ -17,6 +17,7 @@
 
 import Foundation
 import LocalAuthentication
+import Synchronization
 import Testing
 
 @testable import AssetFlow
@@ -93,6 +94,98 @@ struct AuthenticationServiceTests {
       }
     )
     return (service, scheduler)
+  }
+
+  @Test("Pending timeout is captured before settings change")
+  func testPendingTimeoutSnapshot() {
+    let (service, _) = createServiceWithScheduler()
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .oneMinute
+    service.recordBackground(trigger: .appSwitch, at: Date().addingTimeInterval(-120))
+    service.isLocked = false
+    service.appSwitchTimeout = .never
+    service.evaluateOnBecomeActive()
+    #expect(service.isLocked)
+  }
+
+  @Test("Disabling unlocks an already locked service")
+  func testDisableUnlocks() {
+    let (service, _) = createService()
+    service.isAppLockEnabled = true
+    service.lockOnLaunchIfNeeded()
+    service.isAppLockEnabled = false
+    #expect(!service.isLocked)
+  }
+
+  @Test(
+    "Both trigger orders preserve the earliest captured deadline",
+    arguments: ReLockTimeout.allCases, ReLockTimeout.allCases)
+  func testDeadlineTransitionMatrix(first: ReLockTimeout, second: ReLockTimeout) {
+    for screenFirst in [false, true] {
+      for boundaryOffset in [-1.0, 0, 1] {
+        let origin = Date(timeIntervalSince1970: 10_000)
+        let time = Mutex(origin)
+        let scheduler = MockLockScheduler()
+        let service = AuthenticationService.createForTesting(
+          lockScheduler: { scheduler.schedule(at: $0, action: $1) },
+          clock: LockClock(now: { time.withLock { $0 } }))
+        service.isAppLockEnabled = true
+        service.appSwitchTimeout = screenFirst ? second : first
+        service.screenLockTimeout = screenFirst ? first : second
+        let trigger: LockTrigger = screenFirst ? .screenSleep : .appSwitch
+        let other: LockTrigger = screenFirst ? .appSwitch : .screenSleep
+        service.recordBackground(trigger: trigger)
+        service.recordBackground(trigger: other)
+        service.recordBackground(trigger: trigger)  // Duplicate cannot postpone.
+        let seconds = min(first.seconds, second.seconds)
+        if seconds.isFinite {
+          // Mutating preferences must not alter the captured deadline.
+          service.appSwitchTimeout = .fifteenMinutes
+          service.screenLockTimeout = .fifteenMinutes
+          time.withLock { $0 = origin.addingTimeInterval(max(0, seconds + boundaryOffset)) }
+        }
+        service.evaluateOnBecomeActive()
+        #expect(service.isLocked == (seconds.isFinite && (seconds == 0 || boundaryOffset >= 0)))
+        #expect(service.backgroundDate == nil)
+        for index in scheduler.actions.indices { scheduler.fire(index) }
+        #expect(service.isLocked == (seconds.isFinite && (seconds == 0 || boundaryOffset >= 0)))
+      }
+    }
+  }
+
+  @Test("Reordered screen receipts use their captured timeout and earliest deadline")
+  func testReorderedCapturedScreenEvents() {
+    let origin = Date(timeIntervalSince1970: 10_000)
+    let time = Mutex(origin)
+    let service = AuthenticationService.createForTesting(
+      clock: LockClock(now: { time.withLock { $0 } }))
+    service.isAppLockEnabled = true
+    service.screenLockTimeout = .oneMinute
+    service.eventInbox.record(at: { origin.addingTimeInterval(10) })
+    service.eventInbox.record(at: { origin })
+    service.screenLockTimeout = .never
+    time.withLock { $0 = origin.addingTimeInterval(60) }
+    service.evaluateOnBecomeActive()
+    #expect(service.isLocked)
+  }
+
+  @Test("An obsolete timer cannot lock a new cycle at the same clock value")
+  func testStaleTimerAcrossNewCycle() async {
+    let scheduler = MockLockScheduler()
+    let origin = Date(timeIntervalSince1970: 10_000)
+    let service = AuthenticationService.createForTesting(
+      laContextFactory: { MockLAContext() },
+      lockScheduler: { scheduler.schedule(at: $0, action: $1) },
+      clock: LockClock(now: { origin }))
+    service.isAppLockEnabled = true
+    service.appSwitchTimeout = .oneMinute
+    service.recordBackground(trigger: .appSwitch)
+    #expect(await service.authenticate())
+    service.recordBackground(trigger: .appSwitch)
+    scheduler.fire(0)
+    #expect(!service.isLocked)
+    scheduler.fire(1)
+    #expect(service.isLocked)
   }
 
   // MARK: - Default Values
@@ -585,8 +678,8 @@ struct AuthenticationServiceTests {
 
     // Simulate going to background 6 minutes ago
     service.recordBackground(trigger: .appSwitch)
-    // Manually backdatefor testing
-    service.setBackgroundDateForTesting(Date().addingTimeInterval(-360))
+    // Deliver an earlier event to exercise overdue handling.
+    service.recordBackground(trigger: .appSwitch, at: Date().addingTimeInterval(-360))
 
     service.evaluateOnBecomeActive()
 
@@ -607,7 +700,7 @@ struct AuthenticationServiceTests {
 
     // Background 1 second ago — within 5-minute window
     service.recordBackground(trigger: .appSwitch)
-    service.setBackgroundDateForTesting(Date().addingTimeInterval(-1))
+    service.recordBackground(trigger: .appSwitch, at: Date().addingTimeInterval(-1))
 
     service.evaluateOnBecomeActive()
 
@@ -624,7 +717,7 @@ struct AuthenticationServiceTests {
     #expect(service.isLocked == false)
 
     service.recordBackground(trigger: .appSwitch)
-    service.setBackgroundDateForTesting(Date.distantPast)
+    service.recordBackground(trigger: .appSwitch, at: Date.distantPast)
 
     service.evaluateOnBecomeActive()
 
@@ -676,7 +769,7 @@ struct AuthenticationServiceTests {
     service.isAppLockEnabled = true
     service.appSwitchTimeout = .fiveMinutes
     service.recordBackground(trigger: .appSwitch)
-    service.setBackgroundDateForTesting(Date.distantPast)
+    service.recordBackground(trigger: .appSwitch, at: Date.distantPast)
     service.isAppLockEnabled = false
 
     service.evaluateOnBecomeActive()

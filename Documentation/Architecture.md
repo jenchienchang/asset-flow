@@ -93,7 +93,7 @@ Export captures SwiftData records and settings on the main actor as transfer val
 
 ### App Lock
 
-`AssetFlowApp` installs an app-level lifecycle delegate, so launch locking and lifecycle handling work even when only Settings is open. Screen notifications enter a thread-safe inbox with their receipt times; activation drains it before evaluating the pending timeout, so delayed main-actor delivery does not lose an event. Successful authentication clears any notifications still in the inbox, so an older queued handler cannot re-lock the new session. The service owns lock state and timeouts and requests macOS `LocalAuthentication` with `.deviceOwnerAuthentication`. It retains the earliest applicable deadline across app-switch and screen events; activation checks elapsed time as a fallback. The app root displays a lock overlay over the main and Settings scenes and publishes lock state through the environment. Failed or cancelled authentication leaves the app locked; lock-aware help and hover modifiers suppress content. The app does not choose a fixed authentication-method sequence. [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) owns authentication guarantees and storage-protection limits.
+`AssetFlowApp` installs an app-level lifecycle delegate, so launch locking and lifecycle handling work even when only Settings is open. Screen notifications enter a service-owned thread-safe inbox with their receipt times and timeout snapshots; activation drains it before evaluating the pending timeout, so delayed main-actor delivery does not lose an event. Successful authentication clears any notifications still in the inbox, so an older queued handler cannot re-lock the new session. The service owns lock state and timeouts and requests macOS `LocalAuthentication` with `.deviceOwnerAuthentication`. It retains the earliest applicable deadline across app-switch and screen events; activation checks elapsed time as a fallback. The app root displays a lock overlay over the main and Settings scenes and publishes lock state through the environment. Failed or cancelled authentication leaves the app locked; lock-aware help and hover modifiers suppress content. The app does not choose a fixed authentication-method sequence. [`SecurityAndPrivacy.md`](SecurityAndPrivacy.md) owns authentication guarantees and storage-protection limits.
 
 ## Failure Boundaries and Design Choices
 
@@ -103,3 +103,25 @@ Export captures SwiftData records and settings on the main actor as transfer val
 - The shared `ModelContainer` and main-actor context access keep model identity and observation in one application graph. ViewModels and bounded services use SwiftData directly, with `ModelFetching` as a narrow read seam; this avoids a second repository layer while keeping graph access on the main actor. Nonisolated workers handle file and archive preparation, and short-lived lookup indexes limit repeated work without a persistent calculation store.
 
 For required product behavior, see [`SPEC.md`](SPEC.md). For screen design and localization, see [`UserInterfaceDesign.md`](UserInterfaceDesign.md). For contributor setup, configurations, commands, and tests, see [`DevelopmentGuide.md`](DevelopmentGuide.md) and [`TestingStrategy.md`](TestingStrategy.md).
+
+### App-lock transition table
+
+Timeouts are captured at event receipt. The service owns the pending deadline, generation, notification inbox, and cancellation effects.
+
+| Input                        | Existing state       | Result                                     |
+| ---------------------------- | -------------------- | ------------------------------------------ |
+| Immediate event              | Any                  | Select earliest deadline and lock          |
+| Finite event                 | No deadline          | Capture receipt time plus timeout          |
+| Finite event                 | Pending deadline     | Select minimum; ties retain existing event |
+| Never event                  | Any                  | Preserve existing deadline                 |
+| Activation before deadline   | Pending              | Cancel deadline and end generation         |
+| Activation at/after deadline | Pending              | Lock, cancel deadline, end generation      |
+| Authentication success       | Any                  | Unlock, clear inbox, end generation        |
+| Authentication failure       | Locked               | Stay locked; suppress automatic retry      |
+| New event after failure      | Any                  | Reset automatic retry suppression          |
+| Disable                      | Any                  | Unlock, clear inbox, end generation        |
+| Stale scheduled callback     | Different generation | Ignore                                     |
+
+These rules apply in both trigger orders and to duplicate or reordered events.
+
+Production lock timing uses a single injected `LockClock` backed by `ContinuousClock`. It includes system sleep and is independent of civil-clock changes. The deadline and its UUID are one pending value; cancellation invalidates that value before invoking the scheduler's cancellation effect. Notification receipt and successful authentication are ordered by the service-owned inbox mutex, eliminating delegate-to-service authentication callbacks. The adapter only observes OS notifications and forwards receipt and delivery; it owns no policy. [`APIDesign.md`](APIDesign.md) defines the clock coordinate and delivery contracts.
