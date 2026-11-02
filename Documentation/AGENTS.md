@@ -22,6 +22,7 @@ Conciseness is essential for readability and maintaining a single source of trut
 - Architecture describes the shipped application. Include repository tooling there only when it affects application architecture.
 - User-facing instructions belong in [`mkdocs/`](../mkdocs/); source-level model orientation belongs in [`AssetFlow/Models/README.md`](../AssetFlow/Models/README.md). Review related material for consistency without expanding the authorized editing scope.
 - When assigned one document, report necessary changes to other owners rather than editing their files. When authorized to update several documents, keep the related definitions and links consistent.
+- Name temporary documents with the `-Temporary` suffix before `.md` (for example, `Review-Temporary.md`) so Git ignores them through [`.gitignore`](.gitignore).
 
 ## Correctness and Evidence
 
