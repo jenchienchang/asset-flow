@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.1](https://github.com/jenchienchang/asset-flow/compare/v0.8.0...v0.8.1) (2026-11-02)
+
+
+### Bug Fixes
+
+* **app-lock:** enforce lifecycle lock deadlines ([ac0098c](https://github.com/jenchienchang/asset-flow/commit/ac0098cc785c2b2015d539f0bdf0cd4591b6d664))
+* **categories:** consolidate percentage-sum warnings ([56a626c](https://github.com/jenchienchang/asset-flow/commit/56a626c8efafbed63d995c2597c4f3f212877e6c))
+* **snapshot:** clarify relative time group labels ([33f7c1c](https://github.com/jenchienchang/asset-flow/commit/33f7c1c48a50f8f84047c73e682e8446800ffe3d))
+* **tests:** prevent AppKit window overrelease ([201d1c3](https://github.com/jenchienchang/asset-flow/commit/201d1c3517c12f3999936859c456b29d01ad21d1))
+
 ## [0.8.0](https://github.com/jenchienchang/asset-flow/compare/v0.7.1...v0.8.0) (2026-10-28)
 
 ### ⚠ BREAKING CHANGES
