@@ -247,8 +247,7 @@ struct AddAssetSheet: View {
   }
 
   private func existingPlatforms() -> [String] {
-    let platforms = Set(allAssets.map(\.platform).filter { !$0.isEmpty })
-    return platforms.sorted()
+    allPlatforms.filter { !($0.assets ?? []).isEmpty }.map(\.name).sorted()
   }
 
   private func refreshCachedOptions() {

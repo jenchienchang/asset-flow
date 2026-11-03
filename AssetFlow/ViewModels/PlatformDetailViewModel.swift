@@ -197,7 +197,7 @@ final class PlatformDetailViewModel {
       entries.append(
         PlatformValueHistoryEntry(
           date: summary.date,
-          totalValue: summary.platformValues[platform.name] ?? 0))
+          totalValue: summary.platformValuesByID[platform.id] ?? 0))
     }
 
     return entries

@@ -166,7 +166,7 @@ struct CSVImportResult {
 /// duplicate `.fileImporter` modifiers attached to the same view, so we
 /// use a single modifier and dispatch on this value.
 enum CSVImportTarget: Equatable {
-  case asset(platform: String)
+  case asset(platform: BulkEntryPlatform)
   case cashFlow
 }
 
@@ -182,7 +182,8 @@ struct BulkEntryRow: Identifiable, Equatable {
   let id: UUID
   let asset: Asset?
   var assetName: String
-  let platform: String
+  let platformScope: BulkEntryPlatform
+  var platform: String { platformScope.name }
   var currency: String
   let previousValue: Decimal?
   var newValueText: String
@@ -210,7 +211,7 @@ struct BulkEntryRow: Identifiable, Equatable {
     lhs.id == rhs.id
       && lhs.asset === rhs.asset
       && lhs.assetName == rhs.assetName
-      && lhs.platform == rhs.platform
+      && lhs.platformScope.id == rhs.platformScope.id
       && lhs.currency == rhs.currency
       && lhs.previousValue == rhs.previousValue
       && lhs.newValueText == rhs.newValueText

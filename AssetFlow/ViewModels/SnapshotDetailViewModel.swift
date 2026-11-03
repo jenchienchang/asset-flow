@@ -338,25 +338,11 @@ class SnapshotDetailViewModel {
     marketValue: Decimal,
     currency: String = ""
   ) throws {
-    // Normalize for matching
-    let normalizedName = name.normalizedForIdentity
-    let normalizedPlatform = platform.normalizedForIdentity
-
-    // Check if this asset identity already exists in the snapshot
-    let existingValues = snapshot.assetValues ?? []
-    if existingValues.contains(where: { sav in
-      guard let asset = sav.asset else { return false }
-      return asset.normalizedName == normalizedName
-        && asset.normalizedPlatform == normalizedPlatform
-    }) {
+    // Resolve the text input, then compare saved asset identity.
+    let asset = try modelContext.findOrCreateAsset(name: name, platform: platform, fetcher: fetcher)
+    if (snapshot.assetValues ?? []).contains(where: { $0.asset?.id == asset.id }) {
       throw SnapshotError.assetAlreadyInSnapshot(name)
     }
-
-    // Find or create the asset record
-    let asset = try modelContext.findOrCreateAsset(
-      name: name,
-      platform: platform,
-      fetcher: fetcher)
 
     // Assign currency if provided
     if !currency.isEmpty {

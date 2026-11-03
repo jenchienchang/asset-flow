@@ -79,15 +79,11 @@ final class PlatformListViewModel {
 
       // Build platform → total value lookup from latest snapshot
       let latestSnapshot = try SnapshotSummaryService.fetchLatestSnapshot(using: fetcher)
-      let status =
-        latestSnapshot.map {
-          CurrencyConversionService.totalValueReport(
-            for: $0,
-            displayCurrency: settingsService.mainCurrency,
-            exchangeRate: $0.exchangeRate
-          ).status
-        } ?? .notNeeded
-      let platformValues = buildPlatformValueLookup(latestSnapshot: latestSnapshot)
+      let summary = latestSnapshot.map {
+        SnapshotSummaryService.makeSummary(for: $0, displayCurrency: settingsService.mainCurrency)
+      }
+      let status = summary?.conversionStatus ?? .notNeeded
+      let platformValues = summary?.platformValuesByID ?? [:]
 
       let loadedRows = PlatformService.orderedForDisplay(
         platforms.filter { !($0.assets ?? []).isEmpty }
@@ -95,7 +91,7 @@ final class PlatformListViewModel {
       .map { platform in
         PlatformRowData(
           id: platform.id, name: platform.name, assetCount: (platform.assets ?? []).count,
-          totalValue: platformValues[platform.name] ?? 0)
+          totalValue: platformValues[platform.id] ?? 0)
       }
       refresh.publish {
         self.conversionStatus = status
@@ -158,38 +154,4 @@ final class PlatformListViewModel {
     return platform.name
   }
 
-  // MARK: - Private Helpers
-
-  /// Builds a lookup of platform name → total market value from the latest snapshot.
-  private func buildPlatformValueLookup(
-    latestSnapshot: Snapshot?
-  ) -> [String: Decimal] {
-    guard let latestSnapshot else { return [:] }
-
-    let assetValues = latestSnapshot.assetValues ?? []
-    let displayCurrency = settingsService.mainCurrency
-    let exchangeRate = latestSnapshot.exchangeRate
-
-    let report = CurrencyConversionService.totalValueReport(
-      for: latestSnapshot,
-      displayCurrency: displayCurrency,
-      exchangeRate: exchangeRate
-    )
-    guard report.status.isComplete else { return [:] }
-
-    var lookup: [String: Decimal] = [:]
-    for sav in assetValues {
-      guard let asset = sav.asset, !asset.platform.isEmpty else { continue }
-      let assetCurrency = asset.currency
-      let effectiveCurrency = assetCurrency.isEmpty ? displayCurrency : assetCurrency
-      let converted = CurrencyConversionService.convert(
-        value: sav.marketValue,
-        from: effectiveCurrency,
-        to: displayCurrency,
-        using: exchangeRate,
-        forSnapshotDate: latestSnapshot.date)
-      lookup[asset.platform, default: 0] += converted ?? 0
-    }
-    return lookup
-  }
 }

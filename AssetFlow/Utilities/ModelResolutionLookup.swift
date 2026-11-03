@@ -32,15 +32,15 @@ enum ModelSelectionResolver {
 
 private struct AssetResolutionKey: Hashable {
   let name: String
-  let platform: String
+  let platformID: UUID?
 
-  init(name: String, platform: String) {
+  init(name: String, platform: Platform?) {
     self.name = name.normalizedForIdentity
-    self.platform = platform.normalizedForIdentity
+    self.platformID = platform?.id
   }
 
   init(asset: Asset) {
-    self.init(name: asset.name, platform: asset.platform)
+    self.init(name: asset.name, platform: asset.platformRecord)
   }
 }
 
@@ -50,6 +50,14 @@ struct PlatformResolutionLookup {
 
   init(platforms: [Platform]) {
     for platform in platforms { platformsByName[platform.normalizedName] = platform }
+  }
+
+  func platform(named name: String) -> Platform? {
+    platformsByName[name.normalizedForIdentity]
+  }
+
+  mutating func register(_ platform: Platform) {
+    platformsByName[platform.normalizedName] = platform
   }
 
   mutating func resolve(name: String, in context: ModelContext) -> Platform? {
@@ -78,17 +86,24 @@ struct AssetResolutionLookup {
   }
 
   func asset(named name: String, platform: String) -> Asset? {
+    let resolved = platformLookup.platform(named: platform)
+    guard platform.normalizedForIdentity.isEmpty || resolved != nil else { return nil }
+    return asset(named: name, platform: resolved)
+  }
+
+  func asset(named name: String, platform: Platform?) -> Asset? {
     assetsByIdentity[AssetResolutionKey(name: name, platform: platform)]
   }
 
   mutating func resolve(name: String, platform: String, in modelContext: ModelContext) -> Asset {
-    let key = AssetResolutionKey(name: name, platform: platform)
-    if let existing = assetsByIdentity[key] {
-      return existing
-    }
+    let resolved = platformLookup.resolve(name: platform, in: modelContext)
+    return resolve(name: name, platform: resolved, in: modelContext)
+  }
 
-    let resolvedPlatform = platformLookup.resolve(name: platform, in: modelContext)
-    let newAsset = Asset(name: name, platform: resolvedPlatform)
+  mutating func resolve(name: String, platform: Platform?, in modelContext: ModelContext) -> Asset {
+    let key = AssetResolutionKey(name: name, platform: platform)
+    if let existing = assetsByIdentity[key] { return existing }
+    let newAsset = Asset(name: name, platform: platform)
     modelContext.insert(newAsset)
     assetsByIdentity[key] = newAsset
     return newAsset
@@ -138,6 +153,7 @@ struct CategoryResolutionLookup {
 
 struct SnapshotAssetValueLookup {
   private var valuesByIdentity: [AssetResolutionKey: SnapshotAssetValue] = [:]
+  private var platformLookup = PlatformResolutionLookup(platforms: [])
   private var valuesByAssetID: [UUID: SnapshotAssetValue] = [:]
 
   init(values: [SnapshotAssetValue]) {
@@ -147,7 +163,9 @@ struct SnapshotAssetValueLookup {
   }
 
   func value(forAssetNamed name: String, platform: String) -> SnapshotAssetValue? {
-    valuesByIdentity[AssetResolutionKey(name: name, platform: platform)]
+    let resolved = platformLookup.platform(named: platform)
+    guard platform.normalizedForIdentity.isEmpty || resolved != nil else { return nil }
+    return valuesByIdentity[AssetResolutionKey(name: name, platform: resolved)]
   }
 
   func value(for asset: Asset) -> SnapshotAssetValue? {
@@ -157,6 +175,7 @@ struct SnapshotAssetValueLookup {
   mutating func register(_ value: SnapshotAssetValue) {
     guard let asset = value.asset else { return }
 
+    if let platform = asset.platformRecord { platformLookup.register(platform) }
     let identityKey = AssetResolutionKey(asset: asset)
     if valuesByIdentity[identityKey] == nil {
       valuesByIdentity[identityKey] = value

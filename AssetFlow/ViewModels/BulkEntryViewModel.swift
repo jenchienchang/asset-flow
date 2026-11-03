@@ -58,7 +58,8 @@ final class BulkEntryViewModel {
 
   // MARK: - Structural Caches (observation-ignored)
 
-  @ObservationIgnored private var _platformGrouping: [(platform: String, rowIndices: [Int])] = []
+  @ObservationIgnored private var _platformGrouping:
+    [(scope: BulkEntryPlatform, rowIndices: [Int])] = []
   @ObservationIgnored private var _rowIDToIndex: [UUID: Int] = [:]
   @ObservationIgnored private var _cashFlowRowIDToIndex: [UUID: Int] = [:]
   @ObservationIgnored private var _explicitCurrencyRowIDs: Set<UUID> = []
@@ -73,10 +74,26 @@ final class BulkEntryViewModel {
   @ObservationIgnored private var _pendingCashFlowAmounts: [UUID: String] = [:]
   @ObservationIgnored private var _pendingCashFlowDescriptions: [UUID: String] = [:]
 
-  var platformGroups: [(platform: String, rows: [BulkEntryRow])] {
+  var platformGroups: [BulkEntryPlatformGroup] {
     _platformGrouping.map { group in
-      (platform: group.platform, rows: group.rowIndices.map { rows[$0] })
+      BulkEntryPlatformGroup(scope: group.scope, rows: group.rowIndices.map { rows[$0] })
     }
+  }
+
+  @ObservationIgnored private var knownPlatforms: [Platform] = []
+  @ObservationIgnored private var draftPlatformsByName: [String: BulkEntryPlatform] = [:]
+
+  /// Resolves user-entered text at the boundary without creating model records.
+  private func platformInput(named name: String) -> BulkEntryPlatform {
+    let key = name.normalizedForIdentity
+    guard !key.isEmpty else { return .unassigned }
+    if let existing = knownPlatforms.first(where: { $0.normalizedName == key }) {
+      return .persisted(existing)
+    }
+    if let draft = draftPlatformsByName[key] { return draft }
+    let draft = BulkEntryPlatform.draft(name: name)
+    draftPlatformsByName[key] = draft
+    return draft
   }
 
   var cashFlowCount: Int {
@@ -101,7 +118,7 @@ final class BulkEntryViewModel {
   var pendingPreviewColumnWidths: [CGFloat] = []
   var pendingPartialMapping: [CanonicalColumn: Int] = [:]
   var pendingCSVData: Data?
-  var pendingCSVPlatform: String = ""
+  var pendingCSVPlatform: BulkEntryPlatform = .unassigned
 
   var hasUnsavedChanges: Bool {
     rows.contains { !$0.newValueText.isEmpty }
@@ -310,12 +327,17 @@ final class BulkEntryViewModel {
   }
 
   @discardableResult
-  func addManualRow(forPlatform platform: String) -> UUID {
+  func addManualRow(forPlatform name: String) -> UUID {
+    addManualRow(forPlatform: platformInput(named: name))
+  }
+
+  @discardableResult
+  func addManualRow(forPlatform platform: BulkEntryPlatform) -> UUID {
     let row = BulkEntryRow(
       id: UUID(),
       asset: nil,
       assetName: "",
-      platform: platform,
+      platformScope: platform,
       currency: "",
       previousValue: nil,
       newValueText: "",
@@ -331,11 +353,10 @@ final class BulkEntryViewModel {
 
   @discardableResult
   func addPlatform(name: String) -> UUID? {
-    let trimmed = name.trimmingCharacters(in: .whitespaces)
-    guard !trimmed.isEmpty else { return nil }
-    let existing = Set(rows.map { $0.platform.normalizedForIdentity })
-    guard !existing.contains(trimmed.normalizedForIdentity) else { return nil }
-    return addManualRow(forPlatform: trimmed)
+    guard !name.normalizedForIdentity.isEmpty else { return nil }
+    let scope = platformInput(named: name)
+    guard !rows.contains(where: { $0.platformScope.id == scope.id }) else { return nil }
+    return addManualRow(forPlatform: scope)
   }
 
   func removeManualRow(rowID: UUID) {
@@ -521,19 +542,9 @@ final class BulkEntryViewModel {
       throw SnapshotError.dateAlreadyExists(snapshotDate)
     }
 
-    // Validate asset name uniqueness within each platform before creating anything
-    // (avoids expensive normalizedForIdentity on every keystroke during editing)
-    for (platform, platformRows) in Dictionary(grouping: includedRows, by: \.platform) {
-      var seenNames = [String: String]()
-      for row in platformRows {
-        let key = row.assetName.normalizedForIdentity
-        guard !key.isEmpty else { continue }
-        if seenNames[key] != nil {
-          throw SnapshotError.duplicateAssetName(row.assetName, platform)
-        }
-        seenNames[key] = row.assetName
-      }
-    }
+    let currentPlatforms = try fetchModels(
+      FetchDescriptor<Platform>(), from: fetcher, operation: "prepare bulk platforms")
+    let scopedRows = try validatedRowsForSave(includedRows, platforms: currentPlatforms)
 
     // Validate cash flow description uniqueness before creating anything
     // (avoids expensive normalizedForIdentity on every keystroke during editing)
@@ -558,12 +569,8 @@ final class BulkEntryViewModel {
     } else {
       existingAssets = []
     }
-    var assetLookup = AssetResolutionLookup(
-      assets: existingAssets,
-      platforms: hasNewAssets
-        ? try fetchModels(
-          FetchDescriptor<Platform>(), from: fetcher, operation: "prepare bulk platforms")
-        : [])
+    var assetLookup = AssetResolutionLookup(assets: existingAssets, platforms: currentPlatforms)
+    var platformLookup = PlatformResolutionLookup(platforms: currentPlatforms)
 
     let hasNewAssetCategories = includedRows.contains { row in
       guard row.asset == nil, let categoryName = row.categoryName else { return false }
@@ -584,13 +591,18 @@ final class BulkEntryViewModel {
     let snapshot = Snapshot(date: snapshotDate)
     modelContext.insert(snapshot)
 
-    for row in includedRows {
+    for (row, scope) in scopedRows {
       let asset: Asset
       if let existingAsset = row.asset {
         asset = existingAsset
       } else {
-        asset = assetLookup.resolve(
-          name: row.assetName, platform: row.platform, in: modelContext)
+        let platform: Platform?
+        switch scope {
+        case .persisted(let existing): platform = existing
+        case .unassigned: platform = nil
+        case .draft(_, let name): platform = platformLookup.resolve(name: name, in: modelContext)
+        }
+        asset = assetLookup.resolve(name: row.assetName, platform: platform, in: modelContext)
         asset.currency = row.currency
         if let categoryName = row.categoryName?.trimmingCharacters(in: .whitespaces),
           !categoryName.isEmpty
@@ -619,8 +631,38 @@ final class BulkEntryViewModel {
     return snapshot
   }
 
+  private func validatedRowsForSave(
+    _ includedRows: [BulkEntryRow], platforms: [Platform]
+  ) throws -> [(row: BulkEntryRow, scope: BulkEntryPlatform)] {
+    var lookup = BulkEntryPlatformLookup(platforms: platforms)
+    let scopedRows = try includedRows.map { row in
+      let scope = try lookup.resolve(row.platformScope)
+      if let existing = row.asset, existing.platformRecord?.id != scope.platformID {
+        throw BulkEntryError.sourceDataChanged
+      }
+      return (row: row, scope: scope)
+    }
+    for (_, entries) in Dictionary(grouping: scopedRows, by: { $0.scope.id }) {
+      var seenNames: Set<String> = []
+      for entry in entries {
+        let key = entry.row.assetName.normalizedForIdentity
+        guard !key.isEmpty else { continue }
+        if !seenNames.insert(key).inserted {
+          throw SnapshotError.duplicateAssetName(entry.row.assetName, entry.scope.name)
+        }
+      }
+    }
+
+    return scopedRows
+  }
+
   @discardableResult
-  func importCSV(data: Data, forPlatform platform: String) async -> CSVImportResult {
+  func importCSV(data: Data, forPlatform name: String) async -> CSVImportResult {
+    await importCSV(data: data, forPlatform: platformInput(named: name))
+  }
+
+  @discardableResult
+  func importCSV(data: Data, forPlatform platform: BulkEntryPlatform) async -> CSVImportResult {
     do {
       let preparation = try await prepareCSV(data, .assetWithoutPlatform)
       guard case .parsedAsset(_, let parseResult) = preparation else {
@@ -639,7 +681,11 @@ final class BulkEntryViewModel {
 
   // MARK: - Column Mapping
 
-  func loadCSVFileForMapping(from url: URL, forPlatform platform: String) async {
+  func loadCSVFileForMapping(from url: URL, forPlatform name: String) async {
+    await loadCSVFileForMapping(from: url, forPlatform: platformInput(named: name))
+  }
+
+  func loadCSVFileForMapping(from url: URL, forPlatform platform: BulkEntryPlatform) async {
     isCSVImporting = true
     defer { isCSVImporting = false }
     do {
@@ -660,7 +706,11 @@ final class BulkEntryViewModel {
   ///
   /// If headers match, calls `importCSV` directly. Otherwise, populates
   /// mapping state and sets `showColumnMappingSheet = true`.
-  func loadCSVForMapping(data: Data, forPlatform platform: String) async {
+  func loadCSVForMapping(data: Data, forPlatform name: String) async {
+    await loadCSVForMapping(data: data, forPlatform: platformInput(named: name))
+  }
+
+  func loadCSVForMapping(data: Data, forPlatform platform: BulkEntryPlatform) async {
     lastImportFeedback = nil
     isCSVImporting = true
     defer { isCSVImporting = false }
@@ -716,7 +766,7 @@ final class BulkEntryViewModel {
       lastImportFeedback = result.feedback
 
       pendingCSVData = nil
-      pendingCSVPlatform = ""
+      pendingCSVPlatform = .unassigned
       pendingRawHeaders = []
       pendingSampleRows = []
       pendingPreviewColumnWidths = []
@@ -779,11 +829,11 @@ final class BulkEntryViewModel {
   /// Imports already-parsed CSV rows into the bulk entry rows.
   private func importCSVFromParsedRows(
     _ parseResult: CSVParseResult<AssetCSVRow>,
-    forPlatform platform: String
+    forPlatform platform: BulkEntryPlatform
   ) -> CSVImportResult {
     let parserWarnings = parseResult.warnings.map(\.message)
     let resolved = CSVParsingService.resolveAssetRowsForPlatform(
-      rows: parseResult.rows, platform: platform)
+      rows: parseResult.rows, platform: platform.name)
     let duplicateErrors = CSVParsingService.detectAssetDuplicates(rows: resolved.rows)
     let errors = (parseResult.parsingErrors + duplicateErrors).map(\.message)
 
@@ -821,12 +871,12 @@ final class BulkEntryViewModel {
     )
   }
 
-  private func selectedCurrenciesForCSVAssets(on platform: String) -> [String: String] {
+  private func selectedCurrenciesForCSVAssets(on platform: BulkEntryPlatform) -> [String: String] {
     // Replacement changes row IDs. Keep only currencies chosen by the user,
     // matched by normalized name within the selected platform.
     var choices: [String: String] = [:]
     for row in rows
-    where row.platform == platform && row.source == .csv && row.asset == nil
+    where row.platformScope.id == platform.id && row.source == .csv && row.asset == nil
       && _explicitCurrencyRowIDs.contains(row.id)
     {
       choices[row.assetName.normalizedForIdentity] = row.currency
@@ -834,20 +884,20 @@ final class BulkEntryViewModel {
     return choices
   }
 
-  private func clearCSVAssetRows(for platform: String) {
+  private func clearCSVAssetRows(for platform: BulkEntryPlatform) {
     for index in rows.indices
-    where rows[index].platform == platform && rows[index].source == .csv {
+    where rows[index].platformScope.id == platform.id && rows[index].source == .csv {
       if rows[index].asset != nil {
         rows[index].newValueText = ""
         rows[index].source = .manual
       }
     }
-    rows.removeAll { $0.platform == platform && $0.source == .csv && $0.asset == nil }
+    rows.removeAll { $0.platformScope.id == platform.id && $0.source == .csv && $0.asset == nil }
     _explicitCurrencyRowIDs.formIntersection(Set(rows.map(\.id)))
   }
 
   private func applyCSVAssetRows(
-    _ csvRows: [AssetCSVRow], forPlatform platform: String,
+    _ csvRows: [AssetCSVRow], forPlatform platform: BulkEntryPlatform,
     previousUserCurrencies: [String: String]
   ) -> AssetCSVApplyResult {
     var supportedCurrencies: [String: String] = [:]
@@ -856,7 +906,7 @@ final class BulkEntryViewModel {
     }
 
     var nameIndex: [String: Int] = [:]
-    for (index, row) in rows.enumerated() where row.platform == platform {
+    for (index, row) in rows.enumerated() where row.platformScope.id == platform.id {
       nameIndex[row.assetName.normalizedForIdentity] = index
     }
 
@@ -927,7 +977,7 @@ final class BulkEntryViewModel {
   }
 
   private func appendCSVAssetRow(
-    _ csvRow: AssetCSVRow, platform: String, knownCurrency: String?,
+    _ csvRow: AssetCSVRow, platform: BulkEntryPlatform, knownCurrency: String?,
     previousChoice: String?, result: inout AssetCSVApplyResult
   ) {
     if let previousChoice, let knownCurrency, previousChoice != knownCurrency {
@@ -943,7 +993,7 @@ final class BulkEntryViewModel {
       id: UUID(),
       asset: nil,
       assetName: csvRow.assetName,
-      platform: platform,
+      platformScope: platform,
       currency: currency,
       previousValue: nil,
       newValueText: "\(csvRow.marketValue)",
@@ -1040,6 +1090,8 @@ final class BulkEntryViewModel {
   }
 
   private func loadRowsFromLatestSnapshot() throws {
+    knownPlatforms = try fetchModels(
+      FetchDescriptor<Platform>(), from: fetcher, operation: "load bulk platforms")
     let targetDate = snapshotDate
     guard
       let latestBefore = try SnapshotSummaryService.fetchLatestSnapshot(
@@ -1059,7 +1111,7 @@ final class BulkEntryViewModel {
           id: asset.id,
           asset: asset,
           assetName: asset.name,
-          platform: asset.platform,
+          platformScope: asset.platformRecord.map(BulkEntryPlatform.persisted) ?? .unassigned,
           currency: asset.currency,
           previousValue: sav.marketValue,
           newValueText: "",
@@ -1073,10 +1125,10 @@ final class BulkEntryViewModel {
   // MARK: - Structural Caches Maintenance
 
   private func rebuildStructuralCaches() {
-    let grouped = Dictionary(grouping: rows.indices, by: { rows[$0].platform })
-    _platformGrouping = grouped.keys.sorted().map { platform in
-      (platform: platform, rowIndices: grouped[platform]!)
-    }
+    let grouped = Dictionary(grouping: rows.indices, by: { rows[$0].platformScope.id })
+    _platformGrouping = grouped.values.map { indices in
+      (scope: rows[indices[0]].platformScope, rowIndices: indices)
+    }.sorted { $0.scope.name < $1.scope.name }
     _rowIDToIndex = Dictionary(
       uniqueKeysWithValues: rows.enumerated().map { ($1.id, $0) })
     _cashFlowRowIDToIndex = Dictionary(

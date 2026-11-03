@@ -161,7 +161,8 @@ struct BulkEntryRowTests {
       id: UUID(),
       asset: asset,
       assetName: assetName,
-      platform: platform,
+      platformScope: asset?.platformRecord.map(BulkEntryPlatform.persisted)
+        ?? .draft(name: platform),
       currency: currency,
       previousValue: previousValue,
       newValueText: "",
@@ -1508,7 +1509,7 @@ struct BulkEntryViewModelTests {
 
     #expect(viewModel.showColumnMappingSheet)
     #expect(viewModel.pendingRawHeaders == ["Symbol", "Price"])
-    #expect(viewModel.pendingCSVPlatform == "Vanguard")
+    #expect(viewModel.pendingCSVPlatform.name == "Vanguard")
     #expect(viewModel.pendingPreviewColumnWidths.count == 2)
     #expect(!viewModel.isCSVImporting)
   }

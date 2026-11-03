@@ -28,7 +28,7 @@ Persistent custodian identity with `id: UUID`, display `name`, unique `normalize
 
 ### Asset
 
-Individual investment identified by (name, platform) tuple.
+Individual investment identified by normalized name and optional platform UUID.
 
 **Key Properties:**
 
@@ -42,7 +42,7 @@ Individual investment identified by (name, platform) tuple.
 
 - `normalizedName` - Trimmed, collapsed spaces, lowercased
 - `normalizedPlatform` - Trimmed, collapsed spaces, lowercased
-- `normalizedIdentity` - Combined `normalizedName|normalizedPlatform` for matching
+- `normalizedIdentity` - Combined `normalizedName|normalizedPlatform` text projection for interchange; persisted matching uses platform UUID
 
 **Relationships:**
 

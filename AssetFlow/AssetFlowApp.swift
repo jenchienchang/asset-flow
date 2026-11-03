@@ -128,10 +128,12 @@ struct AssetFlowApp: App {
         migrationPlan: AssetFlowMigrationPlan.self,
         configurations: [modelConfiguration]
       )
-      if !useMemoryStore {
-        try PlatformService.migrateLegacyOrder(
-          in: sharedModelContainer.mainContext, settings: .shared)
-      }
+      #if !TESTING
+        if !useMemoryStore {
+          try PlatformService.migrateLegacyOrder(
+            in: sharedModelContainer.mainContext, settings: .shared)
+        }
+      #endif
       #if DEBUG
         if usePreviewData {
           if showMissingRatePreview {

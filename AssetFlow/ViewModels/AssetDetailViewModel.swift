@@ -240,7 +240,6 @@ final class AssetDetailViewModel {
   ///   with another existing asset.
   func save() throws {
     let newNormalizedName = editedName.normalizedForIdentity
-    let newNormalizedPlatform = editedPlatform.normalizedForIdentity
 
     // Check for conflicts with other assets (exclude self)
     let descriptor = FetchDescriptor<Asset>()
@@ -249,18 +248,37 @@ final class AssetDetailViewModel {
       from: fetcher,
       operation: "validate asset")
 
-    let hasConflict = allAssets.contains { other in
-      other.id != asset.id
-        && other.normalizedName == newNormalizedName
-        && other.normalizedPlatform == newNormalizedPlatform
-    }
+    var inputLookup = PlatformResolutionLookup(platforms: [])
+    let selectedPlatform: Platform?
+    let isNewPlatform: Bool
+    switch platformSelection {
+    case .none:
+      selectedPlatform = nil
+      isNewPlatform = false
 
+    case .existing(let selected):
+      selectedPlatform = selected
+      isNewPlatform = false
+
+    case .newName(let name):
+      let platforms = try fetchModels(
+        FetchDescriptor<Platform>(), from: fetcher, operation: "resolve edited platform")
+      inputLookup = PlatformResolutionLookup(platforms: platforms)
+      selectedPlatform = inputLookup.platform(named: name)
+      isNewPlatform = selectedPlatform == nil
+    }
+    let hasConflict =
+      !isNewPlatform
+      && allAssets.contains { other in
+        other.id != asset.id && other.normalizedName == newNormalizedName
+          && other.platformRecord?.id == selectedPlatform?.id
+      }
     if hasConflict {
       throw AssetError.duplicateIdentity(name: editedName, platform: editedPlatform)
     }
-
-    let platform = try PlatformService.resolve(
-      name: editedPlatform, in: modelContext, fetcher: fetcher)
+    let platform =
+      isNewPlatform
+      ? inputLookup.resolve(name: editedPlatform, in: modelContext) : selectedPlatform
 
     // Apply changes to the asset model (retroactive update)
     asset.updateIdentity(name: editedName, platform: platform)
