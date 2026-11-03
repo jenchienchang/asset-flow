@@ -205,7 +205,9 @@ extension ModelContext {
       return existing
     }
 
-    let newAsset = Asset(name: name, platform: platform)
+    let resolvedPlatform = try PlatformService.resolve(
+      name: platform, in: self, fetcher: resolvedFetcher)
+    let newAsset = Asset(name: name, platform: resolvedPlatform)
     insert(newAsset)
     return newAsset
   }

@@ -27,12 +27,7 @@ struct PlatformValueHistoryEntry: Identifiable {
 
 /// ViewModel for the Platform detail/edit screen.
 ///
-/// Manages renaming a platform (updating all `Asset.platform` values),
-/// loading assets on this platform with latest values, and computing
-/// value history across snapshots.
-///
-/// **Note:** Platforms are not model objects — they are derived from distinct
-/// non-empty `Asset.platform` string values. Rename mutates all Asset records.
+/// Loads platform assets and history and validates edits through PlatformService.
 @Observable
 @MainActor
 final class PlatformDetailViewModel {
@@ -40,6 +35,7 @@ final class PlatformDetailViewModel {
 
   /// The current canonical platform name (updated after successful rename).
   private(set) var platformName: String
+  let platform: Platform
   private let modelContext: ModelContext
   private let fetcher: any ModelFetching
   private let settingsService: SettingsService
@@ -59,16 +55,17 @@ final class PlatformDetailViewModel {
   var loadState: DataLoadState = .idle
 
   init(
-    platformName: String,
+    platform: Platform,
     modelContext: ModelContext,
     settingsService: SettingsService? = nil,
     fetcher: (any ModelFetching)? = nil
   ) {
-    self.platformName = platformName
+    self.platformName = platform.name
+    self.platform = platform
     self.modelContext = modelContext
     self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     self.settingsService = settingsService ?? .shared
-    self.editedName = platformName
+    self.editedName = platform.name
   }
 
   /// Coalesces source-observation and query notifications before refreshing.
@@ -83,20 +80,21 @@ final class PlatformDetailViewModel {
   /// Uses `ObservedRefresh` to track source reads and publish derived results. Any `@Observable`/`@Model`
   /// property change automatically triggers a reload.
   func loadData() {
+    let wasClean = editedName == platformName
     refresh.perform {
-      performLoadData()
+      performLoadData(wasClean: wasClean)
     } reload: { [weak self] in
       self?.loadData()
     }
   }
 
   func reloadAfterStoreChange() {
-    editedName = platformName
     loadData()
   }
 
-  private func performLoadData() {
+  private func performLoadData(wasClean: Bool) {
     do {
+      let latestName = platform.name
       let allSnapshots = try SnapshotSummaryService.fetchSnapshots(using: fetcher)
       let summaries = SnapshotSummaryService.makeSummaries(
         for: allSnapshots,
@@ -110,6 +108,8 @@ final class PlatformDetailViewModel {
         status.isComplete
         ? rows.reduce(Decimal(0)) { $0 + ($1.convertedValue ?? $1.latestValue ?? 0) } : 0
       refresh.publish {
+        self.platformName = latestName
+        if wasClean { self.editedName = latestName }
         self.assets = rows
         self.valueHistory = history
         self.totalValue = total
@@ -124,40 +124,15 @@ final class PlatformDetailViewModel {
 
   // MARK: - Save (Rename)
 
-  /// Validates the edited name and renames the platform by updating all matching Asset records.
+  /// Validates the edited name and renames the persisted platform.
   ///
   /// - Throws: `PlatformError.emptyName` if name is blank after trimming,
   ///   `PlatformError.duplicateName` if name conflicts with another existing platform.
   func save() throws {
-    let trimmed = editedName.collapsingWhitespace
-
-    guard !trimmed.isEmpty else { throw PlatformError.emptyName }
-
-    let allAssets = try fetchAllAssets()
-
-    // Check for duplicate (case-insensitive), allowing self-rename with different casing
-    let normalizedNew = trimmed.lowercased()
-    let normalizedOld = platformName.lowercased()
-
-    if normalizedNew != normalizedOld {
-      let existingPlatforms = Set(
-        allAssets
-          .map { $0.platform.lowercased() }
-          .filter { !$0.isEmpty }
-      )
-
-      if existingPlatforms.contains(normalizedNew) {
-        throw PlatformError.duplicateName(trimmed)
-      }
-    }
-
-    // Update all assets with the old platform name
-    for asset in allAssets where asset.platform == platformName {
-      asset.platform = trimmed
-    }
-
-    platformName = trimmed
-    editedName = trimmed
+    try PlatformService.rename(
+      platform, to: editedName, in: modelContext, settings: settingsService)
+    platformName = platform.name
+    editedName = platform.name
   }
 
   // MARK: - Private Helpers
@@ -173,13 +148,13 @@ final class PlatformDetailViewModel {
     var latestValueLookup: [UUID: Decimal] = [:]
     if let latestSnapshot = allSnapshots.last {
       for sav in latestSnapshot.assetValues ?? [] {
-        guard let asset = sav.asset, asset.platform == platformName else { continue }
+        guard let asset = sav.asset, asset.platformRecord?.id == platform.id else { continue }
         latestValueLookup[asset.id] = sav.marketValue
       }
     }
 
     // Collect all assets that belong to this platform
-    let platformAssets = try fetchAllAssets().filter { $0.platform == platformName }
+    let platformAssets = try fetchAllAssets().filter { $0.platformRecord?.id == platform.id }
 
     let displayCurrency = settingsService.mainCurrency
     let latestExchangeRate = allSnapshots.last?.exchangeRate
@@ -222,7 +197,7 @@ final class PlatformDetailViewModel {
       entries.append(
         PlatformValueHistoryEntry(
           date: summary.date,
-          totalValue: summary.platformValues[platformName] ?? 0))
+          totalValue: summary.platformValues[platform.name] ?? 0))
     }
 
     return entries

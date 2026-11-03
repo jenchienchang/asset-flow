@@ -12,6 +12,8 @@ An asset's import identity is its name and platform after trimming outer whitesp
 
 An asset is **stale** when it has no entry in the latest snapshot. A latest value of zero is present and is not stale. The asset-list visibility control and its persistence belong in [`UserInterfaceDesign.md`](UserInterfaceDesign.md#assets-screen).
 
+Platforms have stable identity and a unique normalized name. Renaming one changes its shared label across all snapshots, preserves assignments and ordering, and updates matching default import text. Assets without a platform have no platform relationship. Empty platforms remain stored but hidden; reusing their name restores the same identity. Referenced platforms cannot be deleted, and normalization conflicts during legacy migration never imply asset merging.
+
 ## Calculation Logic
 
 ### Currency Conversion
@@ -218,7 +220,7 @@ Two included asset rows with the same normalized name and resolved platform conf
 
 Cash-flow descriptions must be unique within the included CSV rows and against existing operations on the target snapshot date, without case. There is no zero-amount replacement exception. Excluding a conflicting preview row triggers duplicate revalidation.
 
-An import may create a snapshot or append records to one already present. Copy-forward applies only when creating a new date and only to selected platforms from the latest earlier snapshot; it avoids adding an asset already recorded on the target date. CSV import does not update category goals.
+An import may create a snapshot or append records to one already present. Copy-forward applies only when creating a new date and only to selected platforms from the latest earlier snapshot; it avoids adding an asset already recorded on the target date. Platforms represented by included, resolved CSV rows are excluded using the same trimmed, whitespace-collapsed, case-insensitive identity as asset matching. Selection matching during the copy uses that normalization too, so alternate spellings cannot carry forward omitted assets from an imported platform. CSV import does not update category goals.
 
 ## Snapshot Lifecycle
 

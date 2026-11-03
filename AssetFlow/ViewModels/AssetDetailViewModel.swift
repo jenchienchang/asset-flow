@@ -76,7 +76,13 @@ final class AssetDetailViewModel {
   private let fetcher: any ModelFetching
 
   var editedName: String
-  var editedPlatform: String
+  @ObservationIgnored private var knownPlatforms: [Platform] = []
+  private var platformSelection: PlatformSelection
+
+  var editedPlatform: String {
+    get { platformSelection.name }
+    set { platformSelection = PlatformSelection(name: newValue, platforms: knownPlatforms) }
+  }
   var editedCategory: Category?
   var editedCurrency: String
   var valueHistory: [AssetValueHistoryEntry] = []
@@ -98,7 +104,8 @@ final class AssetDetailViewModel {
     self.modelContext = modelContext
     self.fetcher = fetcher ?? ModelContextFetcher(modelContext: modelContext)
     self.editedName = asset.name
-    self.editedPlatform = asset.platform
+    self.platformSelection = asset.platformRecord.map(PlatformSelection.existing) ?? .none
+    self.knownPlatforms = asset.platformRecord.map { [$0] } ?? []
     self.editedCategory = asset.category
     self.editedCurrency =
       asset.currency.isEmpty ? SettingsService.shared.mainCurrency : asset.currency
@@ -201,15 +208,13 @@ final class AssetDetailViewModel {
 
   // MARK: - Queries
 
-  /// Returns all distinct, non-empty platforms from existing assets.
+  /// Returns visible platform names and refreshes existing selections by UUID.
   func existingPlatforms() throws -> [String] {
-    let descriptor = FetchDescriptor<Asset>()
-    let allAssets = try fetchModels(
-      descriptor,
-      from: fetcher,
-      operation: "load existing platforms")
-    let platforms = Set(allAssets.map(\.platform).filter { !$0.isEmpty })
-    return platforms.sorted()
+    let platforms = try fetchModels(
+      FetchDescriptor<Platform>(), from: fetcher, operation: "load existing platforms")
+    knownPlatforms = platforms
+    platformSelection = platformSelection.refreshed(with: platforms)
+    return platforms.filter { !($0.assets ?? []).isEmpty }.map(\.name).sorted()
   }
 
   /// Returns all existing categories sorted by display order, then by name.
@@ -254,9 +259,12 @@ final class AssetDetailViewModel {
       throw AssetError.duplicateIdentity(name: editedName, platform: editedPlatform)
     }
 
+    let platform = try PlatformService.resolve(
+      name: editedPlatform, in: modelContext, fetcher: fetcher)
+
     // Apply changes to the asset model (retroactive update)
-    asset.name = editedName
-    asset.platform = editedPlatform
+    asset.updateIdentity(name: editedName, platform: platform)
+    platformSelection = platform.map(PlatformSelection.existing) ?? .none
     asset.category = editedCategory
     asset.currency = editedCurrency
   }

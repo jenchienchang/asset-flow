@@ -70,7 +70,9 @@ struct DashboardViewModelTests {
             && $0.normalizedPlatform == normalizedPlatform
         })
         ?? {
-          let a = Asset(name: assetData.name, platform: assetData.platform)
+          let a = Asset(
+            name: assetData.name,
+            platform: TestDataManager.platform(named: assetData.platform, in: context))
           context.insert(a)
           return a
         }()

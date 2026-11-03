@@ -37,7 +37,7 @@ struct AssetModelTests {
 
   @Test("Asset initializes with name and platform")
   func testInitializesWithNameAndPlatform() {
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: nil))
     #expect(asset.name == "AAPL")
     #expect(asset.platform == "Firstrade")
   }
@@ -47,7 +47,8 @@ struct AssetModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "BTC", platform: "Binance")
+    let asset = Asset(
+      name: "BTC", platform: TestDataManager.platform(named: "Binance", in: context))
     context.insert(asset)
 
     let descriptor = FetchDescriptor<Asset>()
@@ -79,33 +80,35 @@ struct AssetModelTests {
 
   @Test("normalizedPlatform trims and lowercases")
   func testNormalizedPlatformTrimsAndLowercases() {
-    let asset = Asset(name: "AAPL", platform: "  Firstrade  ")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "  Firstrade  ", in: nil))
     #expect(asset.normalizedPlatform == "firstrade")
   }
 
   @Test("normalizedPlatform collapses multiple spaces")
   func testNormalizedPlatformCollapsesSpaces() {
-    let asset = Asset(name: "AAPL", platform: "My   Broker   App")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "My   Broker   App", in: nil))
     #expect(asset.normalizedPlatform == "my broker app")
   }
 
   @Test("normalizedIdentity combines name and platform")
   func testNormalizedIdentityCombinesNameAndPlatform() {
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: nil))
     #expect(asset.normalizedIdentity == "aapl|firstrade")
   }
 
   @Test("normalizedIdentity matches case-insensitively")
   func testNormalizedIdentityMatchesCaseInsensitively() {
-    let a = Asset(name: "AAPL", platform: "Firstrade")
-    let b = Asset(name: "aapl", platform: "firstrade")
+    let a = Asset(name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: nil))
+    let b = Asset(name: "aapl", platform: TestDataManager.platform(named: "firstrade", in: nil))
     #expect(a.normalizedIdentity == b.normalizedIdentity)
   }
 
   @Test("normalizedIdentity distinguishes different platforms")
   func testNormalizedIdentityDistinguishesPlatforms() {
-    let a = Asset(name: "AAPL", platform: "Firstrade")
-    let b = Asset(name: "AAPL", platform: "Schwab")
+    let a = Asset(name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: nil))
+    let b = Asset(name: "AAPL", platform: TestDataManager.platform(named: "Schwab", in: nil))
     #expect(a.normalizedIdentity != b.normalizedIdentity)
   }
 

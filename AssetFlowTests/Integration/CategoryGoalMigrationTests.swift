@@ -166,6 +166,7 @@ struct CategoryGoalMigrationTests {
     #expect(snapshot.cashFlowOperations?.first?.currency == "USD")
     #expect(snapshot.exchangeRate?.baseCurrency == "twd")
     #expect(snapshot.assetValues?.first?.asset?.category?.id == id)
+    #expect(snapshot.assetValues?.first?.asset?.platformRecord?.name == "Bank")
     category.minimumBalanceAmount = Decimal(string: "300000.123456789")!
     category.minimumBalanceCurrency = "TWD"
     try context.save()

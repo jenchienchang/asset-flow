@@ -53,7 +53,7 @@ struct PlatformListViewModelTests {
   private func createAsset(
     name: String, platform: String, in context: ModelContext
   ) -> Asset {
-    let asset = Asset(name: name, platform: platform)
+    let asset = Asset(name: name, platform: TestDataManager.platform(named: platform, in: context))
     context.insert(asset)
     return asset
   }
@@ -67,7 +67,7 @@ struct PlatformListViewModelTests {
     snapshot: Snapshot,
     context: ModelContext
   ) -> (Asset, SnapshotAssetValue) {
-    let asset = Asset(name: name, platform: platform)
+    let asset = Asset(name: name, platform: TestDataManager.platform(named: platform, in: context))
     asset.category = category
     context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: marketValue)
@@ -75,6 +75,38 @@ struct PlatformListViewModelTests {
     sav.asset = asset
     context.insert(sav)
     return (asset, sav)
+  }
+
+  @Test("Equivalent platform spellings form one platform")
+  func normalizedPlatformIdentity() {
+    let tc = makeTestContext()
+    createAsset(name: "Stock", platform: "Broker One", in: tc.context)
+    createAsset(name: "Bond", platform: " broker   ONE ", in: tc.context)
+    let viewModel = PlatformListViewModel(
+      modelContext: tc.context, settingsService: tc.settingsService)
+    viewModel.loadPlatforms()
+    #expect(viewModel.platformRows.count == 1)
+    #expect(viewModel.platformRows.first?.assetCount == 2)
+  }
+
+  @Test("Rename preserves platform order and default import selection")
+  func renamePreservesPreferences() throws {
+    let tc = makeTestContext()
+    createAsset(name: "Stock", platform: "Alpha", in: tc.context)
+    createAsset(name: "Bond", platform: "Beta", in: tc.context)
+    let platforms = try tc.context.fetch(FetchDescriptor<Platform>())
+    platforms.first { $0.name == "Beta" }?.displayOrder = 0
+    platforms.first { $0.name == "Alpha" }?.displayOrder = 1
+    tc.settingsService.defaultPlatform = " beta "
+    let viewModel = PlatformListViewModel(
+      modelContext: tc.context, settingsService: tc.settingsService)
+    viewModel.loadPlatforms()
+    let originalID = try #require(viewModel.platformRows.first).id
+    try viewModel.renamePlatform(id: originalID, to: "Gamma")
+    viewModel.loadPlatforms()
+    #expect(viewModel.platformRows.first?.name == "Gamma")
+    #expect(viewModel.platformRows.first?.id == originalID)
+    #expect(tc.settingsService.defaultPlatform == "Gamma")
   }
 
   // MARK: - Listing
@@ -158,7 +190,8 @@ struct PlatformListViewModelTests {
 
     let viewModel = PlatformListViewModel(
       modelContext: context, settingsService: tc.settingsService)
-    try viewModel.renamePlatform(from: "Firstrade", to: "Interactive Brokers")
+    try viewModel.renamePlatform(
+      id: TestDataManager.platform(named: "Firstrade", in: context)!.id, to: "Interactive Brokers")
 
     #expect(asset1.platform == "Interactive Brokers")
     #expect(asset2.platform == "Interactive Brokers")
@@ -176,7 +209,8 @@ struct PlatformListViewModelTests {
       modelContext: context, settingsService: tc.settingsService)
 
     #expect(throws: PlatformError.duplicateName("vanguard")) {
-      try viewModel.renamePlatform(from: "Firstrade", to: "vanguard")
+      try viewModel.renamePlatform(
+        id: TestDataManager.platform(named: "Firstrade", in: context)!.id, to: "vanguard")
     }
   }
 
@@ -189,7 +223,9 @@ struct PlatformListViewModelTests {
 
     let viewModel = PlatformListViewModel(
       modelContext: context, settingsService: tc.settingsService)
-    try viewModel.renamePlatform(from: "Firstrade", to: "  Interactive  Brokers  ")
+    try viewModel.renamePlatform(
+      id: TestDataManager.platform(named: "Firstrade", in: context)!.id,
+      to: "  Interactive  Brokers  ")
 
     #expect(asset.platform == "Interactive Brokers")
   }
@@ -204,7 +240,8 @@ struct PlatformListViewModelTests {
 
     let viewModel = PlatformListViewModel(
       modelContext: context, settingsService: tc.settingsService)
-    try viewModel.renamePlatform(from: "Firstrade", to: "Interactive Brokers")
+    try viewModel.renamePlatform(
+      id: TestDataManager.platform(named: "Firstrade", in: context)!.id, to: "Interactive Brokers")
 
     viewModel.loadPlatforms()
 
@@ -290,7 +327,8 @@ struct PlatformListViewModelTests {
 
     let viewModel = PlatformListViewModel(
       modelContext: context, settingsService: tc.settingsService)
-    try viewModel.renamePlatform(from: "Firstrade", to: "FIRSTRADE")
+    try viewModel.renamePlatform(
+      id: TestDataManager.platform(named: "Firstrade", in: context)!.id, to: "FIRSTRADE")
 
     #expect(asset.platform == "FIRSTRADE")
   }
@@ -344,7 +382,8 @@ struct PlatformListViewModelTests {
       modelContext: context, settingsService: tc.settingsService)
 
     #expect(throws: PlatformError.emptyName) {
-      try viewModel.renamePlatform(from: "Firstrade", to: "   ")
+      try viewModel.renamePlatform(
+        id: TestDataManager.platform(named: "Firstrade", in: context)!.id, to: "   ")
     }
   }
 }

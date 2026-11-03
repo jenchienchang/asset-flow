@@ -33,7 +33,8 @@ extension BackupService {
     }
 
     var documents: [String: BackupCSVDocument] = [:]
-    for fileName in BackupCSV.requiredCSVFileNames {
+    let requiredFiles = version == .v5 ? BackupCSV.allCSVFileNames : BackupCSV.commonCSVFileNames
+    for fileName in requiredFiles {
       let fileURL = dir.appending(path: fileName)
       guard FileManager.default.fileExists(atPath: fileURL.path) else {
         throw BackupError.missingFile(fileName)
@@ -66,6 +67,7 @@ extension BackupService {
       }
     }
 
+    let platforms = parsePlatforms(documents[BackupCSV.Platforms.fileName], issues: &issues)
     let categories = parseCategories(
       documents[BackupCSV.Categories.fileName], version: version, issues: &issues)
     let assets = parseAssets(
@@ -84,6 +86,7 @@ extension BackupService {
       documents[BackupCSV.Settings.fileName], issues: &issues)
 
     validateRelationships(
+      platforms: platforms,
       categories: categories,
       assets: assets,
       snapshots: snapshots,
@@ -99,6 +102,7 @@ extension BackupService {
 
     return ValidatedBackup(
       manifest: manifest,
+      platforms: platforms,
       categories: categories,
       assets: assets,
       snapshots: snapshots,
@@ -155,11 +159,17 @@ extension BackupService {
     case BackupCSV.Categories.fileName:
       version == .v1
         ? BackupCSV.Categories.v1Headers
-        : (version == .v4 ? BackupCSV.Categories.headers : BackupCSV.Categories.v3Headers)
+        : (version.rawValue >= BackupFormatVersion.v4.rawValue
+          ? BackupCSV.Categories.headers : BackupCSV.Categories.v3Headers)
 
     case BackupCSV.Assets.fileName:
-      version.rawValue >= BackupFormatVersion.v3.rawValue
-        ? BackupCSV.Assets.headers : BackupCSV.Assets.v2Headers
+      version == .v5
+        ? BackupCSV.Assets.headers
+        : (version.rawValue >= BackupFormatVersion.v3.rawValue
+          ? BackupCSV.Assets.v4Headers : BackupCSV.Assets.v2Headers)
+
+    case BackupCSV.Platforms.fileName:
+      BackupCSV.Platforms.headers
 
     case BackupCSV.Snapshots.fileName:
       BackupCSV.Snapshots.headers

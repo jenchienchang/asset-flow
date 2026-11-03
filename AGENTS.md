@@ -28,6 +28,7 @@ swiftlint --fix
 MVVM with SwiftData. Models: `@Model` classes (see `AssetFlow/Models/README.md`). Views: SwiftUI. ViewModels: `@Observable @MainActor` classes. Services: calculation utilities, model-backed operations, and stateful app services (see `AssetFlow/AGENTS.md`).
 
 ```
+Platform (1:Many) → Asset
 Category (1:Many) → Asset
 Asset (Many:Many via SnapshotAssetValue) → Snapshot
 Snapshot (1:Many) → SnapshotAssetValue
@@ -35,7 +36,7 @@ Snapshot (1:Many) → CashFlowOperation
 Snapshot (1:1) → ExchangeRate
 ```
 
-All models registered in `SchemaV2` (`AssetFlow/Models/SchemaVersioning.swift`). When adding models, update `SchemaV2.models`, `AssetFlow/Models/README.md`, and `Documentation/DataModel.md`.
+Current models registered in `SchemaV4` (`AssetFlow/Models/SchemaVersioning.swift`). When adding models, assess a new schema version, preserve historical definitions, and update current registration, `AssetFlow/Models/README.md`, and `Documentation/DataModel.md`.
 
 **Xcode:** When adding files/features, update targets, `AssetFlow/Info.plist`, entitlements, and scheme configs as needed.
 

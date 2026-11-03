@@ -20,8 +20,8 @@ import SwiftData
 
 /// Service for exporting and restoring full database backups as ZIP archives.
 ///
-/// Each archive contains a `manifest.json`, 6 required CSV files covering all entities
-/// and settings, and 1 optional CSV file (`exchange_rates.csv`). Uses `/usr/bin/ditto`
+/// Each archive contains a manifest, entity and settings CSVs, and optional exchange rates.
+/// Uses `/usr/bin/ditto`
 /// for ZIP operations (built into macOS).
 nonisolated enum BackupService {
 
@@ -49,6 +49,7 @@ nonisolated enum BackupService {
     modelContext: ModelContext,
     settingsService: SettingsService
   ) throws -> BackupExportPayload {
+    let platforms = try modelContext.fetch(FetchDescriptor<Platform>())
     let categories = try modelContext.fetch(FetchDescriptor<Category>())
     let assets = try modelContext.fetch(FetchDescriptor<Asset>())
     let snapshots = try modelContext.fetch(FetchDescriptor<Snapshot>())
@@ -72,7 +73,8 @@ nonisolated enum BackupService {
       BackupAssetRecord(
         id: asset.id,
         name: asset.name,
-        platform: asset.platform,
+        legacyPlatformName: "",
+        platformID: asset.platformRecord?.id,
         categoryID: asset.category?.id,
         currency: asset.currency)
     }
@@ -117,6 +119,9 @@ nonisolated enum BackupService {
 
     return BackupExportPayload(
       manifest: manifest,
+      platforms: platforms.map {
+        BackupPlatformRecord(id: $0.id, name: $0.name, displayOrder: $0.displayOrder)
+      },
       categories: categoryRecords,
       assets: assetRecords,
       snapshots: snapshotRecords,
@@ -144,6 +149,7 @@ nonisolated enum BackupService {
     let manifestData = try JSONEncoder().encode(payload.manifest)
     try manifestData.write(
       to: tempDir.appending(path: BackupCSV.manifestFileName))
+    try writePlatformsCSV(payload.platforms, to: tempDir)
     try writeCategoriesCSV(payload.categories, to: tempDir)
     try writeAssetsCSV(payload.assets, to: tempDir)
     try writeSnapshotsCSV(payload.snapshots, to: tempDir)
@@ -217,12 +223,13 @@ nonisolated enum BackupService {
         try deleteAllData(modelContext: modelContext)
         try checkpoint?(.afterDeletion)
 
+        let platformIDMap = restorePlatforms(backup.platforms, modelContext: modelContext)
         let categoryIDMap = restoreCategories(
           backup.categories, modelContext: modelContext)
         try checkpoint?(.afterCategoryInsertion)
         let assetIDMap = try restoreAssets(
           backup.assets, modelContext: modelContext,
-          categoryIDMap: categoryIDMap)
+          categoryIDMap: categoryIDMap, platformIDMap: platformIDMap)
         let snapshotIDMap = restoreSnapshots(
           backup.snapshots, modelContext: modelContext)
         try restoreSnapshotAssetValues(
@@ -244,6 +251,7 @@ nonisolated enum BackupService {
     }
 
     restoreSettings(backup.settings, settingsService: settingsService)
+    settingsService.clearLegacyPlatformOrder()
   }
 
   private nonisolated static func loadValidatedBackupArchive(

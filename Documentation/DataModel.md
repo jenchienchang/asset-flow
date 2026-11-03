@@ -1,20 +1,20 @@
 # Data Model
 
-AssetFlow stores portfolio state as dated snapshots, not as a transaction ledger. This document defines the six SwiftData entities, their relationships, and the integrity and migration rules for the stored graph. [`SPEC.md`](SPEC.md) defines intended product behavior, [`BusinessLogic.md`](BusinessLogic.md) owns calculations and allocation policy, and [`APIDesign.md`](APIDesign.md) owns backup and CSV formats.
+AssetFlow stores portfolio state as dated snapshots, not as a transaction ledger. This document defines the seven SwiftData entities, their relationships, and the integrity and migration rules for the stored graph. [`SPEC.md`](SPEC.md) defines intended product behavior, [`BusinessLogic.md`](BusinessLogic.md) owns calculations and allocation policy, and [`APIDesign.md`](APIDesign.md) owns backup and CSV formats.
 
 ## Persistence Boundaries
 
-| Data                                                                           | Storage                                                              | Boundary                                                                                               |
-| ------------------------------------------------------------------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Categories, assets, snapshots, recorded values, cash flows, exchange rates     | SwiftData, using `CurrentSchema.schema`                              | The six versioned models below form the persistent portfolio graph.                                    |
-| Display preferences, platform order, stale-asset visibility, app-lock settings | `UserDefaults` through `SettingsService` and `AuthenticationService` | These are not SwiftData models. The backup format includes only some preferences.                      |
-| Downloaded currency list                                                       | `UserDefaults` through `CurrencyService`                             | A reusable currency-list cache, separate from snapshot exchange-rate records.                          |
-| Decoded exchange-rate dictionary                                               | `ExchangeRate._cachedRates`, marked `@Transient`                     | An in-memory cache rebuilt from persisted `ratesJSON` and cleared on rate updates.                     |
-| Backup manifest and records                                                    | ZIP transfer data produced by `BackupService`                        | A serialized copy of selected data, not a second live model store; see [`APIDesign.md`](APIDesign.md). |
+| Data                                                                                  | Storage                                                              | Boundary                                                                                               |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Platforms, categories, assets, snapshots, recorded values, cash flows, exchange rates | SwiftData, using `CurrentSchema.schema`                              | The seven versioned models below form the persistent portfolio graph.                                  |
+| Display preferences, stale-asset visibility, app-lock settings                        | `UserDefaults` through `SettingsService` and `AuthenticationService` | These are not SwiftData models. The backup format includes only some preferences.                      |
+| Downloaded currency list                                                              | `UserDefaults` through `CurrencyService`                             | A reusable currency-list cache, separate from snapshot exchange-rate records.                          |
+| Decoded exchange-rate dictionary                                                      | `ExchangeRate._cachedRates`, marked `@Transient`                     | An in-memory cache rebuilt from persisted `ratesJSON` and cleared on rate updates.                     |
+| Backup manifest and records                                                           | ZIP transfer data produced by `BackupService`                        | A serialized copy of selected data, not a second live model store; see [`APIDesign.md`](APIDesign.md). |
 
 Money amounts, percentage targets, and exchange rates use `Decimal`; no model stores monetary values as `Float` or `Double`. A target percentage is stored on the 0–100 scale, while a minimum amount is denominated in its paired currency. Asset and cash-flow currencies are strings; an empty string means that conversion uses the current display currency. This inherited currency is distinct from a missing exchange rate. See [`BusinessLogic.md`](BusinessLogic.md) for conversion and result-availability rules.
 
-`UUID` properties identify Category, Asset, Snapshot, and CashFlowOperation records in application and backup data. `SnapshotAssetValue` and `ExchangeRate` use relationships for their identity in the graph. SwiftData also gives persistent models its own `persistentModelID`; the `#Unique` declarations below identify the actual model-level uniqueness keys. Portfolio totals, converted values, net cash flow, category assessments, and rebalancing targets are derived rather than stored.
+`UUID` properties identify Platform, Category, Asset, Snapshot, and CashFlowOperation records in application and backup data. `SnapshotAssetValue` and `ExchangeRate` use relationships for their identity in the graph. SwiftData also gives persistent models its own `persistentModelID`; the `#Unique` declarations below identify the actual model-level uniqueness keys. Portfolio totals, converted values, net cash flow, category assessments, and rebalancing targets are derived rather than stored.
 
 ## Entities
 
@@ -36,28 +36,45 @@ Application validation requires a nonempty name, checks name conflicts without c
 
 A category with a minimum and no percentage still participates in goal assessment. An absent percentage protects its current balance or minimum during allocation; it does not simply remove the category from the calculation. No goal mode, effective target, or goal history is stored. [`BusinessLogic.md`](BusinessLogic.md#rebalancing-engine) owns the allocation rules.
 
+### Platform
+
+A Platform identifies a brokerage, bank, exchange, or other custodian independently of its display name. See [`Platform.swift`](../AssetFlow/Models/Platform.swift).
+
+| Property         | Type       | Stored meaning                                                    | Initial value                     |
+| ---------------- | ---------- | ----------------------------------------------------------------- | --------------------------------- |
+| `id`             | `UUID`     | Stable application and backup identifier                          | New UUID                          |
+| `name`           | `String`   | Display name with collapsed whitespace                            | Required initializer argument     |
+| `normalizedName` | `String`   | Unique trimmed, collapsed, lowercased name                        | Derived from name                 |
+| `displayOrder`   | `Int`      | User ordering; unseen platforms sort afterward by normalized name | `0`; resolution assigns `Int.max` |
+| `assets`         | `[Asset]?` | Inverse of `Asset.platformRecord`                                 | Empty collection                  |
+
+`PlatformService` resolves names and validates renames before mutation. Display and normalized names change together; neither has a public setter. A rename preserves UUID, asset assignments, and order. After validation and before changing the name, the current order (including hidden platforms and name-sorted ties) is assigned distinct persisted positions. Empty records remain stored but are hidden from platform lists and pickers; resolving their names reuses them. Deletion is denied while assets reference the platform. Totals and history are calculated, not stored on Platform.
+
 ### Asset
 
 An Asset persists across snapshots and is identified for import matching by its name and platform. See [`Asset.swift`](../AssetFlow/Models/Asset.swift).
 
-| Property              | Type                    | Stored meaning                                                  | Initial value                       |
-| --------------------- | ----------------------- | --------------------------------------------------------------- | ----------------------------------- |
-| `id`                  | `UUID`                  | Application identifier                                          | New UUID                            |
-| `name`                | `String`                | Asset name                                                      | Required initializer argument       |
-| `platform`            | `String`                | Platform or brokerage; empty means none                         | `""`                                |
-| `currency`            | `String`                | Native currency; empty inherits display currency for conversion | `""`                                |
-| `category`            | `Category?`             | Optional category assignment                                    | `nil`                               |
-| `snapshotAssetValues` | `[SnapshotAssetValue]?` | Recorded values across snapshots                                | Empty collection in the initializer |
+| Property              | Type                    | Stored meaning                                                        | Initial value                       |
+| --------------------- | ----------------------- | --------------------------------------------------------------------- | ----------------------------------- |
+| `id`                  | `UUID`                  | Application identifier                                                | New UUID                            |
+| `identityKey`         | `String`                | Normalized name scoped by stable platform UUID, or explicit nil scope | Derived in initializer              |
+| `name`                | `String`                | Asset name                                                            | Required initializer argument       |
+| `platformRecord`      | `Platform?`             | Optional persisted custodian relationship; nil means none             | `nil`                               |
+| `currency`            | `String`                | Native currency; empty inherits display currency for conversion       | `""`                                |
+| `category`            | `Category?`             | Optional category assignment                                          | `nil`                               |
+| `snapshotAssetValues` | `[SnapshotAssetValue]?` | Recorded values across snapshots                                      | Empty collection in the initializer |
 
-Application matching uses `normalizedForIdentity` on both name and platform: it trims outer whitespace, collapses internal whitespace, and lowercases the result. The model's `#Unique` key uses the stored name and platform properties; it does not itself express this normalization. [`BusinessLogic.md`](BusinessLogic.md#asset-identity-and-matching) owns matching and rename behavior.
+Application matching uses `normalizedForIdentity` on both name and platform: it trims outer whitespace, collapses internal whitespace, and lowercases the result. The model's `#Unique` key uses `identityKey`, combining normalized asset name with the platform UUID or an explicit nil scope. A relationship-based compound constraint does not enforce the nil-platform case. Name, platform assignment, and identity key have private setters and change together through `updateIdentity(name:platform:)`; application operations reject conflicts before mutation. `platform` is a read-only display/interchange projection of `platformRecord?.name`, returning an empty string for nil; no platform name string is stored on Asset. [`BusinessLogic.md`](BusinessLogic.md#asset-identity-and-matching) owns matching and rename behavior.
 
 The initializer accepts `name` and `platform`; currency can be assigned afterward in a main-actor model operation:
 
 ```swift
 @MainActor
-func makeAsset() -> Asset {
-  let asset = Asset(name: "AAPL", platform: "Brokerage")
+func makeAsset(in context: ModelContext) throws -> Asset {
+  let platform = try PlatformService.resolve(name: "Brokerage", in: context)
+  let asset = Asset(name: "AAPL", platform: platform)
   asset.currency = "USD"
+  context.insert(asset)
   return asset
 }
 ```
@@ -126,6 +143,7 @@ The model's `convert(value:from:to:)` uses positive finite cross-rates and retur
 ### Entity Relationship Diagram
 
 ```text
+Platform ←── optional platformRecord ── Asset
 Category ←── optional category ── Asset
 Asset ←── one asset ── SnapshotAssetValue ── one snapshot ──→ Snapshot
 Snapshot ── zero or more ──→ CashFlowOperation
@@ -134,13 +152,14 @@ Snapshot ── zero or one ───→ ExchangeRate
 
 Each SnapshotAssetValue connects one Asset to one Snapshot in a valid saved graph, so Asset and Snapshot have a many-to-many relationship through that entity. The parent links on SnapshotAssetValue, CashFlowOperation, and ExchangeRate are declared optional to allow construction before linking; the cardinalities above describe valid application data, not nonoptional Swift types.
 
-| Declared relationship                                        | Cardinality in valid application data        | Configured delete rule                                       |
-| ------------------------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------ |
-| `Category.assets` ↔ `Asset.category`                         | Category: 0–many assets; Asset: 0–1 category | `.deny` on `Category.assets`; `.nullify` on `Asset.category` |
-| `Asset.snapshotAssetValues` ↔ `SnapshotAssetValue.asset`     | Asset: 0–many values; value: one asset       | `.deny` on `Asset.snapshotAssetValues`                       |
-| `Snapshot.assetValues` ↔ `SnapshotAssetValue.snapshot`       | Snapshot: 0–many values; value: one snapshot | `.cascade` on `Snapshot.assetValues`                         |
-| `Snapshot.cashFlowOperations` ↔ `CashFlowOperation.snapshot` | Snapshot: 0–many flows; flow: one snapshot   | `.cascade` on `Snapshot.cashFlowOperations`                  |
-| `Snapshot.exchangeRate` ↔ `ExchangeRate.snapshot`            | Snapshot: 0–1 rate; rate: one snapshot       | `.cascade` on `Snapshot.exchangeRate`                        |
+| Declared relationship                                        | Cardinality in valid application data        | Configured delete rule                                             |
+| ------------------------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------ |
+| `Platform.assets` ↔ `Asset.platformRecord`                   | Platform: 0–many assets; Asset: 0–1 platform | `.deny` on `Platform.assets`; `.nullify` on `Asset.platformRecord` |
+| `Category.assets` ↔ `Asset.category`                         | Category: 0–many assets; Asset: 0–1 category | `.deny` on `Category.assets`; `.nullify` on `Asset.category`       |
+| `Asset.snapshotAssetValues` ↔ `SnapshotAssetValue.asset`     | Asset: 0–many values; value: one asset       | `.deny` on `Asset.snapshotAssetValues`                             |
+| `Snapshot.assetValues` ↔ `SnapshotAssetValue.snapshot`       | Snapshot: 0–many values; value: one snapshot | `.cascade` on `Snapshot.assetValues`                               |
+| `Snapshot.cashFlowOperations` ↔ `CashFlowOperation.snapshot` | Snapshot: 0–many flows; flow: one snapshot   | `.cascade` on `Snapshot.cashFlowOperations`                        |
+| `Snapshot.exchangeRate` ↔ `ExchangeRate.snapshot`            | Snapshot: 0–1 rate; rate: one snapshot       | `.cascade` on `Snapshot.exchangeRate`                              |
 
 The rule is configured on a particular relationship; it applies when deleting a model that contains references through that relationship. Inverse-side rules cannot be dismissed as universally meaningless. [Apple's SwiftData delete-rule reference](https://developer.apple.com/documentation/swiftdata/schema/relationship/deleterule-swift.enum) defines the rule directions. Snapshot declares `.cascade` for its values, cash flows, and rate record. [`SwiftDataRelationshipTests.swift`](../AssetFlowTests/Integration/SwiftDataRelationshipTests.swift) asserts value and cash-flow cascades and that deleting one snapshot preserves its Assets and other snapshots' values.
 
@@ -151,7 +170,8 @@ Application deletion paths also guard `.deny` relationships: [`CategoryListViewM
 | Model              | Declared `#Unique` key            | Additional application rule                                                    |
 | ------------------ | --------------------------------- | ------------------------------------------------------------------------------ |
 | Category           | `name`                            | Nonempty; case-insensitive name conflict check                                 |
-| Asset              | `name`, `platform`                | Match and reject conflicts using normalized identity                           |
+| Platform           | `normalizedName`                  | Nonempty normalized name; preserve UUID on rename                              |
+| Asset              | `identityKey`                     | Match and reject conflicts using normalized identity                           |
 | Snapshot           | `date`                            | Normalize to local start of day; reject future creation dates                  |
 | SnapshotAssetValue | `snapshot`, `asset`               | Link both parents; one direct value per asset and snapshot                     |
 | CashFlowOperation  | `snapshot`, `cashFlowDescription` | Link a snapshot; check descriptions without case                               |
@@ -161,16 +181,16 @@ These declared keys are not substitutes for validation before mutation. In parti
 
 ## Schema, Migration, and Preservation
 
-[`SchemaVersioning.swift`](../AssetFlow/Models/SchemaVersioning.swift) defines `SchemaV1` (1.0.0), `SchemaV2` (2.0.0), `CurrentSchema`, and `AssetFlowMigrationPlan`. V1's six historical model definitions live in the frozen [`SchemaV1Models.swift`](../AssetFlow/Models/SchemaV1Models.swift). V2 registers the six current models and adds optional Category minimum amount and currency fields. The plan contains a lightweight V1→V2 stage; migrated categories have no minimum until one is set.
+[`SchemaVersioning.swift`](../AssetFlow/Models/SchemaVersioning.swift) selects SchemaV4 (4.0.0) as current. V1 and V2 model definitions are frozen in [`SchemaV1Models.swift`](../AssetFlow/Models/SchemaV1Models.swift) and [`SchemaV2Models.swift`](../AssetFlow/Models/SchemaV2Models.swift). The migration plan opens V1 through V2, whose category minimum fields are optional.
 
-[`AssetFlowApp.swift`](../AssetFlow/AssetFlowApp.swift) creates the normal disk-backed `ModelContainer` with `CurrentSchema.schema` and `AssetFlowMigrationPlan.self`. A Debug `--preview-data` launch uses an in-memory configuration for disposable sample data. Tests likewise use isolated memory containers or disposable disk stores; these are separate from the user's persistent store. If the app cannot open its database, it shows a database error and exits after dismissal. It does not delete or recreate that store as a compatibility fallback.
+V2→V3 first rejects duplicate normalized asset-name/platform pairs before changing the graph. V3 is an intermediate schema retaining the old asset string alongside the new relationship: the custom migration creates one platform per normalized nonempty name and assigns assets without changing their UUIDs or recorded values. Migrated platforms without a legacy ordering preference use the same name ordering as new platforms. V3 also fills each asset identity key. V3→V4 removes the old string and enforces uniqueness on that key. A collision fails migration; records are never silently merged. Store-open failure shows a database error and exits without deleting or recreating the store. [`AssetFlowApp.swift`](../AssetFlow/AssetFlowApp.swift) opens the normal disk store through this migration plan; Debug preview launches and tests use separate disposable stores.
 
-[`CategoryGoalMigrationTests.swift`](../AssetFlowTests/Integration/CategoryGoalMigrationTests.swift) creates disposable V1 disk graphs, opens them through the migration plan, checks identities and relationships, and reopens a V2 graph after adding a minimum. This supports the documented V1→V2 path; it does not prove that every possible future schema change will migrate automatically. Future released-schema changes require an explicit versioning and migration assessment while preserving historical definitions. [`DevelopmentGuide.md`](DevelopmentGuide.md#working-with-swiftdata) owns the contributor procedure for model changes.
+After opening, `PlatformService.migrateLegacyOrder` transfers the old UserDefaults name ordering to platform records and clears the old key only after saving successfully. Platform IDs and ordering then belong to SwiftData. [`PlatformPersistenceTests.swift`](../AssetFlowTests/Integration/PlatformPersistenceTests.swift) checks V2 conversion, reopen identity, and collision preservation; [`CategoryGoalMigrationTests.swift`](../AssetFlowTests/Integration/CategoryGoalMigrationTests.swift) checks the V1 path and financial graph. Future released-schema changes require a new migration assessment and frozen historical definitions. [`DevelopmentGuide.md`](DevelopmentGuide.md#working-with-swiftdata) owns the contributor procedure.
 
 Current queries fetch snapshots by normalized date and read value history through `Asset.snapshotAssetValues`; the models declare no indexes. See [`SnapshotListViewModel.swift`](../AssetFlow/ViewModels/SnapshotListViewModel.swift) and [`AssetDetailViewModel.swift`](../AssetFlow/ViewModels/AssetDetailViewModel.swift). Query and context usage procedures belong in [`DevelopmentGuide.md`](DevelopmentGuide.md#working-with-swiftdata).
 
 ## Backup Mapping
 
-Backup transfer records carry entity UUIDs and relationship references rather than persisting duplicate foreign-key properties on the SwiftData models. For example, `Asset.category` maps to a category UUID, and a cash flow's Swift `cashFlowDescription` maps to a transfer field named `description`. Snapshot and rate dates serialize as ISO 8601 timestamps, not date-only strings. The current backup format is v4, distinct from SwiftData SchemaV2; it includes Category minimum amount and currency. Restore of v1–v3 backups leaves those minimums absent, while v4 retains the currency and exchange-rate data introduced in v3.
+Backup transfer records carry entity UUIDs and relationship references rather than persisting duplicate foreign-key properties on the SwiftData models. For example, `Asset.category` maps to a category UUID, and a cash flow's Swift `cashFlowDescription` maps to a transfer field named `description`. Snapshot and rate dates serialize as ISO 8601 timestamps, not date-only strings. The current backup format is v5, distinct from SwiftData SchemaV4. It includes all platform records, their UUIDs and order, asset platform UUID references, and Category minimum amount and currency. V1–v4 backups remain readable: their platform names resolve to shared platform relationships. V1–v3 backups have no category minimums; v4 retains minimums and the currency/rate data introduced in v3.
 
 The format transfers only the documented settings subset; other UserDefaults preferences and the currency-list cache are outside the model graph. [`APIDesign.md`](APIDesign.md#backupservice) owns exact headers, field order, null representation, archive layout, and restore compatibility. [`BackupTypes.swift`](../AssetFlow/Services/BackupTypes.swift) and [`BackupService+Export.swift`](../AssetFlow/Services/BackupService+Export.swift) define the current transfer records and writer.

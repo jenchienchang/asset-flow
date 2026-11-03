@@ -49,9 +49,10 @@ final class SettingsViewModel {
 
   /// Default platform for imports
   var defaultPlatformString: String {
-    didSet {
-      guard defaultPlatformString != oldValue else { return }
-      settingsService.defaultPlatform = defaultPlatformString
+    get { settingsService.defaultPlatform }
+    set {
+      guard newValue != settingsService.defaultPlatform else { return }
+      settingsService.defaultPlatform = newValue
     }
   }
 
@@ -141,7 +142,6 @@ final class SettingsViewModel {
     self.authService = resolvedAuthService
     self.selectedCurrency = resolvedSettingsService.mainCurrency
     self.selectedDateFormat = resolvedSettingsService.dateFormat
-    self.defaultPlatformString = resolvedSettingsService.defaultPlatform
     self.isAppLockEnabled = resolvedAuthService.isAppLockEnabled
     self.appSwitchTimeout = resolvedAuthService.appSwitchTimeout
     self.screenLockTimeout = resolvedAuthService.screenLockTimeout

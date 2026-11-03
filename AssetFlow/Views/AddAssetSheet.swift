@@ -39,12 +39,13 @@ struct AddAssetSheet: View {
 
   // Create New mode
   @State private var newAssetName = ""
-  @State private var newPlatform = ""
+  @State private var platformSelection = PlatformSelection.none
   @State private var newCategory: Category?
   @State private var newMarketValueText = ""
   @State private var newCurrency = SettingsService.shared.mainCurrency
 
   @Query(sort: \Asset.name) private var allAssets: [Asset]
+  @Query private var allPlatforms: [Platform]
   @Query private var allCategories: [Category]
 
   @State private var cachedPlatforms: [String] = []
@@ -100,6 +101,10 @@ struct AddAssetSheet: View {
       }
     }
     .frame(minWidth: 400, minHeight: 300)
+    .onChange(of: ModelQueryRevision(platforms: allPlatforms)) {
+      platformSelection = platformSelection.refreshed(with: allPlatforms)
+      cachedPlatforms = existingPlatforms()
+    }
     .onAppear {
       refreshCachedOptions()
       focusedField = mode == .selectExisting ? .marketValue : .newName
@@ -177,7 +182,9 @@ struct AddAssetSheet: View {
 
   private var platformPicker: some View {
     PlatformPickerField(
-      selectedPlatform: $newPlatform,
+      selectedPlatform: Binding(
+        get: { platformSelection.name },
+        set: { platformSelection = PlatformSelection(name: $0, platforms: allPlatforms) }),
       cachedPlatforms: $cachedPlatforms
     )
   }
@@ -218,7 +225,7 @@ struct AddAssetSheet: View {
         guard let value = Decimal.parse(newMarketValueText) else { return }
         try viewModel.addNewAsset(
           name: newAssetName,
-          platform: newPlatform,
+          platform: platformSelection.name,
           category: newCategory,
           marketValue: value,
           currency: newCurrency

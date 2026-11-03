@@ -174,7 +174,8 @@ struct SwiftDataRelationshipTests {
 
     let snapshot = Snapshot(date: Date())
     let asset1 = Asset(name: "AAPL")
-    let asset2 = Asset(name: "BTC", platform: "Binance")
+    let asset2 = Asset(
+      name: "BTC", platform: TestDataManager.platform(named: "Binance", in: context))
 
     context.insert(snapshot)
     context.insert(asset1)

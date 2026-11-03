@@ -44,10 +44,31 @@ private struct AssetResolutionKey: Hashable {
   }
 }
 
+/// A save-scoped index: resolve CSV labels once without per-row store reads.
+struct PlatformResolutionLookup {
+  private var platformsByName: [String: Platform] = [:]
+
+  init(platforms: [Platform]) {
+    for platform in platforms { platformsByName[platform.normalizedName] = platform }
+  }
+
+  mutating func resolve(name: String, in context: ModelContext) -> Platform? {
+    let key = name.normalizedForIdentity
+    guard !key.isEmpty else { return nil }
+    if let existing = platformsByName[key] { return existing }
+    let platform = Platform(name: name, displayOrder: Int.max)
+    context.insert(platform)
+    platformsByName[key] = platform
+    return platform
+  }
+}
+
 struct AssetResolutionLookup {
   private var assetsByIdentity: [AssetResolutionKey: Asset] = [:]
+  private var platformLookup: PlatformResolutionLookup
 
-  init(assets: [Asset]) {
+  init(assets: [Asset], platforms: [Platform]) {
+    platformLookup = PlatformResolutionLookup(platforms: platforms)
     for asset in assets {
       let key = AssetResolutionKey(asset: asset)
       if assetsByIdentity[key] == nil {
@@ -66,7 +87,8 @@ struct AssetResolutionLookup {
       return existing
     }
 
-    let newAsset = Asset(name: name, platform: platform)
+    let resolvedPlatform = platformLookup.resolve(name: platform, in: modelContext)
+    let newAsset = Asset(name: name, platform: resolvedPlatform)
     modelContext.insert(newAsset)
     assetsByIdentity[key] = newAsset
     return newAsset

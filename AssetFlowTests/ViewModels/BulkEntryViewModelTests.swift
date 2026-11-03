@@ -1423,7 +1423,9 @@ struct BulkEntryViewModelTests {
 
     var createdAssets: [Asset] = []
     for assetData in assets {
-      let asset = Asset(name: assetData.name, platform: assetData.platform)
+      let asset = Asset(
+        name: assetData.name,
+        platform: TestDataManager.platform(named: assetData.platform, in: context))
       asset.currency = assetData.currency
       context.insert(asset)
       let sav = SnapshotAssetValue(marketValue: assetData.value)

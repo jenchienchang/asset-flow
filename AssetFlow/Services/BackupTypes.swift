@@ -55,8 +55,9 @@ enum BackupFormatVersion: Int, CaseIterable, Sendable {
   case v2 = 2
   case v3 = 3
   case v4 = 4
+  case v5 = 5
 
-  nonisolated static let current = BackupFormatVersion.v4
+  nonisolated static let current = BackupFormatVersion.v5
 }
 
 struct BackupValidationIssue: Sendable {
@@ -154,6 +155,7 @@ enum BackupError: LocalizedError, Sendable {
 
 struct ValidatedBackup: Sendable {
   let manifest: BackupManifest
+  let platforms: [BackupPlatformRecord]
   let categories: [BackupCategoryRecord]
   let assets: [BackupAssetRecord]
   let snapshots: [BackupSnapshotRecord]
@@ -166,6 +168,7 @@ struct ValidatedBackup: Sendable {
 /// Immutable snapshot of the SwiftData graph used by background export work.
 struct BackupExportPayload: Sendable {
   let manifest: BackupManifest
+  let platforms: [BackupPlatformRecord]
   let categories: [BackupCategoryRecord]
   let assets: [BackupAssetRecord]
   let snapshots: [BackupSnapshotRecord]
@@ -184,10 +187,18 @@ struct BackupCategoryRecord: Sendable {
   var minimumBalanceCurrency: String?
 }
 
+struct BackupPlatformRecord: Sendable {
+  let id: UUID
+  let name: String
+  let displayOrder: Int
+}
+
 struct BackupAssetRecord: Sendable {
   let id: UUID
   let name: String
-  let platform: String
+  /// Populated only when decoding v1–v4 names. V5 uses platformID.
+  let legacyPlatformName: String
+  let platformID: UUID?
   let categoryID: UUID?
   let currency: String
 }
@@ -245,9 +256,15 @@ enum BackupCSV {
     nonisolated static let v1Headers = ["id", "name", "targetAllocationPercentage"]
   }
 
+  enum Platforms {
+    nonisolated static let fileName = "platforms.csv"
+    nonisolated static let headers = ["id", "name", "displayOrder"]
+  }
+
   enum Assets {
     nonisolated static let fileName = "assets.csv"
-    nonisolated static let headers = ["id", "name", "platform", "categoryID", "currency"]
+    nonisolated static let headers = ["id", "name", "platformID", "categoryID", "currency"]
+    nonisolated static let v4Headers = ["id", "name", "platform", "categoryID", "currency"]
     nonisolated static let v2Headers = ["id", "name", "platform", "categoryID"]
   }
 
@@ -281,7 +298,7 @@ enum BackupCSV {
 
   nonisolated static let manifestFileName = "manifest.json"
 
-  nonisolated static let allCSVFileNames = [
+  nonisolated static let commonCSVFileNames = [
     Categories.fileName,
     Assets.fileName,
     Snapshots.fileName,
@@ -290,8 +307,8 @@ enum BackupCSV {
     Settings.fileName,
   ]
 
-  /// CSV files required in all backup versions.
-  nonisolated static let requiredCSVFileNames = allCSVFileNames
+  /// Current required files; older versions predate platforms.csv.
+  nonisolated static let allCSVFileNames = commonCSVFileNames + [Platforms.fileName]
 
   /// CSV files that are optional (may not exist in older backups).
   nonisolated static let optionalCSVFileNames = [

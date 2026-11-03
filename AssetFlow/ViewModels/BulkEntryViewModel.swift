@@ -559,7 +559,11 @@ final class BulkEntryViewModel {
       existingAssets = []
     }
     var assetLookup = AssetResolutionLookup(
-      assets: existingAssets)
+      assets: existingAssets,
+      platforms: hasNewAssets
+        ? try fetchModels(
+          FetchDescriptor<Platform>(), from: fetcher, operation: "prepare bulk platforms")
+        : [])
 
     let hasNewAssetCategories = includedRows.contains { row in
       guard row.asset == nil, let categoryName = row.categoryName else { return false }

@@ -54,7 +54,7 @@ struct RebalancingViewModelTests {
     snapshot: Snapshot,
     context: ModelContext
   ) -> (Asset, SnapshotAssetValue) {
-    let asset = Asset(name: name, platform: platform)
+    let asset = Asset(name: name, platform: TestDataManager.platform(named: platform, in: context))
     asset.category = category
     context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: marketValue)

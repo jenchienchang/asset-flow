@@ -24,7 +24,7 @@ import Testing
 @Suite("CategoryGoalBackup Tests")
 @MainActor
 struct CategoryGoalBackupTests {
-  @Test("V4 archive preserves minimum currency and full precision with all V3 entities")
+  @Test("Current archive preserves minimum currency and full precision with all V3 entities")
   func roundTrip() async throws {
     let original = TestDataManager.createInMemoryContainer()
     let restored = TestDataManager.createInMemoryContainer()
@@ -55,7 +55,7 @@ struct CategoryGoalBackupTests {
     defer { try? FileManager.default.removeItem(at: zip) }
     try await BackupService.exportBackup(
       to: zip, modelContext: original.mainContext, settingsService: settings)
-    #expect(try await BackupService.validateBackup(at: zip).formatVersion == 4)
+    #expect(try await BackupService.validateBackup(at: zip).formatVersion == 5)
     try await BackupService.restoreFromBackup(
       at: zip, modelContext: restored.mainContext, settingsService: settings)
     let copy = try #require(restored.mainContext.fetch(FetchDescriptor<AssetFlow.Category>()).first)
@@ -87,7 +87,7 @@ struct CategoryGoalBackupTests {
     #expect(retained.minimumBalanceAmount == Decimal(string: "300000.123456789")!)
     #expect(retained.minimumBalanceCurrency == "TWD")
 
-    // Turn a complete V4 archive into a real V3 layout and preserve V3 currency/rates.
+    // Turn a current archive into a real V3 layout and preserve V3 currency/rates.
     let dir = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: dir) }
@@ -99,6 +99,11 @@ struct CategoryGoalBackupTests {
       to: dir.appending(path: BackupCSV.manifestFileName))
     try "id,name,targetAllocationPercentage,displayOrder\n\(category.id),Reserve,100,0\n".write(
       to: dir.appending(path: BackupCSV.Categories.fileName), atomically: true, encoding: .utf8)
+    let assetsURL = dir.appending(path: BackupCSV.Assets.fileName)
+    let legacyAssets = try String(contentsOf: assetsURL, encoding: .utf8)
+      .replacingOccurrences(of: "platformID", with: "platform")
+    try legacyAssets.write(to: assetsURL, atomically: true, encoding: .utf8)
+    try FileManager.default.removeItem(at: dir.appending(path: BackupCSV.Platforms.fileName))
     let legacyZip = FileManager.default.temporaryDirectory.appending(
       path: "legacy-goals-\(UUID()).zip")
     defer { try? FileManager.default.removeItem(at: legacyZip) }
