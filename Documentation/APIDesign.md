@@ -97,7 +97,7 @@ The service owns `LockEventInbox`. Its mutex serializes notification receipt wit
 
 | Call                                                  | Actor and result                             | Effect                                                                                                                                 |
 | ----------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `exportBackup(to:modelContext:settingsService:)`      | `@MainActor async throws -> Void`            | Reads models and covered settings, serializes a v4 archive, then replaces or creates the destination after the archive is complete.    |
+| `exportBackup(to:modelContext:settingsService:)`      | `@MainActor async throws -> Void`            | Reads models and covered settings, serializes a v5 archive, then replaces or creates the destination after the archive is complete.    |
 | `validateBackup(at:)`                                 | `nonisolated async throws -> BackupManifest` | Extracts and validates a ZIP without changing app data.                                                                                |
 | `restoreFromBackup(at:modelContext:settingsService:)` | `@MainActor async throws -> Void`            | Validates first, then replaces model data and the covered settings. The source also has a defaulted checkpoint hook for restore tests. |
 

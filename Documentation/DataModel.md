@@ -48,7 +48,7 @@ A Platform identifies a brokerage, bank, exchange, or other custodian independen
 | `displayOrder`   | `Int`      | User ordering; unseen platforms sort afterward by normalized name | `0`; resolution assigns `Int.max` |
 | `assets`         | `[Asset]?` | Inverse of `Asset.platformRecord`                                 | Empty collection                  |
 
-`PlatformService` resolves names and validates renames before mutation. Display and normalized names change together; neither has a public setter. A rename preserves UUID, asset assignments, and order. After validation and before changing the name, the current order (including hidden platforms and name-sorted ties) is assigned distinct persisted positions. Empty records remain stored but are hidden from platform lists and pickers; resolving their names reuses them. Deletion is denied while assets reference the platform. Totals and history are calculated, not stored on Platform.
+`PlatformService` resolves names and validates renames before mutation. Display and normalized names change together; neither has a public setter. A rename preserves UUID, asset assignments, and order. See [`APIDesign.md`](APIDesign.md#platform-operations) for the rename mutation contract. Empty records remain stored but are hidden from platform lists and pickers; resolving their names reuses them. Deletion is denied while assets reference the platform. Totals and history are calculated, not stored on Platform.
 
 ### Asset
 
