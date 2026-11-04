@@ -25,7 +25,7 @@ import Testing
 @MainActor
 struct PlatformReviewRegressionTests {
   @Test(
-    "Rename preserves initially name-sorted positions through both editors and a save",
+    "Rename preserves displayed positions through both editors and a save",
     arguments: [false, true])
   func renamePreservesImplicitOrder(viaDetail: Bool) throws {
     let container = TestDataManager.createInMemoryContainer()
@@ -53,7 +53,8 @@ struct PlatformReviewRegressionTests {
     list.loadPlatforms()
     #expect(list.platformRows.map(\.id) == originalIDs)
     #expect(list.platformRows.map(\.name) == ["Zeta", "Beta"])
-    #expect(hidden.displayOrder < platform.displayOrder)
+    // Loading establishes visible positions before rename freezes the remaining hidden record.
+    #expect(hidden.displayOrder > betaPlatform.displayOrder)
     #expect(platform.displayOrder < betaPlatform.displayOrder)
 
     try context.save()

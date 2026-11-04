@@ -24,6 +24,71 @@ import Testing
 @Suite("PlatformService Tests")
 @MainActor
 struct PlatformServiceTests {
+  @Test(
+    "Reconciliation appends visible names after hidden positions and ignores unseen empty records")
+  func reconcileVisibleOrder() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let hidden = Platform(name: "Hidden", displayOrder: 12)
+    let unseen = Platform(name: "Unseen", displayOrder: Int.max)
+    let beta = Platform(name: "Beta", displayOrder: Int.max)
+    let alpha = Platform(name: "Alpha", displayOrder: Int.max)
+    let platforms = [beta, unseen, hidden, alpha]
+    for platform in platforms {
+      context.insert(platform)
+    }
+    context.insert(Asset(name: "B", platform: beta))
+    context.insert(Asset(name: "A", platform: alpha))
+
+    PlatformService.reconcileDisplayOrder(platforms)
+
+    #expect(hidden.displayOrder == 12)
+    #expect(alpha.displayOrder == 13)
+    #expect(beta.displayOrder == 14)
+    #expect(unseen.displayOrder == Int.max)
+    try context.save()
+    PlatformService.reconcileDisplayOrder(platforms)
+    #expect(!context.hasChanges)
+  }
+
+  @Test(
+    "Exhausted positions compact established records without reordering or assigning the sentinel",
+    arguments: [1, 2])
+  func reconcileExhaustedOrder(batchSize: Int) throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let hidden = Platform(name: "Zebra", displayOrder: 8)
+    let established = Platform(name: "Beta", displayOrder: Int.max - 1)
+    let additions = (0..<batchSize).map { Platform(name: "Alpha \($0)", displayOrder: Int.max) }
+    let platforms = [established, hidden] + additions
+    for platform in platforms {
+      context.insert(platform)
+    }
+    for platform in additions { context.insert(Asset(name: platform.name, platform: platform)) }
+
+    PlatformService.reconcileDisplayOrder(platforms)
+
+    #expect(hidden.displayOrder == 0)
+    #expect(established.displayOrder == 1)
+    #expect(additions.map(\.displayOrder) == Array(2..<(2 + batchSize)))
+    try context.save()
+    PlatformService.reconcileDisplayOrder(platforms)
+    #expect(!context.hasChanges)
+  }
+
+  @Test("An unchanged established list is not compacted even near the sentinel")
+  func establishedOrderIsUntouched() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let platform = Platform(name: "Beta", displayOrder: Int.max - 1)
+    context.insert(platform)
+    context.insert(Asset(name: "Fund", platform: platform))
+    try context.save()
+    PlatformService.reconcileDisplayOrder([platform])
+    #expect(platform.displayOrder == Int.max - 1)
+    #expect(!context.hasChanges)
+  }
+
   @Test("Resolution reuses canonical identity, including hidden empty platforms")
   func canonicalResolution() throws {
     let container = TestDataManager.createInMemoryContainer()

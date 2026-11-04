@@ -24,6 +24,51 @@ import Testing
 @Suite("PlatformPersistence Tests")
 @MainActor
 struct PlatformPersistenceTests {
+  @Test("Displayed order and relationships survive closing and reopening a disk store")
+  func displayedOrderSurvivesReopen() throws {
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let url = directory.appending(path: "ordering.store")
+    let ids = try seedDisplayedOrder(at: url)
+    try checkDisplayedOrder(at: url, ids: ids)
+    try checkDisplayedOrder(at: url, ids: ids)
+  }
+
+  private func seedDisplayedOrder(at url: URL) throws -> [UUID] {
+    let schema = CurrentSchema.schema
+    let container = try ModelContainer(
+      for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+    let context = container.mainContext
+    context.autosaveEnabled = false
+    let beta = try context.findOrCreateAsset(name: "B", platform: "Beta")
+    let list = PlatformListViewModel(modelContext: context, settingsService: .createForTesting())
+    list.loadPlatforms()
+    let alpha = try context.findOrCreateAsset(name: "A", platform: "Alpha")
+    list.loadPlatforms()
+    #expect(list.platformRows.map(\.name) == ["Beta", "Alpha"])
+    let ids = try [#require(beta.platformRecord).id, #require(alpha.platformRecord).id]
+    try context.save()
+    return ids
+  }
+
+  private func checkDisplayedOrder(at url: URL, ids: [UUID]) throws {
+    let schema = CurrentSchema.schema
+    let container = try ModelContainer(
+      for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+    let context = container.mainContext
+    context.autosaveEnabled = false
+    let platforms = PlatformService.orderedForDisplay(
+      try context.fetch(FetchDescriptor<Platform>()))
+    #expect(platforms.map(\.id) == ids)
+    #expect(platforms.map(\.displayOrder) == [0, 1])
+    #expect(platforms.map { $0.assets?.count } == [1, 1])
+    let list = PlatformListViewModel(modelContext: context, settingsService: .createForTesting())
+    list.loadPlatforms()
+    #expect(list.platformRows.map(\.id) == ids)
+    #expect(!context.hasChanges)
+  }
+
   @Test("Backup round trip preserves platform IDs, ordering, empty records and assignments")
   func backupRoundTrip() async throws {
     let source = TestDataManager.createInMemoryContainer()

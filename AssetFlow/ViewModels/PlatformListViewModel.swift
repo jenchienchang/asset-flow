@@ -85,6 +85,7 @@ final class PlatformListViewModel {
       let status = summary?.conversionStatus ?? .notNeeded
       let platformValues = summary?.platformValuesByID ?? [:]
 
+      PlatformService.reconcileDisplayOrder(platforms)
       let loadedRows = PlatformService.orderedForDisplay(
         platforms.filter { !($0.assets ?? []).isEmpty }
       )

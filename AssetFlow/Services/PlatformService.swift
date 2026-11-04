@@ -35,6 +35,29 @@ enum PlatformService {
     return lookup.resolve(name: name, in: context)
   }
 
+  /// Establishes positions for newly visible platforms, retaining hidden established positions.
+  /// Routine model edits rely on the owning context's autosave.
+  static func reconcileDisplayOrder(_ platforms: [Platform]) {
+    let additions = orderedForDisplay(
+      platforms.filter { $0.displayOrder == Int.max && !($0.assets ?? []).isEmpty })
+    guard !additions.isEmpty else { return }
+
+    let established = orderedForDisplay(platforms.filter { $0.displayOrder != Int.max })
+    let nextOrder: Int
+    if let last = established.last, last.displayOrder >= Int.max - additions.count {
+      // Reserve Int.max for unresolved positions. Compact only when appending would exhaust them.
+      for (index, platform) in established.enumerated() where platform.displayOrder != index {
+        platform.displayOrder = index
+      }
+      nextOrder = established.count
+    } else {
+      nextOrder = (established.last?.displayOrder ?? -1) + 1
+    }
+    for (index, platform) in additions.enumerated() {
+      platform.displayOrder = nextOrder + index
+    }
+  }
+
   static func orderedForDisplay(_ platforms: [Platform]) -> [Platform] {
     platforms.sorted {
       $0.displayOrder == $1.displayOrder
