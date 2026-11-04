@@ -27,8 +27,10 @@ struct ModelResolutionLookupTests {
 
   @Test("Selection resolves a replacement model by stable app ID")
   func selectionResolvesReplacementByStableID() {
-    let oldAsset = Asset(name: "Old name", platform: "Old platform")
-    let restoredAsset = Asset(name: "Restored name", platform: "New platform")
+    let oldAsset = Asset(
+      name: "Old name", platform: TestDataManager.platform(named: "Old platform", in: nil))
+    let restoredAsset = Asset(
+      name: "Restored name", platform: TestDataManager.platform(named: "New platform", in: nil))
     let stableID = UUID()
     oldAsset.id = stableID
     restoredAsset.id = stableID
@@ -41,20 +43,28 @@ struct ModelResolutionLookupTests {
 
   @Test("Selection clears when the selected app ID is absent")
   func selectionClearsWhenIDIsAbsent() {
-    let oldAsset = Asset(name: "Old name", platform: "Old platform")
+    let oldAsset = Asset(
+      name: "Old name", platform: TestDataManager.platform(named: "Old platform", in: nil))
 
     let resolved = ModelSelectionResolver.resolve(
-      oldAsset, among: [Asset(name: "Other", platform: "Other")], id: \.id)
+      oldAsset,
+      among: [Asset(name: "Other", platform: TestDataManager.platform(named: "Other", in: nil))],
+      id: \.id)
 
     #expect(resolved == nil)
   }
 
   @Test("Asset lookup preserves normalized first-match behavior")
-  func assetLookupPreservesNormalizedFirstMatch() {
+  func assetLookupPreservesNormalizedFirstMatch() throws {
     let container = TestDataManager.createInMemoryContainer()
-    let first = Asset(name: "AAPL", platform: "Interactive Brokers")
-    let second = Asset(name: " aapl ", platform: "interactive  brokers")
-    var lookup = AssetResolutionLookup(assets: [first, second])
+    let first = Asset(
+      name: "AAPL",
+      platform: TestDataManager.platform(named: "Interactive Brokers", in: container.mainContext))
+    let second = Asset(
+      name: " aapl ",
+      platform: TestDataManager.platform(named: "interactive  brokers", in: container.mainContext))
+    var lookup = AssetResolutionLookup(
+      assets: [first, second], platforms: [first, second].compactMap(\.platformRecord))
 
     #expect(lookup.asset(named: "  AAPL  ", platform: "INTERACTIVE BROKERS") === first)
 
@@ -64,9 +74,9 @@ struct ModelResolutionLookupTests {
   }
 
   @Test("Asset lookup indexes newly created assets for later rows")
-  func assetLookupIndexesNewAssets() {
+  func assetLookupIndexesNewAssets() throws {
     let container = TestDataManager.createInMemoryContainer()
-    var lookup = AssetResolutionLookup(assets: [])
+    var lookup = AssetResolutionLookup(assets: [], platforms: [])
 
     let first = lookup.resolve(name: "New Fund", platform: "Fidelity", in: container.mainContext)
     let second = lookup.resolve(
@@ -95,7 +105,8 @@ struct ModelResolutionLookupTests {
 
   @Test("Snapshot value lookup preserves identity and indexes inserted values")
   func snapshotValueLookupPreservesIdentity() {
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: nil))
     let existing = SnapshotAssetValue(marketValue: 0)
     existing.asset = asset
     var lookup = SnapshotAssetValueLookup(values: [existing])
@@ -103,7 +114,8 @@ struct ModelResolutionLookupTests {
     #expect(lookup.value(forAssetNamed: " aapl ", platform: "interactive brokers") === existing)
     #expect(lookup.value(for: asset) === existing)
 
-    let otherAsset = Asset(name: "VTI", platform: "Schwab")
+    let otherAsset = Asset(
+      name: "VTI", platform: TestDataManager.platform(named: "Schwab", in: nil))
     let inserted = SnapshotAssetValue(marketValue: 100)
     inserted.asset = otherAsset
     lookup.register(inserted)

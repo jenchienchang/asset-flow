@@ -24,11 +24,12 @@ import SwiftUI
 /// Shows an editable name field, a table of assets on this platform with their
 /// latest values, and a value history chart across all snapshots.
 ///
-/// **Important:** The parent view must apply `.id(platform)` to this view
-/// to force view recreation when the selected platform changes (e.g., after rename),
+/// **Important:** The parent view must use the platform instance as view identity
+/// to recreate the editor after selection or whole-store replacement,
 /// because `@State` ViewModel initialization only runs on first view creation.
 struct PlatformDetailView: View {
   @State private var viewModel: PlatformDetailViewModel
+  @Query private var queryPlatforms: [Platform]
   @Query private var queryAssets: [Asset]
   @Query private var querySnapshots: [Snapshot]
 
@@ -36,12 +37,9 @@ struct PlatformDetailView: View {
   @State private var saveErrorMessage = ""
   @State private var valueChartRange: ChartTimeRange = .all
 
-  let onRename: (String) -> Void
-
-  init(platformName: String, modelContext: ModelContext, onRename: @escaping (String) -> Void) {
+  init(platform: Platform, modelContext: ModelContext) {
     _viewModel = State(
-      wrappedValue: PlatformDetailViewModel(platformName: platformName, modelContext: modelContext))
-    self.onRename = onRename
+      wrappedValue: PlatformDetailViewModel(platform: platform, modelContext: modelContext))
   }
 
   var body: some View {
@@ -61,6 +59,9 @@ struct PlatformDetailView: View {
     .refreshOnStoreChanges { viewModel.requestRefresh() }
     .onAppear {
       viewModel.loadData()
+    }
+    .onChange(of: ModelQueryRevision(platforms: queryPlatforms)) {
+      viewModel.reloadAfterStoreChange()
     }
     .onChange(of: queryAssets) {
       viewModel.reloadAfterStoreChange()
@@ -152,12 +153,8 @@ struct PlatformDetailView: View {
   // MARK: - Actions
 
   private func saveChanges() {
-    let oldName = viewModel.platformName
     do {
       try viewModel.save()
-      if viewModel.platformName != oldName {
-        onRename(viewModel.platformName)
-      }
     } catch {
       saveErrorMessage = error.localizedDescription
       showSaveError = true
@@ -170,8 +167,8 @@ struct PlatformDetailView: View {
 #Preview("Platform Detail") {
   NavigationStack {
     PlatformDetailView(
-      platformName: "Firstrade",
+      platform: Platform(name: "Firstrade"),
       modelContext: PreviewContainer.container.mainContext
-    ) { _ in }
+    )
   }
 }

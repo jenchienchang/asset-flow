@@ -22,6 +22,14 @@ import SwiftData
 
 @MainActor
 class TestDataManager {
+  static func platform(named name: String, in context: ModelContext? = nil) -> Platform? {
+    guard !name.normalizedForIdentity.isEmpty else { return nil }
+    guard let context else { return Platform(name: name) }
+    do { return try PlatformService.resolve(name: name, in: context) } catch {
+      fatalError("Platform fixture resolution failed: \(error)")
+    }
+  }
+
   /// Creates a new, empty, in-memory `ModelContainer` for testing.
   ///
   /// Each call to this function returns a brand new container, ensuring that

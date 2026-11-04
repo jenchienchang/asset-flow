@@ -50,7 +50,7 @@ struct SnapshotDetailViewModelTests {
     snapshot: Snapshot,
     context: ModelContext
   ) -> (Asset, SnapshotAssetValue) {
-    let asset = Asset(name: name, platform: platform)
+    let asset = Asset(name: name, platform: TestDataManager.platform(named: platform, in: context))
     context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: marketValue)
     sav.snapshot = snapshot
@@ -138,7 +138,8 @@ struct SnapshotDetailViewModelTests {
     let tc = createSnapshotWithContext()
     let (context, snapshot) = (tc.context, tc.snapshot)
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: tc.context))
     context.insert(asset)
 
     let viewModel = SnapshotDetailViewModel(snapshot: snapshot, modelContext: context)
@@ -264,7 +265,8 @@ struct SnapshotDetailViewModelTests {
     let (context, snapshot) = (tc.context, tc.snapshot)
 
     // Pre-existing asset (not in this snapshot)
-    let existingAsset = Asset(name: "AAPL", platform: "Firstrade")
+    let existingAsset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: tc.context))
     context.insert(existingAsset)
 
     let viewModel = SnapshotDetailViewModel(snapshot: snapshot, modelContext: context)
@@ -545,10 +547,12 @@ struct SnapshotDetailViewModelTests {
     context.insert(equities)
     context.insert(bonds)
 
-    let apple = Asset(name: "AAPL", platform: "Firstrade")
+    let apple = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: tc.context))
     apple.category = equities
     context.insert(apple)
-    let bond = Asset(name: "Treasury", platform: "Firstrade")
+    let bond = Asset(
+      name: "Treasury", platform: TestDataManager.platform(named: "Firstrade", in: tc.context))
     bond.category = bonds
     context.insert(bond)
 
@@ -583,7 +587,8 @@ struct SnapshotDetailViewModelTests {
     let settings = SettingsService.createForTesting()
     settings.mainCurrency = "usd"
 
-    let apple = Asset(name: "AAPL", platform: "Firstrade")
+    let apple = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: tc.context))
     apple.currency = "usd"
     context.insert(apple)
     let sav1 = SnapshotAssetValue(marketValue: 15000)
@@ -591,7 +596,8 @@ struct SnapshotDetailViewModelTests {
     sav1.asset = apple
     context.insert(sav1)
 
-    let twStock = Asset(name: "2330", platform: "Fubon")
+    let twStock = Asset(
+      name: "2330", platform: TestDataManager.platform(named: "Fubon", in: tc.context))
     twStock.currency = "twd"
     context.insert(twStock)
     let sav2 = SnapshotAssetValue(marketValue: 500000)
@@ -684,7 +690,8 @@ struct SnapshotDetailViewModelTests {
     let settings = SettingsService.createForTesting()
     settings.mainCurrency = "usd"
 
-    let twStock = Asset(name: "2330", platform: "Fubon")
+    let twStock = Asset(
+      name: "2330", platform: TestDataManager.platform(named: "Fubon", in: tc.context))
     twStock.currency = "twd"
     context.insert(twStock)
     let sav1 = SnapshotAssetValue(marketValue: 500000)
@@ -692,7 +699,8 @@ struct SnapshotDetailViewModelTests {
     sav1.asset = twStock
     context.insert(sav1)
 
-    let euStock = Asset(name: "SAP", platform: "IBKR")
+    let euStock = Asset(
+      name: "SAP", platform: TestDataManager.platform(named: "IBKR", in: tc.context))
     euStock.currency = "eur"
     context.insert(euStock)
     let sav2 = SnapshotAssetValue(marketValue: 10000)

@@ -37,6 +37,7 @@ struct BackupServiceTests {
   private struct ForcedRestoreFailure: Error {}
 
   private struct OriginalGraphState {
+    let platformID: UUID
     let categoryID: UUID
     let assetID: UUID
     let snapshotID: UUID
@@ -67,15 +68,17 @@ struct BackupServiceTests {
     let bonds = Category(name: "Bonds")
     context.insert(bonds)
 
-    let aapl = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let aapl = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: context))
     aapl.category = equities
     context.insert(aapl)
 
-    let vti = Asset(name: "VTI", platform: "Schwab")
+    let vti = Asset(name: "VTI", platform: TestDataManager.platform(named: "Schwab", in: context))
     vti.category = equities
     context.insert(vti)
 
-    let btc = Asset(name: "Bitcoin", platform: "Coinbase")
+    let btc = Asset(
+      name: "Bitcoin", platform: TestDataManager.platform(named: "Coinbase", in: context))
     context.insert(btc)
 
     let date1 = Calendar.current.date(
@@ -376,7 +379,7 @@ struct BackupServiceTests {
       settingsService: tc.settingsService)
 
     let manifest = try await BackupService.validateBackup(at: zipURL)
-    #expect(manifest.formatVersion == 4)
+    #expect(manifest.formatVersion == 5)
     #expect(manifest.appVersion == Constants.AppInfo.version)
     // Verify ISO 8601 timestamp is parseable
     let formatter = ISO8601DateFormatter()
@@ -424,7 +427,7 @@ struct BackupServiceTests {
       zipURL: zipURL, fileName: BackupCSV.Assets.fileName)
     let lines = content.components(separatedBy: "\n")
       .filter { !$0.isEmpty }
-    #expect(lines[0] == "id,name,platform,categoryID,currency")
+    #expect(lines[0] == "id,name,platformID,categoryID,currency")
     #expect(lines.count == 4)  // header + 3 assets
   }
 
@@ -464,7 +467,7 @@ struct BackupServiceTests {
 
     // Should be valid
     let manifest = try await BackupService.validateBackup(at: zipURL)
-    #expect(manifest.formatVersion == 4)
+    #expect(manifest.formatVersion == 5)
 
     // Categories CSV should have only header
     let catContent = try extractFileContent(
@@ -483,7 +486,7 @@ struct BackupServiceTests {
     tc.context.insert(cat)
 
     // Asset without category
-    let asset = Asset(name: "Gold", platform: "")
+    let asset = Asset(name: "Gold", platform: TestDataManager.platform(named: "", in: tc.context))
     tc.context.insert(asset)
 
     let zipURL = tempZipURL()
@@ -519,7 +522,7 @@ struct BackupServiceTests {
         from: DateComponents(year: 2025, month: 1, day: 1))!)
     tc.context.insert(snapshot)
 
-    let asset = Asset(name: "Test", platform: "")
+    let asset = Asset(name: "Test", platform: TestDataManager.platform(named: "", in: tc.context))
     tc.context.insert(asset)
 
     let preciseValue = Decimal(string: "12345.6789012345")!
@@ -556,7 +559,7 @@ struct BackupServiceTests {
       settingsService: tc.settingsService)
 
     let manifest = try await BackupService.validateBackup(at: zipURL)
-    #expect(manifest.formatVersion == 4)
+    #expect(manifest.formatVersion == 5)
   }
 
   @Test("Validate accepts backup with one enclosing folder")
@@ -695,7 +698,8 @@ struct BackupServiceTests {
     let tc = createTestContext()
 
     // Create asset without category
-    let asset = Asset(name: "Uncategorized", platform: "")
+    let asset = Asset(
+      name: "Uncategorized", platform: TestDataManager.platform(named: "", in: tc.context))
     tc.context.insert(asset)
 
     let zipURL = tempZipURL()
@@ -707,7 +711,7 @@ struct BackupServiceTests {
 
     // Should not throw
     let manifest = try await BackupService.validateBackup(at: zipURL)
-    #expect(manifest.formatVersion == 4)
+    #expect(manifest.formatVersion == 5)
   }
 
   @Test("Validate rejects orphan snapshotID in snapshot_asset_values")
@@ -718,7 +722,7 @@ struct BackupServiceTests {
     defer { try? FileManager.default.removeItem(at: zipURL) }
 
     // Create an asset so there's a valid assetID
-    let asset = Asset(name: "Test", platform: "")
+    let asset = Asset(name: "Test", platform: TestDataManager.platform(named: "", in: tc.context))
     tc.context.insert(asset)
 
     try await BackupService.exportBackup(
@@ -848,8 +852,8 @@ struct BackupServiceTests {
     let assetID = UUID()
     try tamperAndRezip(zipURL: zipURL) { dir in
       let content =
-        "id,name,platform,categoryID,currency\r\n"
-        + "\(assetID.uuidString),Fund,Broker,,\r\n"
+        "id,name,platformID,categoryID,currency\r\n"
+        + "\(assetID.uuidString),Fund,,,\r\n"
       try content.write(
         to: dir.appending(path: BackupCSV.Assets.fileName),
         atomically: true, encoding: .utf8)
@@ -1106,7 +1110,7 @@ struct BackupServiceTests {
         from: DateComponents(year: 2025, month: 1, day: 1))!)
     tc.context.insert(snapshot)
 
-    let asset = Asset(name: "Test", platform: "")
+    let asset = Asset(name: "Test", platform: TestDataManager.platform(named: "", in: tc.context))
     tc.context.insert(asset)
 
     let preciseValue = Decimal(string: "12345.6789012345")!
@@ -1150,7 +1154,8 @@ struct BackupServiceTests {
     let tc2 = createTestContext()
     let otherCat = Category(name: "Other Category")
     tc2.context.insert(otherCat)
-    let otherAsset = Asset(name: "Other Asset", platform: "Other")
+    let otherAsset = Asset(
+      name: "Other Asset", platform: TestDataManager.platform(named: "Other", in: tc2.context))
     tc2.context.insert(otherAsset)
 
     // Restore — should replace the "Other" data with the backup data
@@ -1250,7 +1255,8 @@ struct BackupServiceTests {
     tc.context.insert(cat)
 
     let asset = Asset(
-      name: "S&P 500, \"Total Return\"", platform: "Platform (A)")
+      name: "S&P 500, \"Total Return\"",
+      platform: TestDataManager.platform(named: "Platform (A)", in: tc.context))
     asset.category = cat
     tc.context.insert(asset)
 
@@ -1297,7 +1303,8 @@ struct BackupServiceTests {
 
     let category = Category(name: categoryName)
     source.context.insert(category)
-    let asset = Asset(name: assetName, platform: "Broker, One")
+    let asset = Asset(
+      name: assetName, platform: TestDataManager.platform(named: "Broker, One", in: nil))
     asset.category = category
     source.context.insert(asset)
     let snapshot = Snapshot(
@@ -1422,9 +1429,9 @@ struct BackupServiceTests {
     let duplicateID = UUID().uuidString
     try tamperAndRezip(zipURL: zipURL) { dir in
       try """
-      id,name,platform,categoryID,currency
-      \(duplicateID),Fund,Broker,,USD
-      \(duplicateID),  FUND  ,  BROKER  ,,USD
+      id,name,platformID,categoryID,currency
+      \(duplicateID),Fund,,,USD
+      \(duplicateID),  FUND  ,,,USD
       """
       .write(
         to: dir.appending(path: BackupCSV.Assets.fileName),
@@ -1467,7 +1474,7 @@ struct BackupServiceTests {
         from: DateComponents(year: 2025, month: 1, day: 1))!)
     let rates = try JSONEncoder().encode(["twd": 31.5]).base64EncodedString()
     try tamperAndRezip(zipURL: zipURL) { dir in
-      try "id,name,platform,categoryID,currency\n\(assetID),Fund,Broker,,USD\n"
+      try "id,name,platformID,categoryID,currency\n\(assetID),Fund,,,USD\n"
         .write(
           to: dir.appending(path: BackupCSV.Assets.fileName),
           atomically: true, encoding: .utf8)
@@ -1590,7 +1597,7 @@ struct BackupServiceTests {
   func restoreRejectsUnresolvableSnapshotIDInSAV() async throws {
     let tc = createTestContext()
 
-    let asset = Asset(name: "Test", platform: "")
+    let asset = Asset(name: "Test", platform: TestDataManager.platform(named: "", in: tc.context))
     tc.context.insert(asset)
 
     let zipURL = tempZipURL()
@@ -1889,7 +1896,9 @@ struct BackupServiceTests {
     category.displayOrder = 7
     context.insert(category)
 
-    let asset = Asset(name: "Original Asset", platform: "Original Broker")
+    let asset = Asset(
+      name: "Original Asset",
+      platform: TestDataManager.platform(named: "Original Broker", in: context))
     asset.currency = "EUR"
     asset.category = category
     context.insert(asset)
@@ -1923,6 +1932,7 @@ struct BackupServiceTests {
     try context.save()
 
     return OriginalGraphState(
+      platformID: try #require(asset.platformRecord?.id),
       categoryID: category.id,
       assetID: asset.id,
       snapshotID: snapshot.id,
@@ -1947,6 +1957,10 @@ struct BackupServiceTests {
     let exchangeRates = try verificationContext.fetch(
       FetchDescriptor<ExchangeRate>())
 
+    let platforms = try verificationContext.fetch(FetchDescriptor<Platform>())
+    #expect(platforms.count == 1)
+    #expect(platforms.first?.id == expected.platformID)
+    #expect(assets.first?.platformRecord?.id == expected.platformID)
     #expect(categories.count == 1)
     #expect(categories.first?.id == expected.categoryID)
     #expect(categories.first?.name == "Original Category")

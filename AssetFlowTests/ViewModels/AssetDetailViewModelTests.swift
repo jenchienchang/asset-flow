@@ -43,7 +43,7 @@ struct AssetDetailViewModelTests {
     snapshot: Snapshot,
     context: ModelContext
   ) -> (Asset, SnapshotAssetValue) {
-    let asset = Asset(name: name, platform: platform)
+    let asset = Asset(name: name, platform: TestDataManager.platform(named: platform, in: context))
     context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: marketValue)
     sav.snapshot = snapshot
@@ -62,7 +62,8 @@ struct AssetDetailViewModelTests {
     let category = Category(name: "Equities")
     context.insert(category)
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     asset.category = category
     context.insert(asset)
 
@@ -81,7 +82,8 @@ struct AssetDetailViewModelTests {
     let context = container.mainContext
     let displayCurrency = SettingsService.shared.mainCurrency.lowercased()
     let assetCurrency = displayCurrency == "eur" ? "usd" : "eur"
-    let asset = Asset(name: "Foreign asset", platform: "Brokerage")
+    let asset = Asset(
+      name: "Foreign asset", platform: TestDataManager.platform(named: "Brokerage", in: context))
     asset.currency = assetCurrency
     context.insert(asset)
 
@@ -125,7 +127,8 @@ struct AssetDetailViewModelTests {
     let context = container.mainContext
     let displayCurrency = SettingsService.shared.mainCurrency.lowercased()
     let assetCurrency = displayCurrency == "eur" ? "usd" : "eur"
-    let asset = Asset(name: "Foreign asset", platform: "Brokerage")
+    let asset = Asset(
+      name: "Foreign asset", platform: TestDataManager.platform(named: "Brokerage", in: context))
     asset.currency = assetCurrency
     context.insert(asset)
 
@@ -189,7 +192,8 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     // Create snapshots in non-chronological insertion order
@@ -226,7 +230,8 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     let oldest = Snapshot(date: makeDate(year: 2025, month: 1, day: 1))
@@ -261,7 +266,7 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "NewAsset", platform: "")
+    let asset = Asset(name: "NewAsset", platform: TestDataManager.platform(named: "", in: context))
     context.insert(asset)
 
     let viewModel = AssetDetailViewModel(asset: asset, modelContext: context)
@@ -277,7 +282,8 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     let viewModel = AssetDetailViewModel(asset: asset, modelContext: context)
@@ -292,7 +298,8 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     let viewModel = AssetDetailViewModel(asset: asset, modelContext: context)
@@ -310,7 +317,8 @@ struct AssetDetailViewModelTests {
     let category = Category(name: "Equities")
     context.insert(category)
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     let viewModel = AssetDetailViewModel(asset: asset, modelContext: context)
@@ -327,8 +335,10 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let assetA = Asset(name: "AAPL", platform: "Firstrade")
-    let assetB = Asset(name: "BTC", platform: "Binance")
+    let assetA = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
+    let assetB = Asset(
+      name: "BTC", platform: TestDataManager.platform(named: "Binance", in: context))
     context.insert(assetA)
     context.insert(assetB)
 
@@ -346,8 +356,10 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let assetA = Asset(name: "  Apple  ", platform: "PLATFORM")
-    let assetB = Asset(name: "Other", platform: "Other")
+    let assetA = Asset(
+      name: "  Apple  ", platform: TestDataManager.platform(named: "PLATFORM", in: context))
+    let assetB = Asset(
+      name: "Other", platform: TestDataManager.platform(named: "Other", in: context))
     context.insert(assetA)
     context.insert(assetB)
 
@@ -367,7 +379,8 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     // Create SAVs in multiple snapshots
@@ -404,7 +417,7 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "NewAsset", platform: "")
+    let asset = Asset(name: "NewAsset", platform: TestDataManager.platform(named: "", in: context))
     context.insert(asset)
 
     let viewModel = AssetDetailViewModel(asset: asset, modelContext: context)
@@ -431,7 +444,8 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "Multi", platform: "Firstrade")
+    let asset = Asset(
+      name: "Multi", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     // Create 3 snapshots with values
@@ -457,7 +471,7 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "Deletable", platform: "")
+    let asset = Asset(name: "Deletable", platform: TestDataManager.platform(named: "", in: context))
     context.insert(asset)
 
     let viewModel = AssetDetailViewModel(asset: asset, modelContext: context)
@@ -475,7 +489,8 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     let snap = Snapshot(date: makeDate(year: 2025, month: 1, day: 1))
@@ -498,7 +513,8 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     let snap = Snapshot(date: makeDate(year: 2025, month: 1, day: 1))
@@ -521,7 +537,8 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     let snap = Snapshot(date: makeDate(year: 2025, month: 1, day: 1))
@@ -548,7 +565,8 @@ struct AssetDetailViewModelTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     let snap1 = Snapshot(date: makeDate(year: 2025, month: 1, day: 1))

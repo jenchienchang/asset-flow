@@ -44,7 +44,7 @@ struct CategoryListViewModelTests {
     snapshot: Snapshot,
     context: ModelContext
   ) -> (Asset, SnapshotAssetValue) {
-    let asset = Asset(name: name, platform: platform)
+    let asset = Asset(name: name, platform: TestDataManager.platform(named: platform, in: context))
     asset.category = category
     context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: marketValue)
@@ -173,11 +173,14 @@ struct CategoryListViewModelTests {
     let equities = Category(name: "Equities")
     context.insert(equities)
 
-    let asset1 = Asset(name: "AAPL", platform: "Firstrade")
+    let asset1 = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     asset1.category = equities
-    let asset2 = Asset(name: "MSFT", platform: "Firstrade")
+    let asset2 = Asset(
+      name: "MSFT", platform: TestDataManager.platform(named: "Firstrade", in: context))
     asset2.category = equities
-    let asset3 = Asset(name: "GOOG", platform: "Firstrade")
+    let asset3 = Asset(
+      name: "GOOG", platform: TestDataManager.platform(named: "Firstrade", in: context))
     asset3.category = equities
     context.insert(asset1)
     context.insert(asset2)
@@ -276,7 +279,8 @@ struct CategoryListViewModelTests {
     let equities = Category(name: "Equities")
     context.insert(equities)
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     asset.category = equities
     context.insert(asset)
 

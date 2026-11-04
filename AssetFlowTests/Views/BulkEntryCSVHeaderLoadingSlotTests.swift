@@ -148,22 +148,25 @@ struct BulkEntryCSVHeaderLoadingSlotTests {
 @Suite("Bulk Entry CSV File Import Presentation Tests")
 @MainActor
 struct BulkEntryCSVFileImportPresentationTests {
+  private let brokerA = BulkEntryPlatform.draft(name: "Broker A")
+  private let brokerB = BulkEntryPlatform.draft(name: "Broker B")
+
   @Test("Canceling the file picker allows asset and cash flow requests to reopen it")
   func cancelAllowsReopening() {
     var presentation = BulkEntryCSVFileImportPresentation()
 
-    presentation.request(.asset(platform: "Broker A"))
+    presentation.request(.asset(platform: brokerA))
     #expect(presentation.isPresented)
-    #expect(presentation.target == .asset(platform: "Broker A"))
+    #expect(presentation.target == .asset(platform: brokerA))
 
     presentation.isPresented = false  // SwiftUI dismisses before the cancellation callback.
     presentation.cancel()
     #expect(!presentation.isPresented)
     #expect(presentation.target == nil)
 
-    presentation.request(.asset(platform: "Broker A"))
+    presentation.request(.asset(platform: brokerA))
     #expect(presentation.isPresented)
-    #expect(presentation.target == .asset(platform: "Broker A"))
+    #expect(presentation.target == .asset(platform: brokerA))
 
     presentation.isPresented = false
     presentation.cancel()
@@ -182,8 +185,8 @@ struct BulkEntryCSVFileImportPresentationTests {
     #expect(!presentation.isPresented)
     #expect(presentation.target == nil)
 
-    presentation.request(.asset(platform: "Broker B"))
+    presentation.request(.asset(platform: brokerB))
     #expect(presentation.isPresented)
-    #expect(presentation.complete() == .asset(platform: "Broker B"))
+    #expect(presentation.complete() == .asset(platform: brokerB))
   }
 }

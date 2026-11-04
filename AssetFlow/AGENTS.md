@@ -36,14 +36,14 @@ func requestRefresh() {
 - Track source model/settings reads while calculating into locals; publish observable results outside tracking. Never read derived output as an input to the tracked calculation.
 - Explicit loads remain synchronous. `requestRefresh()` coalesces observation/query notifications; each explicit load supersedes callbacks and tasks from older generations. New changes after that load remain observed.
 - Use weak ViewModel captures so pending work does not retain SwiftData containers.
-- `ContentView` publishes its six-model `ModelQueryRevision` through the `storeRevision` environment. All ten aggregate screens use `.refreshOnStoreChanges` to request a refresh after membership changes, date ordering changes, child-record changes and whole-store replacement. Local queries remain supported for standalone screens.
+- `ContentView` publishes its seven-model `ModelQueryRevision` through the `storeRevision` environment. All ten aggregate screens use `.refreshOnStoreChanges` to request a refresh after membership changes, date ordering changes, child-record changes and whole-store replacement. Local queries remain supported for standalone screens.
 - Background data reloads preserve category editor drafts. Asset editor option lists also refresh without resetting edited fields.
 - Dashboard internal caches are excluded from source observation; their public readers observe a publication revision so chart and period consumers still invalidate.
 - Applied to Dashboard, Snapshot list/detail, Category list/detail, Platform list/detail, Asset list/detail and Rebalancing. Import and Bulk Entry retain their existing query reconciliation and draft-staleness behavior.
 
 ### Model
 
-`@Model final class` with `Decimal` for money, `#Unique` for constraints, explicit `@Relationship` with delete rules (`.cascade`, `.deny`, `.nullify`). Register new models in `SchemaV2.models` (`Models/SchemaVersioning.swift`). Domain error enums (`AssetError`, `CategoryError`, `PlatformError`) also live in `Models/`.
+`@Model final class` with `Decimal` for money, `#Unique` for constraints, explicit `@Relationship` with delete rules (`.cascade`, `.deny`, `.nullify`). Current models are registered in `SchemaV4.models`; preserve frozen V1/V2 and intermediate V3 when assessing a new schema version (`Models/SchemaVersioning.swift`). Domain error enums (`AssetError`, `CategoryError`, `PlatformError`) also live in `Models/`.
 
 ### Services
 

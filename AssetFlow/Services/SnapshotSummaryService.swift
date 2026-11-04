@@ -25,7 +25,7 @@ struct SnapshotSummary {
   let assetCount: Int
   let totalValue: Decimal
   let categoryValues: [String: Decimal]
-  let platformValues: [String: Decimal]
+  let platformValuesByID: [UUID: Decimal]
   let conversionStatus: CurrencyConversionStatus
   let nativeCurrencyTotals: [String: Decimal]
 }
@@ -118,7 +118,7 @@ enum SnapshotSummaryService {
     )
     var totalValue: Decimal = 0
     var categoryValues: [String: Decimal] = [:]
-    var platformValues: [String: Decimal] = [:]
+    var platformValues: [UUID: Decimal] = [:]
 
     if let convertedTotal = report.convertedTotal {
       totalValue = convertedTotal
@@ -131,8 +131,7 @@ enum SnapshotSummaryService {
       }
 
       for sav in assetValues {
-        if let platform = sav.asset?.platform, !platform.isEmpty,
-          let asset = sav.asset,
+        if let asset = sav.asset, let platformID = asset.platformRecord?.id,
           let converted = CurrencyConversionService.convert(
             value: sav.marketValue,
             from: asset.currency.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -142,7 +141,7 @@ enum SnapshotSummaryService {
             forSnapshotDate: snapshot.date
           )
         {
-          platformValues[platform, default: 0] += converted
+          platformValues[platformID, default: 0] += converted
         }
       }
     }
@@ -153,7 +152,7 @@ enum SnapshotSummaryService {
       assetCount: assetValues.count,
       totalValue: totalValue,
       categoryValues: categoryValues,
-      platformValues: platformValues,
+      platformValuesByID: platformValues,
       conversionStatus: report.status,
       nativeCurrencyTotals: report.nativeTotals
     )

@@ -22,6 +22,36 @@
           }
         }
       }
+    },
+    "Existing assets have conflicting normalized identities. The store was not migrated." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現有資產的標準化識別資料發生衝突，資料庫未進行遷移。"
+          }
+        }
+      }
+    },
+    "Move or delete the platform's assets before deleting it." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除平台前，請先移動或刪除其資產。"
+          }
+        }
+      }
+    },
+    "This platform no longer exists." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此平台已不存在。"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

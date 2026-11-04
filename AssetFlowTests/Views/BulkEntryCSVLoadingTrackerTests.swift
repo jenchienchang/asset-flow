@@ -22,13 +22,16 @@ import Testing
 @Suite("Bulk Entry CSV Loading Tracker Tests")
 @MainActor
 struct BulkEntryCSVLoadingTrackerTests {
+  private let brokerA = BulkEntryPlatform.draft(name: "Broker A")
+  private let brokerB = BulkEntryPlatform.draft(name: "Broker B")
+
   @Test("An asset import activates only its platform header")
   func assetImportTargetsOnePlatform() {
     var tracker = BulkEntryCSVLoadingTracker()
-    let operationID = tracker.begin(.asset(platform: "Broker A"))
+    let operationID = tracker.begin(.asset(platform: brokerA))
 
-    #expect(tracker.isActive(for: .asset(platform: "Broker A")))
-    #expect(!tracker.isActive(for: .asset(platform: "Broker B")))
+    #expect(tracker.isActive(for: .asset(platform: brokerA)))
+    #expect(!tracker.isActive(for: .asset(platform: brokerB)))
     #expect(!tracker.isActive(for: .cashFlow))
 
     tracker.finish(operationID)
@@ -41,7 +44,7 @@ struct BulkEntryCSVLoadingTrackerTests {
     let operationID = tracker.begin(.cashFlow)
 
     #expect(tracker.isActive(for: .cashFlow))
-    #expect(!tracker.isActive(for: .asset(platform: "Broker A")))
+    #expect(!tracker.isActive(for: .asset(platform: brokerA)))
 
     tracker.finish(operationID)
     #expect(!tracker.isActive(for: .cashFlow))
@@ -50,7 +53,7 @@ struct BulkEntryCSVLoadingTrackerTests {
   @Test("A cancelled task cannot hide a newer import's indicator")
   func oldCompletionDoesNotClearNewTarget() {
     var tracker = BulkEntryCSVLoadingTracker()
-    let oldID = tracker.begin(.asset(platform: "Broker A"))
+    let oldID = tracker.begin(.asset(platform: brokerA))
     let newID = tracker.begin(.cashFlow)
 
     tracker.finish(oldID)

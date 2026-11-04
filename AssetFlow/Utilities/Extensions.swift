@@ -189,25 +189,13 @@ extension ModelContext {
     platform: String,
     fetcher: (any ModelFetching)? = nil
   ) throws -> Asset {
-    let normalizedName = name.normalizedForIdentity
-    let normalizedPlatform = platform.normalizedForIdentity
-
-    let descriptor = FetchDescriptor<Asset>()
     let resolvedFetcher = fetcher ?? ModelContextFetcher(modelContext: self)
-    let allAssets = try fetchModels(
-      descriptor,
-      from: resolvedFetcher,
-      operation: "find or create asset")
-
-    if let existing = allAssets.first(where: {
-      $0.normalizedName == normalizedName && $0.normalizedPlatform == normalizedPlatform
-    }) {
-      return existing
-    }
-
-    let newAsset = Asset(name: name, platform: platform)
-    insert(newAsset)
-    return newAsset
+    let assets = try fetchModels(
+      FetchDescriptor<Asset>(), from: resolvedFetcher, operation: "find or create asset")
+    let platforms = try fetchModels(
+      FetchDescriptor<Platform>(), from: resolvedFetcher, operation: "resolve asset platform")
+    var lookup = AssetResolutionLookup(assets: assets, platforms: platforms)
+    return lookup.resolve(name: name, platform: platform, in: self)
   }
 
   /// Resolves a category by name, reusing an existing one (case-insensitive) or creating a new one.

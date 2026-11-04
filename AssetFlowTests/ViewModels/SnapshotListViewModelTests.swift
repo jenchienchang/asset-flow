@@ -46,7 +46,7 @@ struct SnapshotListViewModelTests {
     snapshot: Snapshot,
     context: ModelContext
   ) -> (Asset, SnapshotAssetValue) {
-    let asset = Asset(name: name, platform: platform)
+    let asset = Asset(name: name, platform: TestDataManager.platform(named: platform, in: context))
     context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: marketValue)
     sav.snapshot = snapshot
@@ -459,7 +459,7 @@ struct SnapshotListViewModelTests {
 
     let snapshot = Snapshot(date: makeDate(year: 2026, month: 3, day: 1))
     context.insert(snapshot)
-    let asset = Asset(name: "Test", platform: "P1")
+    let asset = Asset(name: "Test", platform: TestDataManager.platform(named: "P1", in: context))
     asset.currency = "USD"
     context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: Decimal(0))
@@ -479,7 +479,7 @@ struct SnapshotListViewModelTests {
 
     let snapshot = Snapshot(date: makeDate(year: 2026, month: 3, day: 1))
     context.insert(snapshot)
-    let asset = Asset(name: "Test", platform: "P1")
+    let asset = Asset(name: "Test", platform: TestDataManager.platform(named: "P1", in: context))
     asset.currency = "USD"
     context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: Decimal(500))

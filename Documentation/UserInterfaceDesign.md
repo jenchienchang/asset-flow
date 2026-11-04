@@ -59,9 +59,9 @@ The detail also lists assigned assets and shows value and allocation history. Th
 
 ## Platforms Screen
 
-Platforms are derived from nonempty asset platform names. The list follows saved user order; newly encountered names follow in name order. Dragging reorders the list. Rows show the platform name, asset count, and latest converted total when rates permit it; an unavailable total is shown as such. An asset without a platform belongs to the Assets screen's "(No Platform)" group. The No Platforms state explains how creating or importing assets creates platform names.
+The list shows persisted platforms that have assigned assets. The list automatically remembers its displayed order when loaded; each newly encountered batch follows in name order. Dragging optionally customizes that order. Rows show the platform name, asset count, and latest converted total when rates permit it; an unavailable total is shown as such. An asset without a platform belongs to the Assets screen's "(No Platform)" group. The No Platforms state explains how creating or importing assets creates platform names.
 
-Platform detail shows its assets, total, value history, and an editable name. Rename commits on Return or through the row's quick-edit popover, validates case-insensitive uniqueness, and updates assets using that platform. The selection follows the new name. A platform disappears when no assets use its name; there is no independent platform record to delete. List and detail read failures show an error with Retry.
+Platform detail shows its assets, total, value history, and an editable name. Rename commits on Return or through the row's quick-edit popover, validates case-insensitive uniqueness, and updates the shared platform name. Selection follows its stable UUID. Existing platform choices in asset editors, add-asset sheets, and import overrides follow a rename; new-name drafts keep their entered text. An open Settings field follows changes to the saved default platform. A clean editor adopts an external rename; an unsaved name draft survives background refresh. A platform disappears when no assets reference it, while its record and ordering remain available for later name reuse. List and detail read failures show an error with Retry.
 
 ## Rebalancing Screen
 
