@@ -111,7 +111,7 @@ struct AssetListView: View {
 
   private var assetList: some View {
     List(selection: $selectedAsset) {
-      ForEach(viewModel.groups, id: \.name) { group in
+      ForEach(viewModel.groups) { group in
         Section(group.name) {
           ForEach(group.assets, id: \.asset.id) { rowData in
             assetRow(rowData)

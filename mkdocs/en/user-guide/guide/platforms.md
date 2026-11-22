@@ -10,7 +10,9 @@ The left side of the Platforms view shows all your platforms in a sortable list.
 
 - **Drag to reorder** — arrange platforms in whatever order makes sense to you.
 - Each row shows the **platform name**, **total value**, and **asset count**.
-- **Right-click** any platform to rename it.
+- **Right-click** any platform to rename it. Renaming preserves its order and selection, and updates a matching default import platform.
+
+Platforms with no assigned assets are hidden. Assigning their name again reuses the same platform.
 
 ![Platform list](../../assets/images/platform-list.png)
 

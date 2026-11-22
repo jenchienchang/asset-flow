@@ -73,6 +73,15 @@ struct ModelQueryRevision: Equatable {
     let isFallback: Bool
   }
 
+  private struct PlatformRevision: Equatable {
+    let persistenceID: PersistentIdentifier
+    let id: UUID
+    let name: String
+    let displayOrder: Int
+    let assetIDs: [UUID]
+  }
+
+  private let platforms: [PlatformRevision]
   private let snapshots: [SnapshotRevision]
   private let assets: [AssetRevision]
   private let categories: [CategoryRevision]
@@ -83,11 +92,18 @@ struct ModelQueryRevision: Equatable {
   init(
     snapshots: [Snapshot] = [],
     assets: [Asset] = [],
+    platforms: [Platform] = [],
     categories: [Category] = [],
     snapshotAssetValues: [SnapshotAssetValue] = [],
     cashFlowOperations: [CashFlowOperation] = [],
     exchangeRates: [ExchangeRate] = []
   ) {
+    self.platforms = platforms.map {
+      PlatformRevision(
+        persistenceID: $0.persistentModelID, id: $0.id, name: $0.name,
+        displayOrder: $0.displayOrder,
+        assetIDs: ($0.assets ?? []).map(\.id).sorted { $0.uuidString < $1.uuidString })
+    }
     self.snapshots = snapshots.map {
       SnapshotRevision(
         persistenceID: $0.persistentModelID,

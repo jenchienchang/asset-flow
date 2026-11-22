@@ -27,7 +27,8 @@ extension BackupService {
     issues: inout [BackupValidationIssue]
   ) -> [BackupCategoryRecord] {
     let file = BackupCSV.Categories.fileName
-    let expectedCount = version == .v1 ? 3 : (version == .v4 ? 6 : 4)
+    let expectedCount =
+      version == .v1 ? 3 : (version.rawValue >= BackupFormatVersion.v4.rawValue ? 6 : 4)
     var result: [BackupCategoryRecord] = []
     var ids: Set<UUID> = []
     var identities: Set<String> = []
@@ -105,7 +106,7 @@ extension BackupService {
 
       let minimum: Decimal?
       let currency: String?
-      if version == .v4 {
+      if version.rawValue >= BackupFormatVersion.v4.rawValue {
         let amountText = scalar(record.fields[4])
         minimum = amountText.isEmpty ? nil : strictDecimal(amountText)
         let code = scalar(record.fields[5]).uppercased()
@@ -151,7 +152,7 @@ extension BackupService {
     let expectedCount = version.rawValue >= BackupFormatVersion.v3.rawValue ? 5 : 4
     var result: [BackupAssetRecord] = []
     var ids: Set<UUID> = []
-    var identities: Set<String> = []
+    var identities: Set<[String]> = []
 
     for record in document?.records ?? [] {
       guard
@@ -169,8 +170,16 @@ extension BackupService {
         column: "id", issues: &issues)
 
       let name = record.fields[1]
-      let platform = record.fields[2]
-      let identity = "\(name.normalizedForIdentity)|\(platform.normalizedForIdentity)"
+      let platform = version == .v5 ? "" : record.fields[2]
+      let platformID =
+        version == .v5
+        ? parseOptionalUUID(
+          record.fields[2], file: file, record: record, column: "platformID", issues: &issues)
+        : nil
+      let identity = [
+        name.normalizedForIdentity,
+        version == .v5 ? (platformID?.uuidString ?? "") : platform.normalizedForIdentity,
+      ]
       if name.normalizedForIdentity.isEmpty {
         issues.append(
           issue(
@@ -202,7 +211,7 @@ extension BackupService {
         issues: &issues)
       result.append(
         BackupAssetRecord(
-          id: id, name: name, platform: platform,
+          id: id, name: name, legacyPlatformName: platform, platformID: platformID,
           categoryID: categoryID, currency: currency))
     }
     return result

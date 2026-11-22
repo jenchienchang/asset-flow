@@ -115,7 +115,8 @@ struct SnapshotAssetValueModelTests {
     let context = container.mainContext
 
     let snapshot = Snapshot(date: Date())
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     let value = SnapshotAssetValue(marketValue: Decimal(15000))
 
     context.insert(snapshot)

@@ -188,7 +188,8 @@ struct ExchangeRateModelTests {
   @Test("Asset has currency field")
   func testAssetHasCurrencyField() {
     let tc = createTestContext()
-    let asset = Asset(name: "Test Stock", platform: "Broker")
+    let asset = Asset(
+      name: "Test Stock", platform: TestDataManager.platform(named: "Broker", in: tc.context))
     asset.currency = "twd"
     tc.context.insert(asset)
 

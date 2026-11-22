@@ -40,8 +40,23 @@ extension BackupService {
     let assets = try modelContext.fetch(FetchDescriptor<Asset>())
     for item in assets { modelContext.delete(item) }
 
+    let platforms = try modelContext.fetch(FetchDescriptor<Platform>())
+    for item in platforms { modelContext.delete(item) }
+
     let categories = try modelContext.fetch(FetchDescriptor<Category>())
     for item in categories { modelContext.delete(item) }
+  }
+
+  static func restorePlatforms(
+    _ records: [BackupPlatformRecord], modelContext: ModelContext
+  ) -> [UUID: Platform] {
+    var result: [UUID: Platform] = [:]
+    for record in records {
+      let platform = Platform(id: record.id, name: record.name, displayOrder: record.displayOrder)
+      modelContext.insert(platform)
+      result[record.id] = platform
+    }
+    return result
   }
 
   static func restoreCategories(
@@ -66,11 +81,23 @@ extension BackupService {
   static func restoreAssets(
     _ records: [BackupAssetRecord],
     modelContext: ModelContext,
-    categoryIDMap: [UUID: Category]
+    categoryIDMap: [UUID: Category],
+    platformIDMap: [UUID: Platform]
   ) throws -> [UUID: Asset] {
     var idMap: [UUID: Asset] = [:]
+    var platformLookup = PlatformResolutionLookup(platforms: Array(platformIDMap.values))
     for record in records {
-      let asset = Asset(name: record.name, platform: record.platform)
+      let platform: Platform?
+      if let id = record.platformID {
+        guard let resolved = platformIDMap[id] else {
+          throw BackupError.restoreFailed(
+            localizedBackupMessage("Validated platform ID was not available during insertion."))
+        }
+        platform = resolved
+      } else {
+        platform = platformLookup.resolve(name: record.legacyPlatformName, in: modelContext)
+      }
+      let asset = Asset(name: record.name, platform: platform)
       asset.id = record.id
       asset.currency = record.currency
       if let categoryID = record.categoryID {

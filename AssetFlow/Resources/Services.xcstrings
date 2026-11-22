@@ -824,6 +824,36 @@
           }
         }
       }
+    },
+    "Expected a nonempty, unique normalized platform name." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "平台名稱不得為空，且標準化後必須唯一。"
+          }
+        }
+      }
+    },
+    "Platform ID '%@' was not found." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到平台 ID「%@」。"
+          }
+        }
+      }
+    },
+    "Validated platform ID was not available during insertion." : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增資料時無法取得已驗證的平台 ID。"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

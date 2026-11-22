@@ -31,12 +31,14 @@ struct AssetUniquenessTests {
     let context = container.mainContext
 
     // Create first asset
-    let asset1 = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset1 = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: context))
     context.insert(asset1)
     try context.save()
 
     // Attempt duplicate (same name AND platform)
-    let asset2 = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset2 = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: context))
     context.insert(asset2)
     try context.save()
 
@@ -52,8 +54,10 @@ struct AssetUniquenessTests {
     let context = container.mainContext
 
     // Same asset name, different platforms - should be allowed
-    let asset1 = Asset(name: "AAPL", platform: "Interactive Brokers")
-    let asset2 = Asset(name: "AAPL", platform: "Schwab")
+    let asset1 = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: context))
+    let asset2 = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Schwab", in: context))
 
     context.insert(asset1)
     context.insert(asset2)

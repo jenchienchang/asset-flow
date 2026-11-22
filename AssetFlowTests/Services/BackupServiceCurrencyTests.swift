@@ -97,7 +97,8 @@ struct BackupServiceCurrencyTests {
   func exportIncludesCurrencyInAssets() async throws {
     let tc = createTestContext()
 
-    let asset = Asset(name: "AAPL", platform: "Schwab")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Schwab", in: tc.context))
     asset.currency = "USD"
     tc.context.insert(asset)
 
@@ -112,7 +113,7 @@ struct BackupServiceCurrencyTests {
       zipURL: zipURL, fileName: BackupCSV.Assets.fileName)
     let lines = content.components(separatedBy: "\n")
       .filter { !$0.isEmpty }
-    #expect(lines[0] == "id,name,platform,categoryID,currency")
+    #expect(lines[0] == "id,name,platformID,categoryID,currency")
     #expect(lines[1].hasSuffix("USD"))
   }
 
@@ -183,8 +184,8 @@ struct BackupServiceCurrencyTests {
     #expect(lines[1].contains("usd"))
   }
 
-  @Test("Export manifest has formatVersion 4")
-  func exportManifestVersion4() async throws {
+  @Test("Export manifest has formatVersion 5")
+  func exportManifestVersion5() async throws {
     let tc = createTestContext()
     let zipURL = tempZipURL()
     defer { try? FileManager.default.removeItem(at: zipURL) }
@@ -194,7 +195,7 @@ struct BackupServiceCurrencyTests {
       settingsService: tc.settingsService)
 
     let manifest = try await BackupService.validateBackup(at: zipURL)
-    #expect(manifest.formatVersion == 4)
+    #expect(manifest.formatVersion == 5)
   }
 
   // MARK: - Backward Compatibility Tests
@@ -203,7 +204,8 @@ struct BackupServiceCurrencyTests {
   func restoreV2BackupDefaultsCurrency() async throws {
     let tc = createTestContext()
 
-    let asset = Asset(name: "AAPL", platform: "Schwab")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Schwab", in: tc.context))
     tc.context.insert(asset)
 
     let snapshot = Snapshot(
@@ -279,7 +281,8 @@ struct BackupServiceCurrencyTests {
   func restoreV3BackupPreservesCurrency() async throws {
     let tc = createTestContext()
 
-    let asset = Asset(name: "TSMC", platform: "Fubon")
+    let asset = Asset(
+      name: "TSMC", platform: TestDataManager.platform(named: "Fubon", in: tc.context))
     asset.currency = "TWD"
     tc.context.insert(asset)
 

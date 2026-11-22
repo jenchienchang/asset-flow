@@ -127,7 +127,8 @@ struct ImportViewModelTests {
         """))
 
     let snapshot = Snapshot(date: viewModel.snapshotDate)
-    let asset = Asset(name: "AAPL", platform: "Broker")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Broker", in: tc.context))
     let assetValue = SnapshotAssetValue(marketValue: 15000)
     assetValue.snapshot = snapshot
     assetValue.asset = asset
@@ -654,7 +655,9 @@ struct ImportViewModelTests {
     // Create an existing asset with category "Bonds"
     let bonds = Category(name: "Bonds")
     tc.context.insert(bonds)
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     asset.category = bonds
     tc.context.insert(asset)
 
@@ -737,7 +740,9 @@ struct ImportViewModelTests {
     let date = makeDate(year: 2025, month: 6, day: 15)
     let snapshot = Snapshot(date: date)
     tc.context.insert(snapshot)
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     tc.context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: 10000)
     sav.snapshot = snapshot
@@ -760,7 +765,9 @@ struct ImportViewModelTests {
     let tc = createTestContext()
     let date = makeDate(year: 2025, month: 6, day: 15)
     let snapshot = Snapshot(date: date)
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     let placeholder = SnapshotAssetValue(marketValue: 0)
     placeholder.snapshot = snapshot
     placeholder.asset = asset
@@ -876,7 +883,9 @@ struct ImportViewModelTests {
     let date = makeDate(year: 2025, month: 6, day: 15)
     let snapshot = Snapshot(date: date)
     tc.context.insert(snapshot)
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     tc.context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: 10000)
     sav.snapshot = snapshot
@@ -935,7 +944,8 @@ struct ImportViewModelTests {
     let date = makeDate(year: 2025, month: 6, day: 15)
     let existingSnapshot = Snapshot(date: date)
     tc.context.insert(existingSnapshot)
-    let existingAsset = Asset(name: "GOOG", platform: "Schwab")
+    let existingAsset = Asset(
+      name: "GOOG", platform: TestDataManager.platform(named: "Schwab", in: tc.context))
     tc.context.insert(existingAsset)
     let existingSav = SnapshotAssetValue(marketValue: 20000)
     existingSav.snapshot = existingSnapshot
@@ -990,7 +1000,9 @@ struct ImportViewModelTests {
     let tc = createTestContext()
 
     // Pre-create AAPL on Interactive Brokers
-    let existingAsset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let existingAsset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     tc.context.insert(existingAsset)
 
     let viewModel = ImportViewModel(modelContext: tc.context)
@@ -1037,7 +1049,9 @@ struct ImportViewModelTests {
     let importedCount = 120
 
     for index in 0..<existingCount {
-      let asset = Asset(name: "Existing \(index)", platform: "Broker")
+      let asset = Asset(
+        name: "Existing \(index)",
+        platform: TestDataManager.platform(named: "Broker", in: tc.context))
       tc.context.insert(asset)
     }
 
@@ -1103,7 +1117,9 @@ struct ImportViewModelTests {
     tc.context.insert(equities)
 
     // Pre-create AAPL assigned to Bonds
-    let existingAsset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let existingAsset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     existingAsset.category = bonds
     tc.context.insert(existingAsset)
 
@@ -1274,9 +1290,12 @@ struct ImportViewModelTests {
   func existingPlatformsList() async throws {
     let tc = createTestContext()
 
-    let asset1 = Asset(name: "AAPL", platform: "Firstrade")
-    let asset2 = Asset(name: "BTC", platform: "Coinbase")
-    let asset3 = Asset(name: "VTI", platform: "Firstrade")
+    let asset1 = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: tc.context))
+    let asset2 = Asset(
+      name: "BTC", platform: TestDataManager.platform(named: "Coinbase", in: tc.context))
+    let asset3 = Asset(
+      name: "VTI", platform: TestDataManager.platform(named: "Firstrade", in: tc.context))
     tc.context.insert(asset1)
     tc.context.insert(asset2)
     tc.context.insert(asset3)
@@ -1383,7 +1402,9 @@ struct ImportViewModelTests {
     let date1 = makeDate(year: 2025, month: 6, day: 15)
     let snapshot = Snapshot(date: date1)
     tc.context.insert(snapshot)
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     tc.context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: 10000)
     sav.snapshot = snapshot
@@ -1536,7 +1557,8 @@ struct ImportViewModelTests {
     let snapshot = Snapshot(date: Calendar.current.startOfDay(for: date))
     context.insert(snapshot)
     for a in assets {
-      let asset = Asset(name: a.name, platform: a.platform)
+      let asset = Asset(
+        name: a.name, platform: TestDataManager.platform(named: a.platform, in: context))
       context.insert(asset)
       let sav = SnapshotAssetValue(marketValue: a.value)
       sav.snapshot = snapshot
@@ -1868,11 +1890,14 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     // Create existing asset with currency set
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     asset.currency = "USD"
     tc.context.insert(asset)
 
-    let asset2 = Asset(name: "Bitcoin", platform: "Coinbase")
+    let asset2 = Asset(
+      name: "Bitcoin", platform: TestDataManager.platform(named: "Coinbase", in: tc.context))
     asset2.currency = "TWD"
     tc.context.insert(asset2)
 
@@ -1900,7 +1925,9 @@ struct ImportViewModelTests {
     let viewModel = ImportViewModel(modelContext: tc.context)
 
     // Create existing asset with currency set
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     asset.currency = "TWD"
     tc.context.insert(asset)
 
@@ -1961,7 +1988,9 @@ struct ImportViewModelTests {
     let tc = createTestContext()
 
     // Create existing asset with currency "TWD"
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     asset.currency = "TWD"
     tc.context.insert(asset)
 
@@ -1985,7 +2014,9 @@ struct ImportViewModelTests {
   func noCurrencyWarningWhenMatching() async {
     let tc = createTestContext()
 
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     asset.currency = "USD"
     tc.context.insert(asset)
 
@@ -2007,7 +2038,9 @@ struct ImportViewModelTests {
   func noCurrencyWarningWithoutCurrencyColumn() async {
     let tc = createTestContext()
 
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     asset.currency = "USD"
     tc.context.insert(asset)
 
@@ -2024,7 +2057,9 @@ struct ImportViewModelTests {
   func noCurrencyWarningWhenExistingHasNoCurrency() async {
     let tc = createTestContext()
 
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     tc.context.insert(asset)
 
     let viewModel = ImportViewModel(modelContext: tc.context)
@@ -2065,7 +2100,9 @@ struct ImportViewModelTests {
   func effectiveCurrencyFallsBackToExisting() async {
     let tc = createTestContext()
 
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     asset.currency = "TWD"
     tc.context.insert(asset)
 
@@ -2153,7 +2190,9 @@ struct ImportViewModelTests {
     let tc = createTestContext()
 
     // Create existing asset with currency "TWD"
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     asset.currency = "TWD"
     tc.context.insert(asset)
 
@@ -2185,7 +2224,9 @@ struct ImportViewModelTests {
     // Create existing asset with category
     let bonds = Category(name: "Bonds")
     tc.context.insert(bonds)
-    let existingAsset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let existingAsset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     existingAsset.category = bonds
     tc.context.insert(existingAsset)
 
@@ -2215,7 +2256,9 @@ struct ImportViewModelTests {
     // Create existing asset with category
     let bonds = Category(name: "Bonds")
     tc.context.insert(bonds)
-    let existingAsset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let existingAsset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     existingAsset.category = bonds
     tc.context.insert(existingAsset)
 
@@ -2254,10 +2297,13 @@ struct ImportViewModelTests {
     // Create one asset with category, one without
     let bonds = Category(name: "Bonds")
     tc.context.insert(bonds)
-    let aapl = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let aapl = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     aapl.category = bonds
     tc.context.insert(aapl)
-    let vti = Asset(name: "VTI", platform: "Interactive Brokers")
+    let vti = Asset(
+      name: "VTI", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context))
     tc.context.insert(vti)
 
     let viewModel = ImportViewModel(modelContext: tc.context)
@@ -2273,7 +2319,9 @@ struct ImportViewModelTests {
     // Create existing AAPL with Bonds category
     let bonds = Category(name: "Bonds")
     tc.context.insert(bonds)
-    let existingAsset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let existingAsset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     existingAsset.category = bonds
     tc.context.insert(existingAsset)
 
@@ -2335,7 +2383,9 @@ struct ImportViewModelTests {
     let date = makeDate(year: 2025, month: 6, day: 15)
     let snapshot = Snapshot(date: date)
     tc.context.insert(snapshot)
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     tc.context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: 10000)
     sav.snapshot = snapshot
@@ -2409,7 +2459,9 @@ struct ImportViewModelTests {
     // Create an existing asset with category "Bonds"
     let bonds = Category(name: "Bonds")
     tc.context.insert(bonds)
-    let asset = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: tc.context)
+    )
     asset.category = bonds
     tc.context.insert(asset)
 

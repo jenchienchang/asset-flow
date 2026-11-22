@@ -161,7 +161,8 @@ struct BulkEntryRowTests {
       id: UUID(),
       asset: asset,
       assetName: assetName,
-      platform: platform,
+      platformScope: asset?.platformRecord.map(BulkEntryPlatform.persisted)
+        ?? .draft(name: platform),
       currency: currency,
       previousValue: previousValue,
       newValueText: "",
@@ -1423,7 +1424,9 @@ struct BulkEntryViewModelTests {
 
     var createdAssets: [Asset] = []
     for assetData in assets {
-      let asset = Asset(name: assetData.name, platform: assetData.platform)
+      let asset = Asset(
+        name: assetData.name,
+        platform: TestDataManager.platform(named: assetData.platform, in: context))
       asset.currency = assetData.currency
       context.insert(asset)
       let sav = SnapshotAssetValue(marketValue: assetData.value)
@@ -1506,7 +1509,7 @@ struct BulkEntryViewModelTests {
 
     #expect(viewModel.showColumnMappingSheet)
     #expect(viewModel.pendingRawHeaders == ["Symbol", "Price"])
-    #expect(viewModel.pendingCSVPlatform == "Vanguard")
+    #expect(viewModel.pendingCSVPlatform.name == "Vanguard")
     #expect(viewModel.pendingPreviewColumnWidths.count == 2)
     #expect(!viewModel.isCSVImporting)
   }

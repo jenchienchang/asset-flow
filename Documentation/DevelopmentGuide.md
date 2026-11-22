@@ -8,7 +8,7 @@ Commands below use the repository root unless another location is stated. Git-ch
 
 ### Development environment
 
-The app's deployment target is macOS 15.0+. The shared `AssetFlow` scheme uses Debug to run, Testing to test, and Release to archive. CI selects Xcode 27.0 on the `xcode-27` runner; use that version when reproducing CI results. Xcode 27 includes the Swift 6.4 compiler, while the project sets Swift 6 language mode. [Apple's Xcode 27 release notes](https://developer.apple.com/documentation/xcode-release-notes/xcode-27-release-notes) specify macOS Tahoe 26.6 or later and an Apple silicon Mac to run Xcode 27. These are development-host requirements, separate from the app's deployment target.
+The app's deployment target is macOS 15.0+. The Testing configuration uses an in-memory app-host store; disk migration tests create their own temporary stores. The shared `AssetFlow` scheme uses Debug to run, Testing to test, and Release to archive. CI selects Xcode 27.0 on the `xcode-27` runner; use that version when reproducing CI results. Xcode 27 includes the Swift 6.4 compiler, while the project sets Swift 6 language mode. [Apple's Xcode 27 release notes](https://developer.apple.com/documentation/xcode-release-notes/xcode-27-release-notes) specify macOS Tahoe 26.6 or later and an Apple silicon Mac to run Xcode 27. These are development-host requirements, separate from the app's deployment target.
 
 Install Git, [Git LFS](https://git-lfs.com/), [uv](https://docs.astral.sh/uv/), `swift-format`, and SwiftLint. Homebrew is a convenient way to install these command-line tools. Git LFS retrieves documentation screenshots and is installed separately from the Python packages in uv's `dev` and `docs` groups.
 
@@ -73,7 +73,7 @@ For SwiftUI previews, follow nearby `#Preview` declarations, such as [`SnapshotL
 ### Working with SwiftData
 
 1. Put new files in the appropriate `AssetFlow/` directory and check Xcode target membership. Review `Info.plist`, entitlements, resources, and scheme settings when the feature needs them.
-1. For a model change, inspect `CurrentSchema`, `SchemaV2`, and `AssetFlowMigrationPlan` in [`SchemaVersioning.swift`](../AssetFlow/Models/SchemaVersioning.swift). `CurrentSchema` currently selects V2, so a model added to that active schema must appear in `SchemaV2.models`. Keep historical V1 definitions frozen. Assess whether a change to a released schema needs a new version and migration rather than assuming every future change belongs in V2.
+1. For a model change, inspect `CurrentSchema`, `SchemaV4`, and `AssetFlowMigrationPlan` in [`SchemaVersioning.swift`](../AssetFlow/Models/SchemaVersioning.swift). `CurrentSchema` currently selects V4, whose registration includes Platform. Keep the historical V1/V2 definitions and intermediate V3 frozen. Changes to a released schema require a new version and an explicit migration assessment; do not edit a historical registration to include current models.
 1. Add or update isolated persistence and migration tests where the change needs them. Migration/reopen checks use disposable disk fixtures; normal model tests can use in-memory containers.
 1. Update [`AssetFlow/Models/README.md`](../AssetFlow/Models/README.md) and [`DataModel.md`](DataModel.md) for model changes, plus affected design documents. [DataModel's migration section](DataModel.md#schema-migration-and-preservation) owns the persistence rules and preservation boundary.
 

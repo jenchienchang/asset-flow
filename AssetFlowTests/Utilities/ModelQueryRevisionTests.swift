@@ -29,7 +29,8 @@ struct ModelQueryRevisionTests {
   func revisionTracksModelPropertyChanges() {
     let container = TestDataManager.createInMemoryContainer()
     let snapshot = Snapshot(date: Date(timeIntervalSince1970: 1_000))
-    let asset = Asset(name: "Fund", platform: "Broker")
+    let asset = Asset(
+      name: "Fund", platform: TestDataManager.platform(named: "Broker", in: container.mainContext))
     let category = Category(name: "Equities")
     let snapshotAssetValue = SnapshotAssetValue(marketValue: 100)
     let cashFlow = CashFlowOperation(cashFlowDescription: "Dividend", amount: 5)
@@ -52,7 +53,9 @@ struct ModelQueryRevisionTests {
     #expect(ModelQueryRevision(snapshots: [snapshot]) != originalSnapshot)
 
     let originalAsset = ModelQueryRevision(assets: [asset])
-    asset.platform = "Changed Broker"
+    asset.updateIdentity(
+      name: asset.name,
+      platform: TestDataManager.platform(named: "Changed Broker", in: container.mainContext))
     #expect(ModelQueryRevision(assets: [asset]) != originalAsset)
 
     let originalCategory = ModelQueryRevision(categories: [category])
@@ -77,7 +80,7 @@ struct ModelQueryRevisionTests {
   func revisionTracksMembershipChanges() {
     let first = Snapshot(date: Date(timeIntervalSince1970: 1_000))
     let second = Snapshot(date: Date(timeIntervalSince1970: 2_000))
-    let asset = Asset(name: "Fund", platform: "Broker")
+    let asset = Asset(name: "Fund", platform: TestDataManager.platform(named: "Broker", in: nil))
 
     let original = ModelQueryRevision(snapshots: [first], assets: [asset])
     let changed = ModelQueryRevision(snapshots: [first, second], assets: [asset])

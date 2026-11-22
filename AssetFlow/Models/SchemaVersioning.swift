@@ -15,10 +15,11 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+import Foundation
 import SwiftData
 
 enum CurrentSchema {
-  static var schema: Schema { Schema(versionedSchema: SchemaV2.self) }
+  static var schema: Schema { Schema(versionedSchema: SchemaV4.self) }
 }
 
 enum SchemaV1: VersionedSchema {
@@ -46,12 +47,83 @@ enum SchemaV2: VersionedSchema {
   }
 }
 
+enum SchemaV3: VersionedSchema {
+  static let versionIdentifier = Schema.Version(3, 0, 0)
+  static var models: [any PersistentModel.Type] {
+    [
+      Category.self, Asset.self, Snapshot.self, SnapshotAssetValue.self,
+      CashFlowOperation.self, ExchangeRate.self, Platform.self,
+    ]
+  }
+}
+
+enum SchemaV4: VersionedSchema {
+  static let versionIdentifier = Schema.Version(4, 0, 0)
+  static var models: [any PersistentModel.Type] {
+    [
+      Category.self, Asset.self, Snapshot.self, SnapshotAssetValue.self,
+      CashFlowOperation.self, ExchangeRate.self, Platform.self,
+    ]
+  }
+}
+
 enum AssetFlowMigrationPlan: SchemaMigrationPlan {
   static var schemas: [any VersionedSchema.Type] {
-    [SchemaV1.self, SchemaV2.self]
+    [SchemaV1.self, SchemaV2.self, SchemaV3.self, SchemaV4.self]
   }
 
   static var stages: [MigrationStage] {
-    [.lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self)]
+    [
+      .lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self),
+      .custom(
+        fromVersion: SchemaV2.self, toVersion: SchemaV3.self,
+        willMigrate: { context in
+          let assets = try context.fetch(FetchDescriptor<SchemaV2.Asset>())
+          var identities: Set<[String]> = []
+          for asset in assets {
+            guard
+              identities.insert([
+                asset.name.normalizedForIdentity, asset.platform.normalizedForIdentity,
+              ]).inserted
+            else { throw PlatformMigrationError.duplicateAssetIdentity }
+          }
+        },
+        didMigrate: { context in
+          let assets = try context.fetch(FetchDescriptor<SchemaV3.Asset>())
+          var platforms: [String: SchemaV3.Platform] = [:]
+          let orderedAssets = assets.sorted {
+            $0.platform.collapsingWhitespace < $1.platform.collapsingWhitespace
+          }
+          for asset in orderedAssets {
+            let key = asset.platform.normalizedForIdentity
+            guard !key.isEmpty else {
+              asset.identityKey = AssetIdentity.key(name: asset.name, platformID: nil)
+              continue
+            }
+            let platform: SchemaV3.Platform
+            if let existing = platforms[key] {
+              platform = existing
+            } else {
+              platform = SchemaV3.Platform(name: asset.platform, displayOrder: Int.max)
+              context.insert(platform)
+              platforms[key] = platform
+            }
+            asset.platformRecord = platform
+            asset.identityKey = AssetIdentity.key(name: asset.name, platformID: platform.id)
+          }
+          try context.save()
+        }),
+      .lightweight(fromVersion: SchemaV3.self, toVersion: SchemaV4.self),
+    ]
+  }
+}
+
+private enum PlatformMigrationError: LocalizedError {
+  case duplicateAssetIdentity
+  var errorDescription: String? {
+    String(
+      localized:
+        "Existing assets have conflicting normalized identities. The store was not migrated.",
+      table: "Platform")
   }
 }

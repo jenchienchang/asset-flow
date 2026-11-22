@@ -337,12 +337,17 @@ struct ImportView: View {
           Text("Platform:")
             .foregroundStyle(.secondary)
           Picker("Platform", selection: platformBinding) {
-            Text("None").tag("")
+            Text("None").tag(PlatformPickerOption.none)
             ForEach(viewModel.availablePlatforms, id: \.self) { platform in
-              Text(platform).tag(platform)
+              Text(platform).tag(PlatformPickerOption.name(platform))
+            }
+            if let selected = viewModel.selectedPlatform,
+              !viewModel.availablePlatforms.contains(selected)
+            {
+              Text(selected).tag(PlatformPickerOption.name(selected))
             }
             Divider()
-            Text("New Platform...").tag("__new__")
+            Text("New Platform...").tag(PlatformPickerOption.create)
           }
           .labelsHidden()
           .fixedSize()
@@ -371,29 +376,34 @@ struct ImportView: View {
     )
   }
 
-  private var platformBinding: Binding<String> {
+  private var platformBinding: Binding<PlatformPickerOption> {
     Binding(
-      get: { viewModel.selectedPlatform ?? "" },
-      set: { newValue in
-        if newValue == "__new__" {
+      get: { viewModel.selectedPlatform.map(PlatformPickerOption.name) ?? .none },
+      set: { option in
+        switch option {
+        case .create:
           showNewPlatformField = true
           newPlatformName = ""
-        } else if newValue.isEmpty {
+
+        case .none:
           viewModel.selectedPlatform = nil
-        } else {
-          viewModel.selectedPlatform = newValue
+
+        case .name(let name):
+          viewModel.selectedPlatform = name
         }
       }
     )
   }
 
   private func commitNewPlatform() {
-    let trimmed = newPlatformName.trimmingCharacters(in: .whitespaces)
+    let trimmed = newPlatformName.collapsingWhitespace
     guard !trimmed.isEmpty else { return }
 
     // Check if it matches an existing platform (case-insensitive)
     let existing = viewModel.availablePlatforms
-    if let match = existing.first(where: { $0.lowercased() == trimmed.lowercased() }) {
+    if let match = existing.first(where: {
+      $0.normalizedForIdentity == trimmed.normalizedForIdentity
+    }) {
       viewModel.selectedPlatform = match
     } else {
       viewModel.selectedPlatform = trimmed

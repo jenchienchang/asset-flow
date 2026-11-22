@@ -19,11 +19,20 @@ import Foundation
 
 /// Error types for platform operations.
 enum PlatformError: LocalizedError, Equatable {
+  case notFound
+  case hasAssets
   case emptyName
   case duplicateName(String)
 
   var errorDescription: String? {
     switch self {
+    case .notFound:
+      return String(localized: "This platform no longer exists.", table: "Platform")
+
+    case .hasAssets:
+      return String(
+        localized: "Move or delete the platform's assets before deleting it.", table: "Platform")
+
     case .emptyName:
       return String(
         localized: "Platform name cannot be empty.",

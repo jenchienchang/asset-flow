@@ -84,11 +84,16 @@ class ImportViewModel {
     }
   }
 
-  /// Import-level platform override (nil = use CSV per-row values).
+  @ObservationIgnored private var knownPlatforms: [Platform] = []
+  private var platformSelection: PlatformSelection = .none
+
+  /// Existing overrides retain platform identity; new overrides retain their entered text.
   var selectedPlatform: String? {
-    didSet {
-      guard selectedPlatform != oldValue else { return }
-      rebuildPreviewIfNeeded()
+    get { platformSelection.name.isEmpty ? nil : platformSelection.name }
+    set {
+      let previous = selectedPlatform
+      platformSelection = PlatformSelection(name: newValue ?? "", platforms: knownPlatforms)
+      if selectedPlatform != previous { rebuildPreviewIfNeeded() }
     }
   }
 
@@ -222,7 +227,7 @@ class ImportViewModel {
 
     let defaultPlatform = resolvedService.defaultPlatform
     if !defaultPlatform.isEmpty {
-      self.selectedPlatform = defaultPlatform
+      self.platformSelection = PlatformSelection(name: defaultPlatform, platforms: [])
     }
     refreshPickerOptions()
   }
@@ -363,7 +368,7 @@ class ImportViewModel {
 
   // MARK: - Queries
 
-  /// Returns all distinct, non-empty platforms from existing assets.
+  /// Returns visible platform names and refreshes existing selections by UUID.
   func existingPlatforms() throws -> [String] {
     try fetchExistingPlatforms()
   }
@@ -401,19 +406,11 @@ class ImportViewModel {
   }
 
   private func fetchExistingPlatforms() throws -> [String] {
-    let descriptor = FetchDescriptor<Asset>()
-    let allAssets = try fetchModels(
-      descriptor,
-      from: fetcher,
-      operation: "load existing platforms")
-
-    let platforms = Set(
-      allAssets
-        .map { $0.platform }
-        .filter { !$0.isEmpty }
-    )
-
-    return platforms.sorted()
+    let platforms = try fetchModels(
+      FetchDescriptor<Platform>(), from: fetcher, operation: "load existing platforms")
+    knownPlatforms = platforms
+    platformSelection = platformSelection.refreshed(with: platforms)
+    return platforms.filter { !($0.assets ?? []).isEmpty }.map(\.name).sorted()
   }
 
   private func fetchExistingCategories() throws -> [Category] {
@@ -448,14 +445,18 @@ class ImportViewModel {
 
     do {
       let existingAssets: [Asset]
+      let existingPlatforms: [Platform]
       let latestPrior: Snapshot?
       switch importType {
       case .assets:
         existingAssets = try fetchAllAssets()
+        existingPlatforms = try fetchModels(
+          FetchDescriptor<Platform>(), from: fetcher, operation: "prepare import platforms")
         latestPrior = try latestPriorSnapshotForImport(on: normalizedDate)
 
       case .cashFlows:
         existingAssets = []
+        existingPlatforms = []
         latestPrior = nil
       }
 
@@ -467,6 +468,7 @@ class ImportViewModel {
         try executeAssetImport(
           snapshot: snapshot,
           existingAssets: existingAssets,
+          existingPlatforms: existingPlatforms,
           latestPrior: latestPrior)
 
       case .cashFlows:
@@ -573,9 +575,9 @@ class ImportViewModel {
     // (applied during CSV parsing), so no separate handling is needed.
     var snapshotPlatforms = Set<String>()
     for row in assetPreviewRows where row.isIncluded {
-      let platform = row.csvRow.platform
+      let platform = row.csvRow.platform.normalizedForIdentity
       if !platform.isEmpty {
-        snapshotPlatforms.insert(platform.lowercased())
+        snapshotPlatforms.insert(platform)
       }
     }
 
@@ -589,7 +591,7 @@ class ImportViewModel {
     // Build copy-forward info for platforms not already in the new snapshot
     var infos: [CopyForwardPlatformInfo] = []
     for (platform, assets) in platformAssets {
-      if !snapshotPlatforms.contains(platform.lowercased()) {
+      if !snapshotPlatforms.contains(platform.normalizedForIdentity) {
         infos.append(
           CopyForwardPlatformInfo(
             platformName: platform,
@@ -630,7 +632,9 @@ class ImportViewModel {
   }
 
   private func rebuildAssetPreviewRowsThrowing() throws {
-    let assetLookup = AssetResolutionLookup(assets: try fetchAllAssets())
+    let assets = try fetchAllAssets()
+    let assetLookup = AssetResolutionLookup(
+      assets: assets, platforms: assets.compactMap(\.platformRecord))
     var hasAnyCategorized = false
     var hasAnyUncategorized = false
 

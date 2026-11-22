@@ -99,7 +99,7 @@ struct ObservedRefreshRegressionTests {
     let container = TestDataManager.createInMemoryContainer()
     let context = container.mainContext
     let category = AssetFlow.Category(name: "Reserve", targetAllocationPercentage: 100)
-    let asset = Asset(name: "Cash", platform: "Bank")
+    let asset = Asset(name: "Cash", platform: TestDataManager.platform(named: "Bank", in: context))
     asset.category = category
     let snapshot = Snapshot(date: Date())
     let value = SnapshotAssetValue(marketValue: 100)
@@ -110,7 +110,8 @@ struct ObservedRefreshRegressionTests {
     let dashboard = DashboardViewModel(modelContext: context, fetcher: fetcher)
     let platformList = PlatformListViewModel(modelContext: context, fetcher: fetcher)
     let platformDetail = PlatformDetailViewModel(
-      platformName: "Bank", modelContext: context, fetcher: fetcher)
+      platform: TestDataManager.platform(named: "Bank", in: context)!, modelContext: context,
+      fetcher: fetcher)
     let rebalancing = RebalancingViewModel(modelContext: context, fetcher: fetcher)
     let assetList = AssetListViewModel(modelContext: context, fetcher: fetcher)
     let assetDetail = AssetDetailViewModel(asset: asset, modelContext: context, fetcher: fetcher)

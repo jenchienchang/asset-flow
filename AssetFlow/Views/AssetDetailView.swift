@@ -451,7 +451,7 @@ struct AssetDetailView: View {
 
 #Preview("Asset Detail") {
   let container = PreviewContainer.container
-  let asset = Asset(name: "AAPL", platform: "Firstrade")
+  let asset = Asset(name: "AAPL", platform: Platform(name: "Firstrade"))
   container.mainContext.insert(asset)
   return NavigationStack {
     AssetDetailView(asset: asset, modelContext: container.mainContext) {}

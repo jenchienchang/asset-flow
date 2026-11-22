@@ -32,7 +32,8 @@ struct AssetCategoryRelationshipTests {
 
     // Create category and asset
     let equities = Category(name: "Equities", targetAllocationPercentage: Decimal(60))
-    let apple = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let apple = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: context))
     apple.category = equities
 
     context.insert(equities)
@@ -61,7 +62,8 @@ struct AssetCategoryRelationshipTests {
     let context = container.mainContext
 
     let equities = Category(name: "Equities", targetAllocationPercentage: Decimal(60))
-    let apple = Asset(name: "AAPL", platform: "Interactive Brokers")
+    let apple = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Interactive Brokers", in: context))
     apple.category = equities
 
     context.insert(equities)

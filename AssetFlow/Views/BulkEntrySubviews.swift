@@ -622,16 +622,16 @@ struct BulkEntryAssetSection: View {
   @FocusState private var nameFieldFocusedRowID: UUID?
 
   var body: some View {
-    ForEach(viewModel.platformGroups, id: \.platform) { group in
+    ForEach(viewModel.platformGroups) { group in
       BulkEntryPlatformSection(
         viewModel: viewModel,
-        platform: group.platform,
+        platform: group.scope,
         rows: group.rows,
         cachedCategoryNames: $cachedCategoryNames,
         focusedRowID: $focusedRowID,
         nameFieldFocusedRowID: $nameFieldFocusedRowID,
         csvImportTarget: csvImportTarget,
-        isCSVLoading: csvLoadingTracker.isActive(for: .asset(platform: group.platform)),
+        isCSVLoading: csvLoadingTracker.isActive(for: .asset(platform: group.scope)),
         isSourceDataStale: isSourceDataStale,
         onCancelCSVImport: onCancelCSVImport
       )
@@ -666,7 +666,7 @@ struct BulkEntryAssetSection: View {
 /// via `Equatable` and skips body re-evaluation for all unchanged platforms.
 struct BulkEntryPlatformSection: View, Equatable {
   var viewModel: BulkEntryViewModel
-  let platform: String
+  let platform: BulkEntryPlatform
   let rows: [BulkEntryRow]
   @Binding var cachedCategoryNames: [String]
   var focusedRowID: FocusState<UUID?>.Binding
@@ -729,7 +729,7 @@ struct BulkEntryPlatformSection: View, Equatable {
 
   private var platformHeader: some View {
     HStack(spacing: 12) {
-      Text(platform.isEmpty ? "No Platform" : platform)
+      Text(platform.name.isEmpty ? "No Platform" : platform.name)
         .font(.title3)
         .fontWeight(.bold)
 

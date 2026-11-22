@@ -21,6 +21,18 @@ import Foundation
 
 extension BackupService {
 
+  nonisolated static func writePlatformsCSV(
+    _ platforms: [BackupPlatformRecord], to dir: URL
+  ) throws {
+    var lines = [BackupCSV.Platforms.headers.joined(separator: ",")]
+    for platform in platforms {
+      lines.append(
+        csvLine([platform.id.uuidString, csvEscape(platform.name), "\(platform.displayOrder)"]))
+    }
+    try lines.joined(separator: "\n").write(
+      to: dir.appending(path: BackupCSV.Platforms.fileName), atomically: true, encoding: .utf8)
+  }
+
   nonisolated static func writeCategoriesCSV(
     _ categories: [BackupCategoryRecord], to dir: URL
   ) throws {
@@ -51,7 +63,7 @@ extension BackupService {
         csvLine([
           asset.id.uuidString,
           csvEscape(asset.name),
-          csvEscape(asset.platform),
+          asset.platformID?.uuidString ?? "",
           asset.categoryID?.uuidString ?? "",
           csvEscape(asset.currency),
         ]))

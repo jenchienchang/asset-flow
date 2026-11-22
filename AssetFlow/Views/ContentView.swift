@@ -94,6 +94,7 @@ struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
   @Environment(\.isAppLocked) private var isAppLocked
   @Query private var querySnapshots: [Snapshot]
+  @Query private var queryPlatforms: [Platform]
   @Query private var queryAssets: [Asset]
   @Query private var queryCategories: [Category]
   @Query private var querySnapshotAssetValues: [SnapshotAssetValue]
@@ -110,7 +111,7 @@ struct ContentView: View {
   @State private var selectedAsset: Asset?
   @State private var selectedCategory: Category?
   @State private var categoryEditingSession = CategoryEditingSession()
-  @State private var selectedPlatform: String?
+  @State private var selectedPlatform: UUID?
 
   @State private var showNewSnapshotSheet = false
   @State private var importViewModel: ImportViewModel?
@@ -345,6 +346,7 @@ struct ContentView: View {
     ModelQueryRevision(
       snapshots: querySnapshots,
       assets: queryAssets,
+      platforms: queryPlatforms,
       categories: queryCategories,
       snapshotAssetValues: querySnapshotAssetValues,
       cashFlowOperations: queryCashFlowOperations,
@@ -355,6 +357,7 @@ struct ContentView: View {
     ModelQueryRevision(
       snapshots: querySnapshots,
       assets: queryAssets,
+      platforms: queryPlatforms,
       categories: queryCategories,
       snapshotAssetValues: querySnapshotAssetValues)
   }
@@ -375,8 +378,9 @@ struct ContentView: View {
     selectedCategory = ModelSelectionResolver.resolve(
       selectedCategory, among: queryCategories, id: \.id)
 
-    let platformNames = Set(queryAssets.map(\.platform).filter { !$0.isEmpty })
-    if let selectedPlatform, !platformNames.contains(selectedPlatform) {
+    if let selectedPlatform,
+      !queryPlatforms.contains(where: { $0.id == selectedPlatform && !($0.assets ?? []).isEmpty })
+    {
       self.selectedPlatform = nil
     }
 
@@ -561,13 +565,12 @@ struct ContentView: View {
 
           Divider()
 
-          if let platform = selectedPlatform {
+          if let platform = queryPlatforms.first(where: { $0.id == selectedPlatform }) {
             PlatformDetailView(
-              platformName: platform,
-              modelContext: modelContext,
-              onRename: { selectedPlatform = $0 }
+              platform: platform,
+              modelContext: modelContext
             )
-            .id(platform)
+            .id(ObjectIdentifier(platform))
             .frame(maxWidth: .infinity)
           } else {
             placeholderView("Select a platform", systemImage: "building.columns")

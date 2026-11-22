@@ -52,7 +52,7 @@ ______________________________________________________________________
 
 Should define stored data and how its integrity is preserved:
 
-- Core entities: Category, Asset, Snapshot, SnapshotAssetValue, CashFlowOperation, ExchangeRate
+- Core entities: Platform, Category, Asset, Snapshot, SnapshotAssetValue, CashFlowOperation, ExchangeRate
 - Property definitions, types, units, defaults, and optionality
 - Relationships, cardinality, ownership, inverse relationships, and delete rules
 - Identity, uniqueness constraints, and integrity invariants

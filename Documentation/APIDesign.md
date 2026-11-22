@@ -63,11 +63,11 @@ The convenience `totalValue` and `netCashFlow` methods return `Decimal?`; `categ
 
 [`SnapshotSummaryService.swift`](../AssetFlow/Services/SnapshotSummaryService.swift) is `@MainActor`. Its snapshot fetch helpers accept either `ModelContext` or an injectable `ModelFetching`. Latest and latest-prior lookups use bounded fetch descriptors. Fetches throw `PersistenceError` on a SwiftData failure; an empty array or `nil` means a successful read found no matching snapshot.
 
-`makeSummary(for:displayCurrency:)` and `makeSummaries(for:displayCurrency:)` compute shared display aggregates. The current `SnapshotSummary` type has a nonoptional `totalValue: Decimal` and nonoptional category/platform dictionaries, plus `conversionStatus` and `nativeCurrencyTotals`. When asset conversion is incomplete, this helper stores zero and empty converted dictionaries. Consumers **must check `conversionStatus`** before interpreting that zero as an available portfolio total; the underlying `CurrencyConversionReport.convertedTotal` is `nil` in that case.
+`makeSummary(for:displayCurrency:)` and `makeSummaries(for:displayCurrency:)` compute shared display aggregates. The current `SnapshotSummary` type has a nonoptional `totalValue: Decimal`, category totals, and `platformValuesByID: [UUID: Decimal]` (excluding assets without a platform), plus `conversionStatus` and `nativeCurrencyTotals`. When asset conversion is incomplete, this helper stores zero and empty converted dictionaries. Consumers **must check `conversionStatus`** before interpreting that zero as an available portfolio total; the underlying `CurrencyConversionReport.convertedTotal` is `nil` in that case.
 
 ### SettingsService
 
-[`SettingsService.swift`](../AssetFlow/Services/SettingsService.swift) is an `@Observable @MainActor` singleton. Changes to `mainCurrency`, `dateFormat`, `defaultPlatform`, `platformOrder`, and `hideStaleAssets` persist immediately to `UserDefaults`. Their defaults are `USD`, `.abbreviated`, an empty platform, an empty order, and `true` respectively. `createForTesting()` creates isolated storage; `createForTesting(userDefaults:)` uses a caller-supplied store. Only the first three properties are transferred by the [backup format](#backup-interchange-format); the others remain unchanged on restore. `CurrencyService` separately caches the downloaded currency-name list in `UserDefaults`.
+[`SettingsService.swift`](../AssetFlow/Services/SettingsService.swift) is an `@Observable @MainActor` singleton. Changes to `mainCurrency`, `dateFormat`, `defaultPlatform`, and `hideStaleAssets` persist immediately to `UserDefaults`. Their defaults are `USD`, `.abbreviated`, an empty platform, and `true` respectively. Platform ordering is stored on Platform records. The legacy name-order key is read only for migration. `createForTesting()` creates isolated storage; `createForTesting(userDefaults:)` uses a caller-supplied store. Only currency, date format, and default-platform preferences are transferred by the [backup format](#backup-interchange-format); the others remain unchanged on restore. `CurrencyService` separately caches the downloaded currency-name list in `UserDefaults`.
 
 ### AuthenticationService
 
@@ -97,7 +97,7 @@ The service owns `LockEventInbox`. Its mutex serializes notification receipt wit
 
 | Call                                                  | Actor and result                             | Effect                                                                                                                                 |
 | ----------------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `exportBackup(to:modelContext:settingsService:)`      | `@MainActor async throws -> Void`            | Reads models and covered settings, serializes a v4 archive, then replaces or creates the destination after the archive is complete.    |
+| `exportBackup(to:modelContext:settingsService:)`      | `@MainActor async throws -> Void`            | Reads models and covered settings, serializes a v5 archive, then replaces or creates the destination after the archive is complete.    |
 | `validateBackup(at:)`                                 | `nonisolated async throws -> BackupManifest` | Extracts and validates a ZIP without changing app data.                                                                                |
 | `restoreFromBackup(at:modelContext:settingsService:)` | `@MainActor async throws -> Void`            | Validates first, then replaces model data and the covered settings. The source also has a defaulted checkpoint hook for restore tests. |
 
@@ -148,9 +148,15 @@ External withdrawal,-10000,TWD
 
 Raw duplicate candidates and row diagnostics survive mapping. Import and Bulk Entry then validate the effective included rows using their respective platform and snapshot context. A blocking error prevents the operation; a warning alone does not.
 
+## Platform Operations
+
+[`PlatformService.swift`](../AssetFlow/Services/PlatformService.swift) is a main-actor utility for resolving normalized names, validating rename conflicts, deleting unreferenced platforms, and migrating legacy ordering. `reconcileDisplayOrder(_:)` accepts all platform records and assigns positions to visible records whose `displayOrder` is `Int.max` (unresolved). It preserves established positions, including hidden records, and appends each newly visible batch in normalized-name order. Hidden unresolved records remain unassigned. If appended positions would reach the sentinel, it first compacts established positions without changing their relative order. It makes no changes when there are no additions and relies on the context's normal autosave. The list ViewModel calls it after successful source reads and before publishing rows.
+
+A valid rename first assigns distinct positions in the current display order, including hidden platforms, so changing a tie-breaking name cannot reorder the list. Rename updates the default import text when it matches the old normalized name; unrelated or new-platform text remains a valid preference. Import and Bulk Entry preload platform records before writes and use `PlatformResolutionLookup` within the synchronous save, avoiding per-row fetches. Asset edits resolve new-name input and check conflicts by platform UUID before changing model fields. `AssetResolutionLookup` keys saved assets by normalized asset name and optional platform UUID; its string overloads resolve text at the input boundary. Bulk Entry groups and targets rows using `BulkEntryPlatform` identity (persisted UUID, draft UUID, or unassigned), and resolves draft names before duplicate validation and model insertion.
+
 ## Backup Interchange Format
 
-The current export format is **v4**. Restore accepts **v1–v4**. [`BackupTypes.swift`](../AssetFlow/Services/BackupTypes.swift) defines transfer records and ordered headers; [`BackupService+Export.swift`](../AssetFlow/Services/BackupService+Export.swift) writes them; [`BackupService+Parsing.swift`](../AssetFlow/Services/BackupService+Parsing.swift) chooses headers by manifest version.
+The current export format is **v5**. Restore accepts **v1–v5**. [`BackupTypes.swift`](../AssetFlow/Services/BackupTypes.swift) defines transfer records and ordered headers; [`BackupService+Export.swift`](../AssetFlow/Services/BackupService+Export.swift) writes them; [`BackupService+Parsing.swift`](../AssetFlow/Services/BackupService+Parsing.swift) chooses headers by manifest version.
 
 ### Archive and Manifest
 
@@ -158,38 +164,42 @@ The canonical ZIP places `manifest.json` and CSV files at its root. Restore also
 
 `manifest.json` exports `formatVersion` (integer), `exportTimestamp` (ISO 8601 timestamp with timezone), and `appVersion` (nonempty string). The exporter uses `ISO8601DateFormatter`. Restore accepts valid Internet-date-time timestamps with `Z` or a numeric timezone, including fractional seconds. Missing or mistyped required JSON keys fail decoding; additional manifest keys are ignored by the decoder. An unsupported `formatVersion` is rejected.
 
-For example, a v4 manifest can contain:
+For example, a v5 manifest can contain:
 
 ```json
-{"formatVersion":4,"exportTimestamp":"2026-10-14T10:30:00Z","appVersion":"0.7.1"}
+{"formatVersion":5,"exportTimestamp":"2026-10-14T10:30:00Z","appVersion":"0.7.1"}
 ```
 
-The six portfolio and settings CSV files below are required for every supported version. `exchange_rates.csv` is exported in v4, is optional on restore for v3/v4, and is not accepted for v1/v2. An absent optional rate file restores no stored rates; it does not invent rates.
+The six shared portfolio and settings CSV files below are required for every supported version. V5 additionally requires `platforms.csv`, including for an empty portfolio. `exchange_rates.csv` is exported in v5, is optional on restore for v3–v5, and is not accepted for v1/v2. An absent optional rate file restores no stored rates; it does not invent rates.
 
 ### Exact Ordered CSV Headers
 
-Headers are case-sensitive and ordered. A v4 export uses these exact header lines:
+Headers are case-sensitive and ordered. A v5 export uses these exact header lines:
 
-| File                        | v4 header                                                                                     |
+| File                        | v5 header                                                                                     |
 | --------------------------- | --------------------------------------------------------------------------------------------- |
 | `categories.csv`            | `id,name,targetAllocationPercentage,displayOrder,minimumBalanceAmount,minimumBalanceCurrency` |
-| `assets.csv`                | `id,name,platform,categoryID,currency`                                                        |
+| `platforms.csv`             | `id,name,displayOrder`                                                                        |
+| `assets.csv`                | `id,name,platformID,categoryID,currency`                                                      |
 | `snapshots.csv`             | `id,date,createdAt`                                                                           |
 | `snapshot_asset_values.csv` | `snapshotID,assetID,marketValue`                                                              |
 | `cash_flow_operations.csv`  | `id,snapshotID,description,amount,currency`                                                   |
 | `settings.csv`              | `key,value`                                                                                   |
 | `exchange_rates.csv`        | `snapshotID,baseCurrency,fetchDate,isFallback,ratesJSON`                                      |
 
-For v1–v3 restore, use the v4 header above unless the file and version appear here. These are the complete replacement header lines:
+For v1–v4 restore, `platforms.csv` is not model input; use the v5 headers above unless the file and version appear here. These are the complete replacement header lines:
 
-| Restore version | File                       | Header instead of v4                              |
+| Restore version | File                       | Header instead of v5                              |
 | --------------- | -------------------------- | ------------------------------------------------- |
 | v1              | `categories.csv`           | `id,name,targetAllocationPercentage`              |
 | v2–v3           | `categories.csv`           | `id,name,targetAllocationPercentage,displayOrder` |
+| v3–v4           | `assets.csv`               | `id,name,platform,categoryID,currency`            |
 | v1–v2           | `assets.csv`               | `id,name,platform,categoryID`                     |
 | v1–v2           | `cash_flow_operations.csv` | `id,snapshotID,description,amount`                |
 
-`exchange_rates.csv` is not accepted in v1/v2. In v3 it may be absent; when present, its header is the v4 header above. Thus each supported version has an exact header for every accepted file without relying on model-property names.
+`exchange_rates.csv` is not accepted in v1/v2. In v3 it may be absent; when present, its header is the v5 header above. Thus each supported version has an exact header for every accepted file without relying on model-property names.
+
+V5 preserves platform UUIDs, names, and display order, including empty hidden platforms. `assets.csv.platformID` is empty for no platform and otherwise must reference `platforms.csv`. Platform names must be nonempty and unique after trimming, whitespace collapse, and lowercasing; display order must be a nonnegative integer. Legacy platform strings are resolved with the same normalization.
 
 The cash-flow backup field is `description` even though the SwiftData model property is `cashFlowDescription`. Restoring v1 categories supplies `displayOrder = 0`. Restoring pre-v4 categories supplies no minimum amount or currency. Restoring v1/v2 assets and cash flows supplies an empty currency, which retains display-currency inheritance.
 
@@ -197,7 +207,7 @@ The cash-flow backup field is `description` even though the SwiftData model prop
 
 The writer uses UTF-8 CSV with LF record separators. Text containing a comma, quote, CR, or LF is quoted, with quotes doubled. The shared reader also accepts CRLF records and a trailing empty field. UUIDs use their standard string form. Snapshot and rate dates use ISO 8601 timestamps with timezone. Monetary values, target percentages, and rates remain `Decimal` values; the CSV writer emits decimal text without display rounding, while restore accepts strict numeric decimal text, including an exponent, without currency symbols or grouping separators. `targetAllocationPercentage` is on the 0–100 scale.
 
-An empty field represents an absent optional `categoryID`, target percentage, or v4 minimum pair. Empty asset and cash-flow currency strings are meaningful inherited-currency values. The v4 minimum amount and currency must both be empty or form a valid pair. `isFallback` is the lowercase literal `true` or `false`. `ratesJSON` is base64-encoded JSON for a nonempty `[String: Decimal]` rate dictionary with positive finite values; a restored fallback flag does not itself establish an active stale-rate fallback.
+An empty field represents an absent optional `platformID`, `categoryID`, target percentage, or minimum pair. Empty asset and cash-flow currency strings are meaningful inherited-currency values. The minimum amount and currency must both be empty or form a valid pair. `isFallback` is the lowercase literal `true` or `false`. `ratesJSON` is base64-encoded JSON for a nonempty `[String: Decimal]` rate dictionary with positive finite values; a restored fallback flag does not itself establish an active stale-rate fallback.
 
 `settings.csv` contains exactly one row for each key:
 
@@ -216,7 +226,7 @@ dateFormat,abbreviated
 defaultPlatform,
 ```
 
-Unknown, missing, or duplicate settings keys are rejected. Other preferences, including platform order, stale-asset visibility, app-lock settings, and the cached currency list, are not exported and remain unchanged on restore. Other archive entries are not imported as model data. An exchange-rate file in v1/v2, wrong-version CSV headers, and invalid required fields are rejected; extra manifest keys do not extend the format.
+Unknown, missing, or duplicate settings keys are rejected. Other preferences, including stale-asset visibility, app-lock settings, and the cached currency list, are not exported and remain unchanged on restore. Platform order is part of the V5 model data and is replaced with that graph. Other archive entries are not imported as model data. An exchange-rate file in v1/v2, wrong-version CSV headers, and invalid required fields are rejected; extra manifest keys do not extend the format.
 
 ### Validation and Restore Boundary
 

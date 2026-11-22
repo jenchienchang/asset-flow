@@ -146,7 +146,7 @@ struct BulkEntryView: View {
         #if DEBUG
           if ProcessInfo.processInfo.arguments.contains("--preview-bulk-entry-csv-loading"),
             !didStartCSVLoadingPreview,
-            let platform = viewModel.platformGroups.first?.platform
+            let platform = viewModel.platformGroups.first?.scope
           {
             didStartCSVLoadingPreview = true
             startCSVImportTask(target: .asset(platform: platform)) { @MainActor in

@@ -22,24 +22,31 @@ Asset categorization with optional target allocation percentage.
 
 - Assets (many children, `.deny` delete rule -- must reassign assets before deleting)
 
+### Platform
+
+Persistent custodian identity with `id: UUID`, display `name`, unique `normalizedName`, and `displayOrder`. `PlatformService` owns normalized resolution and validated renames. `assets` is the inverse of `Asset.platformRecord` with `.deny` deletion. Empty platforms remain stored but hidden; a rename preserves identity and ordering.
+
 ### Asset
 
-Individual investment identified by (name, platform) tuple.
+Individual investment identified by normalized name and optional platform UUID.
 
 **Key Properties:**
 
-- `name` - Display name
-- `platform` - Platform/broker (optional, default: "")
+- `name` - Display name (private setter)
+- `identityKey` - Persisted normalized-name/platform-UUID uniqueness key, including nil platform
+- `platformRecord` - Optional relationship to Platform (nil means none)
+- `platform` - Read-only display/interchange name projection (empty for nil)
 - `currency` - Native currency code (e.g., "USD", "TWD"; default: "")
 
 **Computed Properties:**
 
 - `normalizedName` - Trimmed, collapsed spaces, lowercased
 - `normalizedPlatform` - Trimmed, collapsed spaces, lowercased
-- `normalizedIdentity` - Combined `normalizedName|normalizedPlatform` for matching
+- `normalizedIdentity` - Combined `normalizedName|normalizedPlatform` text projection for interchange; persisted matching uses platform UUID
 
 **Relationships:**
 
+- Platform (optional parent, `.nullify`)
 - Category (optional parent, `.nullify`)
 - SnapshotAssetValues (many children, `.deny` -- must delete values before deleting asset)
 
@@ -111,6 +118,7 @@ An exchange-rate record is usable only when its base currency matches the config
 ## Relationships
 
 ```
+Platform (1:Many) -> Asset
 Category (1:Many) -> Asset
 Asset (Many:Many via SnapshotAssetValue) -> Snapshot
 Snapshot (1:Many) -> SnapshotAssetValue
@@ -140,18 +148,18 @@ var marketValue: Double   // Never do this
 
 ### Schema Registration
 
-All models are registered via `SchemaV2` (versioned schema) in [`SchemaVersioning.swift`](SchemaVersioning.swift):
+All models are registered via `SchemaV4` (versioned schema) in [`SchemaVersioning.swift`](SchemaVersioning.swift):
 
 ```swift
 let schema = CurrentSchema.schema
-// SchemaV2.models includes: Category, Asset, Snapshot,
-// SnapshotAssetValue, CashFlowOperation, ExchangeRate
+// SchemaV4.models includes: Category, Asset, Snapshot,
+// SnapshotAssetValue, CashFlowOperation, ExchangeRate, Platform
 ```
 
 ### When Adding/Modifying Models
 
 1. Update the model file
-1. Register in `SchemaV2.models` ([`SchemaVersioning.swift`](SchemaVersioning.swift)) if new
+1. Register in `SchemaV4.models` ([`SchemaVersioning.swift`](SchemaVersioning.swift)) if new
 1. Update this README
 1. Update [`Documentation/DataModel.md`](../../Documentation/DataModel.md)
 1. Consider migration strategy if changing existing models
@@ -169,6 +177,10 @@ let schema = CurrentSchema.schema
 Models/
 ├── README.md (this file)
 ├── SchemaVersioning.swift
+├── SchemaV1Models.swift
+├── SchemaV2Models.swift
+├── SchemaV3Models.swift
+├── Platform.swift
 ├── Category.swift
 ├── Asset.swift
 ├── Snapshot.swift
@@ -196,4 +208,4 @@ See the comprehensive [`Documentation/DataModel.md`](../../Documentation/DataMod
 
 ## Category Minimum Balances
 
-`minimumBalanceAmount: Decimal?` and `minimumBalanceCurrency: String?` must be jointly present or absent. Amounts are finite and nonnegative; zero is valid. Goals belong to categories and are independent of asset currency. Percentages can coexist with minimums. Effective targets/status are derived from current snapshot data and are not persisted. Use the frozen V1 definitions for migration and current V2 models for application work.
+`minimumBalanceAmount: Decimal?` and `minimumBalanceCurrency: String?` must be jointly present or absent. Amounts are finite and nonnegative; zero is valid. Goals belong to categories and are independent of asset currency. Percentages can coexist with minimums. Effective targets/status are derived from current snapshot data and are not persisted. Use frozen V1/V2 definitions and intermediate V3 for migration; current application models belong to V4.

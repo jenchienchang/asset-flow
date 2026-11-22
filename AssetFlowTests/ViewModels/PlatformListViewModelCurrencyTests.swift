@@ -53,12 +53,14 @@ struct PlatformListViewModelCurrencyTests {
 
     let assetUSD = Asset(name: "US Stock")
     assetUSD.currency = "usd"
-    assetUSD.platform = "Broker A"
+    assetUSD.updateIdentity(
+      name: assetUSD.name, platform: TestDataManager.platform(named: "Broker A", in: tc.context))
     tc.context.insert(assetUSD)
 
     let assetTWD = Asset(name: "TW Stock")
     assetTWD.currency = "twd"
-    assetTWD.platform = "Broker A"
+    assetTWD.updateIdentity(
+      name: assetTWD.name, platform: TestDataManager.platform(named: "Broker A", in: tc.context))
     tc.context.insert(assetTWD)
 
     let snapshot = Snapshot(date: Date())

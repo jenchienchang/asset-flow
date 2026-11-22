@@ -192,10 +192,11 @@ extension ImportViewModel {
   func executeAssetImport(
     snapshot: Snapshot,
     existingAssets: [Asset],
+    existingPlatforms: [Platform],
     latestPrior: Snapshot?
   ) throws {
     let includedRows = assetPreviewRows.filter { $0.isIncluded }
-    var assetLookup = AssetResolutionLookup(assets: existingAssets)
+    var assetLookup = AssetResolutionLookup(assets: existingAssets, platforms: existingPlatforms)
     var snapshotValueLookup = SnapshotAssetValueLookup(values: snapshot.assetValues ?? [])
 
     for previewRow in includedRows {
@@ -259,7 +260,7 @@ extension ImportViewModel {
 
     guard let latestPrior else { return }
 
-    let selectedPlatformNames = Set(selectedPlatforms.map { $0.platformName.lowercased() })
+    let selectedPlatformNames = Set(selectedPlatforms.map { $0.platformName.normalizedForIdentity })
     let priorValues = latestPrior.assetValues ?? []
 
     // Track assets already in the snapshot to avoid duplicates
@@ -267,7 +268,7 @@ extension ImportViewModel {
 
     for priorSAV in priorValues {
       guard let asset = priorSAV.asset else { continue }
-      guard selectedPlatformNames.contains(asset.platform.lowercased()) else { continue }
+      guard selectedPlatformNames.contains(asset.normalizedPlatform) else { continue }
       guard !existingAssetIDs.contains(asset.id) else { continue }
 
       let sav = SnapshotAssetValue(marketValue: priorSAV.marketValue)

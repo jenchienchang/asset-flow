@@ -20,12 +20,13 @@ import SwiftUI
 
 /// Platform list view with selection binding, rename popover, and empty state.
 ///
-/// Displays all platforms derived from asset data with their asset count
+/// Displays platforms with assigned assets, together with their asset count
 /// and total value. Supports selection for list-detail navigation and
 /// renaming via context menu.
 struct PlatformListView: View {
   @State private var viewModel: PlatformListViewModel
-  @Binding var selectedPlatform: String?
+  @Binding var selectedPlatform: UUID?
+  @Query private var platforms: [Platform]
   @Query private var assets: [Asset]
   @Query private var snapshots: [Snapshot]
 
@@ -34,7 +35,7 @@ struct PlatformListView: View {
   @State private var showError = false
   @State private var errorMessage = ""
 
-  init(modelContext: ModelContext, selectedPlatform: Binding<String?>) {
+  init(modelContext: ModelContext, selectedPlatform: Binding<UUID?>) {
     _viewModel = State(wrappedValue: PlatformListViewModel(modelContext: modelContext))
     _selectedPlatform = selectedPlatform
   }
@@ -63,7 +64,7 @@ struct PlatformListView: View {
     .onChange(of: queryRevision) {
       viewModel.requestRefresh()
       if let selectedPlatform,
-        !viewModel.platformRows.contains(where: { $0.name == selectedPlatform })
+        !platforms.contains(where: { $0.id == selectedPlatform && !($0.assets ?? []).isEmpty })
       {
         self.selectedPlatform = nil
       }
@@ -76,7 +77,7 @@ struct PlatformListView: View {
   }
 
   private var queryRevision: ModelQueryRevision {
-    ModelQueryRevision(snapshots: snapshots, assets: assets)
+    ModelQueryRevision(snapshots: snapshots, assets: assets, platforms: platforms)
   }
 
   // MARK: - Platform List
@@ -97,7 +98,7 @@ struct PlatformListView: View {
     List(selection: $selectedPlatform) {
       ForEach(viewModel.platformRows) { rowData in
         platformRow(rowData)
-          .tag(rowData.name)
+          .tag(rowData.id)
       }
       .onMove { source, destination in
         withAnimation(AnimationConstants.list) {
@@ -151,10 +152,7 @@ struct PlatformListView: View {
       arrowEdge: .trailing
     ) {
       RenamePlatformPopover(currentName: rowData.name) { newName in
-        let trimmed = try viewModel.renamePlatform(from: rowData.name, to: newName)
-        if selectedPlatform == rowData.name {
-          selectedPlatform = trimmed
-        }
+        _ = try viewModel.renamePlatform(id: rowData.id, to: newName)
         viewModel.loadPlatforms()
       } onError: { message in
         errorMessage = message

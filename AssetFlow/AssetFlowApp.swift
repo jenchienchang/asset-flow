@@ -111,9 +111,15 @@ struct AssetFlowApp: App {
     #else
       let usePreviewData = false
     #endif
+    #if TESTING
+      // Test-host startup must not depend on a store from an earlier development schema.
+      let useMemoryStore = true
+    #else
+      let useMemoryStore = usePreviewData
+    #endif
     let modelConfiguration = ModelConfiguration(
       schema: schema,
-      isStoredInMemoryOnly: usePreviewData
+      isStoredInMemoryOnly: useMemoryStore
     )
 
     do {
@@ -122,6 +128,12 @@ struct AssetFlowApp: App {
         migrationPlan: AssetFlowMigrationPlan.self,
         configurations: [modelConfiguration]
       )
+      #if !TESTING
+        if !useMemoryStore {
+          try PlatformService.migrateLegacyOrder(
+            in: sharedModelContainer.mainContext, settings: .shared)
+        }
+      #endif
       #if DEBUG
         if usePreviewData {
           if showMissingRatePreview {
@@ -142,7 +154,8 @@ struct AssetFlowApp: App {
       do {
         let displayCurrency = SettingsService.shared.mainCurrency.lowercased()
         let assetCurrency = displayCurrency == "twd" ? "eur" : "twd"
-        let asset = Asset(name: "Exchange Rate Gap", platform: "Preview Brokerage")
+        let platform = try PlatformService.resolve(name: "Preview Brokerage", in: modelContext)
+        let asset = Asset(name: "Exchange Rate Gap", platform: platform)
         asset.currency = assetCurrency
         modelContext.insert(asset)
 
@@ -207,8 +220,9 @@ struct AssetFlowApp: App {
           ("Money Market Fund", "Bank", 3),
           ("Cash Reserve", "Bank", 3),
         ]
-        let assets = assetDefinitions.map { definition in
-          let asset = Asset(name: definition.name, platform: definition.platform)
+        let assets = try assetDefinitions.map { definition in
+          let platform = try PlatformService.resolve(name: definition.platform, in: modelContext)
+          let asset = Asset(name: definition.name, platform: platform)
           asset.currency = "USD"
           asset.category = categories[definition.categoryIndex]
           modelContext.insert(asset)

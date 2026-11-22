@@ -53,12 +53,14 @@ struct PlatformDetailViewModelCurrencyTests {
 
     let assetUSD = Asset(name: "US Stock")
     assetUSD.currency = "usd"
-    assetUSD.platform = "Broker A"
+    assetUSD.updateIdentity(
+      name: assetUSD.name, platform: TestDataManager.platform(named: "Broker A", in: tc.context))
     tc.context.insert(assetUSD)
 
     let assetTWD = Asset(name: "TW Stock")
     assetTWD.currency = "twd"
-    assetTWD.platform = "Broker A"
+    assetTWD.updateIdentity(
+      name: assetTWD.name, platform: TestDataManager.platform(named: "Broker A", in: tc.context))
     tc.context.insert(assetTWD)
 
     let snapshot = Snapshot(date: Date())
@@ -80,7 +82,8 @@ struct PlatformDetailViewModelCurrencyTests {
     tc.context.insert(er)
 
     let vm = PlatformDetailViewModel(
-      platformName: "Broker A", modelContext: tc.context, settingsService: settings)
+      platform: TestDataManager.platform(named: "Broker A", in: tc.context)!,
+      modelContext: tc.context, settingsService: settings)
     vm.loadData()
 
     // 1000 USD + 31500/31.5 USD = 2000 USD
@@ -96,7 +99,8 @@ struct PlatformDetailViewModelCurrencyTests {
 
     let assetTWD = Asset(name: "TW Stock")
     assetTWD.currency = "twd"
-    assetTWD.platform = "Broker A"
+    assetTWD.updateIdentity(
+      name: assetTWD.name, platform: TestDataManager.platform(named: "Broker A", in: tc.context))
     tc.context.insert(assetTWD)
 
     let snapshot = Snapshot(date: Date())
@@ -113,7 +117,8 @@ struct PlatformDetailViewModelCurrencyTests {
     tc.context.insert(er)
 
     let vm = PlatformDetailViewModel(
-      platformName: "Broker A", modelContext: tc.context, settingsService: settings)
+      platform: TestDataManager.platform(named: "Broker A", in: tc.context)!,
+      modelContext: tc.context, settingsService: settings)
     vm.loadData()
 
     #expect(vm.valueHistory.count == 1)

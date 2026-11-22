@@ -203,8 +203,8 @@ ______________________________________________________________________
 
 **Actions:**
 
-- **Rename** — Change the platform name. Updates all assets with that platform. The new name must not conflict with an existing platform (case-insensitive).
-- **Delete** — Implicitly handled: when all assets are moved away from a platform (via rename or asset deletion), the platform no longer appears in the list.
+- **Rename** — Change the shared platform name while preserving platform identity, assignments, ordering, and selection. Matching default import text follows the rename. The new name must not conflict with an existing platform (case-insensitive).
+- **Empty platforms** — When the last asset leaves a platform, it disappears from lists and pickers. The empty record and its identity/order remain stored and are reused if that name is assigned again. A platform with assigned assets cannot be deleted.
 
 Assets with no platform are not shown on the Platforms screen. They appear on the Assets screen under a "(No Platform)" group when grouped by platform.
 

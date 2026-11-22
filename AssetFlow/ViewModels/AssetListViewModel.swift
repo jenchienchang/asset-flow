@@ -31,7 +31,20 @@ struct AssetRowData {
 }
 
 /// A group of assets with a header name.
-struct AssetGroup {
+struct AssetGroup: Identifiable {
+  enum ID: Hashable {
+    case platform(UUID?)
+    case category(UUID?)
+
+    var isMissing: Bool {
+      switch self {
+      case .platform(nil), .category(nil): true
+      default: false
+      }
+    }
+  }
+
+  let id: ID
   let name: String
   let assets: [AssetRowData]
 }
@@ -165,28 +178,24 @@ final class AssetListViewModel {
     let noPlatformName = String(localized: "(No Platform)", table: "Asset")
     let uncategorizedName = String(localized: "(Uncategorized)", table: "Asset")
 
-    let grouped: [String: [AssetRowData]]
-    let missingGroupName: String
-
-    switch groupingMode {
-    case .byPlatform:
-      missingGroupName = noPlatformName
-      grouped = Dictionary(grouping: rowDataList) { row in
-        row.asset.platform.isEmpty ? noPlatformName : row.asset.platform
-      }
-
-    case .byCategory:
-      missingGroupName = uncategorizedName
-      grouped = Dictionary(grouping: rowDataList) { row in
-        row.asset.category?.name ?? uncategorizedName
+    let grouped = Dictionary(grouping: rowDataList) { row -> AssetGroup.ID in
+      switch groupingMode {
+      case .byPlatform: .platform(row.asset.platformRecord?.id)
+      case .byCategory: .category(row.asset.category?.id)
       }
     }
 
     return
       grouped
       .map { key, rows in
-        AssetGroup(
-          name: key,
+        let name: String
+        switch key {
+        case .platform: name = rows.first?.asset.platformRecord?.name ?? noPlatformName
+        case .category: name = rows.first?.asset.category?.name ?? uncategorizedName
+        }
+        return AssetGroup(
+          id: key,
+          name: name,
           assets: rows.sorted {
             $0.asset.name.localizedCaseInsensitiveCompare($1.asset.name) == .orderedAscending
           }
@@ -194,8 +203,8 @@ final class AssetListViewModel {
       }
       .sorted { lhs, rhs in
         // Missing group always last
-        if lhs.name == missingGroupName { return false }
-        if rhs.name == missingGroupName { return true }
+        if lhs.id.isMissing { return false }
+        if rhs.id.isMissing { return true }
         return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
       }
   }

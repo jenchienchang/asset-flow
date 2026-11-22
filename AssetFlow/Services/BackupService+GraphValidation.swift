@@ -22,6 +22,7 @@ import Foundation
 extension BackupService {
 
   nonisolated static func validateRelationships(
+    platforms: [BackupPlatformRecord],
     categories: [BackupCategoryRecord],
     assets: [BackupAssetRecord],
     snapshots: [BackupSnapshotRecord],
@@ -30,11 +31,19 @@ extension BackupService {
     exchangeRates: [BackupExchangeRateRecord],
     issues: inout [BackupValidationIssue]
   ) {
+    let platformIDs = Set(platforms.map(\.id))
     let categoryIDs = Set(categories.map(\.id))
     let assetIDs = Set(assets.map(\.id))
     let snapshotIDs = Set(snapshots.map(\.id))
 
     for asset in assets {
+      if let platformID = asset.platformID, !platformIDs.contains(platformID) {
+        issues.append(
+          issue(
+            file: BackupCSV.Assets.fileName, column: "platformID",
+            detail: localizedBackupMessage("Platform ID '\(platformID.uuidString)' was not found."))
+        )
+      }
       if let categoryID = asset.categoryID, !categoryIDs.contains(categoryID) {
         issues.append(
           issue(

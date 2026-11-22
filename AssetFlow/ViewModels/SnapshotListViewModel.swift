@@ -296,9 +296,14 @@ class SnapshotListViewModel {
       exchangeRate: snapshot.exchangeRate)
     let totalValue = report.convertedTotal ?? 0
 
-    let platforms = Array(
-      Set(directValues.compactMap { $0.asset?.platform })
-    ).sorted()
+    let records = directValues.compactMap { $0.asset?.platformRecord }
+    let uniquePlatforms = Dictionary(
+      records.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    var platforms = uniquePlatforms.values.map(\.name)
+    if directValues.contains(where: { $0.asset != nil && $0.asset?.platformRecord == nil }) {
+      platforms.append("")
+    }
+    platforms.sort()
 
     let hasZeroValueAssets = directValues.contains { $0.marketValue == 0 }
 

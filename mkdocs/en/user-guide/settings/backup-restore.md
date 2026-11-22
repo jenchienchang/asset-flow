@@ -41,7 +41,7 @@ A backup file contains everything in your portfolio:
 
 ## Minimums in backups
 
-Backup format v4 preserves category minimum amounts and currencies at full precision. Versions 1–3 remain restorable and have no minimum goals. Older app versions cannot restore v4. Invalid archives are rejected before replacing your data; structurally valid goals may still be financially infeasible.
+Backup format v5 preserves platform identity and ordering, including empty hidden platforms, as well as category minimum amounts and currencies at full precision. Versions 1–4 remain restorable; versions 1–3 have no minimum goals. Older app versions cannot restore v5. Invalid archives are rejected before replacing your data; structurally valid goals may still be financially infeasible.
 
 ## See also
 

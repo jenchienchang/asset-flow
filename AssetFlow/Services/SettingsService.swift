@@ -52,11 +52,12 @@ class SettingsService {
     }
   }
 
-  /// The user-defined display order for platforms
-  var platformOrder: [String] {
-    didSet {
-      userDefaults.set(platformOrder, forKey: Constants.UserDefaultsKeys.platformOrder)
-    }
+  var legacyPlatformOrder: [String]? {
+    userDefaults.stringArray(forKey: Constants.UserDefaultsKeys.platformOrder)
+  }
+
+  func clearLegacyPlatformOrder() {
+    userDefaults.removeObject(forKey: Constants.UserDefaultsKeys.platformOrder)
   }
 
   /// Whether to hide stale assets (assets missing from the latest snapshot)
@@ -85,10 +86,6 @@ class SettingsService {
     self.defaultPlatform =
       userDefaults.string(forKey: Constants.UserDefaultsKeys.defaultPlatform)
       ?? Constants.DefaultValues.defaultPlatform
-
-    self.platformOrder =
-      userDefaults.stringArray(forKey: Constants.UserDefaultsKeys.platformOrder)
-      ?? []
 
     self.hideStaleAssets =
       (userDefaults.object(forKey: Constants.UserDefaultsKeys.hideStaleAssets) as? Bool)

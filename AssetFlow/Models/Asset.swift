@@ -20,11 +20,16 @@ import SwiftData
 
 @Model
 final class Asset {
-  #Unique<Asset>([\.name, \.platform])
+  #Unique<Asset>([\.identityKey])
 
   var id: UUID
-  var name: String
-  var platform: String
+  private(set) var identityKey: String = ""
+  private(set) var name: String
+  @Relationship(deleteRule: .nullify)
+  private(set) var platformRecord: Platform?
+
+  /// Display/interchange projection; identity and membership use platformRecord.
+  var platform: String { platformRecord?.name ?? "" }
   var currency: String
 
   @Relationship(deleteRule: .nullify)
@@ -35,14 +40,22 @@ final class Asset {
 
   init(
     name: String,
-    platform: String = ""
+    platform: Platform? = nil
   ) {
     self.id = UUID()
     self.name = name
-    self.platform = platform
+    self.platformRecord = platform
+    self.identityKey = AssetIdentity.key(name: name, platformID: platform?.id)
     self.currency = ""
     self.category = nil
     self.snapshotAssetValues = []
+  }
+
+  /// Keep the uniqueness key synchronized with both mutable identity components.
+  func updateIdentity(name: String, platform: Platform?) {
+    self.name = name
+    self.platformRecord = platform
+    self.identityKey = AssetIdentity.key(name: name, platformID: platform?.id)
   }
 
   /// Normalized identity for case-insensitive matching.
@@ -63,5 +76,12 @@ final class Asset {
   /// Combined normalized identity tuple for matching.
   var normalizedIdentity: String {
     "\(normalizedName)|\(normalizedPlatform)"
+  }
+}
+
+/// A fixed UUID scope or an explicit nil scope makes arbitrary asset names unambiguous.
+enum AssetIdentity {
+  nonisolated static func key(name: String, platformID: UUID?) -> String {
+    "\(platformID?.uuidString ?? "none"):\(name.normalizedForIdentity)"
   }
 }

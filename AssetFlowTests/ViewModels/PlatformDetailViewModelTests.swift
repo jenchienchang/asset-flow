@@ -54,7 +54,7 @@ struct PlatformDetailViewModelTests {
     snapshot: Snapshot,
     context: ModelContext
   ) -> (Asset, SnapshotAssetValue) {
-    let asset = Asset(name: name, platform: platform)
+    let asset = Asset(name: name, platform: TestDataManager.platform(named: platform, in: context))
     asset.category = category
     context.insert(asset)
     let sav = SnapshotAssetValue(marketValue: marketValue)
@@ -66,8 +66,8 @@ struct PlatformDetailViewModelTests {
 
   // MARK: - Asset Listing
 
-  @Test("Store refresh discards a stale rename draft and reloads assets")
-  func storeRefreshDiscardsRenameDraftAndReloadsAssets() {
+  @Test("Store refresh preserves a rename draft and reloads assets")
+  func storeRefreshPreservesRenameDraftAndReloadsAssets() {
     let tc = makeTestContext()
     let context = tc.context
     let snapshot = Snapshot(date: makeDate(year: 2025, month: 6, day: 1))
@@ -76,14 +76,16 @@ struct PlatformDetailViewModelTests {
       name: "AAPL", platform: "Firstrade", marketValue: 5000,
       snapshot: snapshot, context: context)
 
-    let viewModel = PlatformDetailViewModel(platformName: "Firstrade", modelContext: context)
+    let viewModel = PlatformDetailViewModel(
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.loadData()
     viewModel.editedName = "Uncommitted Rename"
-    context.insert(Asset(name: "MSFT", platform: "Firstrade"))
+    context.insert(
+      Asset(name: "MSFT", platform: TestDataManager.platform(named: "Firstrade", in: context)))
 
     viewModel.reloadAfterStoreChange()
 
-    #expect(viewModel.editedName == "Firstrade")
+    #expect(viewModel.editedName == "Uncommitted Rename")
     #expect(viewModel.assets.count == 2)
   }
 
@@ -107,7 +109,7 @@ struct PlatformDetailViewModelTests {
       marketValue: 2000, snapshot: snap, context: context)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.loadData()
 
     #expect(viewModel.assets.count == 2)
@@ -133,7 +135,7 @@ struct PlatformDetailViewModelTests {
       marketValue: 2000, snapshot: snap, context: context)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.loadData()
 
     #expect(viewModel.assets.count == 3)
@@ -162,7 +164,7 @@ struct PlatformDetailViewModelTests {
     context.insert(sav2)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.loadData()
 
     #expect(viewModel.assets.count == 1)
@@ -185,7 +187,7 @@ struct PlatformDetailViewModelTests {
       marketValue: 3000, snapshot: snap, context: context)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.loadData()
 
     #expect(viewModel.totalValue == 8000)
@@ -210,7 +212,7 @@ struct PlatformDetailViewModelTests {
       marketValue: 10000, snapshot: snap, context: context)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.loadData()
 
     #expect(viewModel.assets.count == 1)
@@ -238,7 +240,7 @@ struct PlatformDetailViewModelTests {
       marketValue: 7000, snapshot: snap2, context: context)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.loadData()
 
     #expect(viewModel.valueHistory.count == 2)
@@ -268,7 +270,7 @@ struct PlatformDetailViewModelTests {
       marketValue: 3000, snapshot: snap2, context: context)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.loadData()
 
     // Snap2: Firstrade has no direct values, so totalValue = 0
@@ -297,7 +299,7 @@ struct PlatformDetailViewModelTests {
       marketValue: 5000, snapshot: snap2, context: context)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.loadData()
 
     #expect(viewModel.valueHistory.count == 2)
@@ -314,11 +316,12 @@ struct PlatformDetailViewModelTests {
     let tc = makeTestContext()
     let context = tc.context
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.editedName = "Interactive Brokers"
     try viewModel.save()
 
@@ -332,11 +335,12 @@ struct PlatformDetailViewModelTests {
     let tc = makeTestContext()
     let context = tc.context
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.editedName = "   "
 
     #expect(throws: PlatformError.emptyName) {
@@ -349,13 +353,15 @@ struct PlatformDetailViewModelTests {
     let tc = makeTestContext()
     let context = tc.context
 
-    let asset1 = Asset(name: "AAPL", platform: "Firstrade")
+    let asset1 = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset1)
-    let asset2 = Asset(name: "BND", platform: "Vanguard")
+    let asset2 = Asset(
+      name: "BND", platform: TestDataManager.platform(named: "Vanguard", in: context))
     context.insert(asset2)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.editedName = "vanguard"
 
     #expect(throws: PlatformError.duplicateName("vanguard")) {
@@ -368,11 +374,12 @@ struct PlatformDetailViewModelTests {
     let tc = makeTestContext()
     let context = tc.context
 
-    let asset = Asset(name: "AAPL", platform: "Firstrade")
+    let asset = Asset(
+      name: "AAPL", platform: TestDataManager.platform(named: "Firstrade", in: context))
     context.insert(asset)
 
     let viewModel = PlatformDetailViewModel(
-      platformName: "Firstrade", modelContext: context)
+      platform: TestDataManager.platform(named: "Firstrade", in: context)!, modelContext: context)
     viewModel.editedName = "FIRSTRADE"
     try viewModel.save()
 

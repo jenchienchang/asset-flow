@@ -46,12 +46,15 @@ struct PlatformPickerField: View {
         .transition(.opacity)
       } else {
         Picker("Platform", selection: pickerBinding) {
-          Text("None").tag("")
+          Text("None").tag(PlatformPickerOption.none)
           ForEach(cachedPlatforms, id: \.self) { platform in
-            Text(platform).tag(platform)
+            Text(platform).tag(PlatformPickerOption.name(platform))
+          }
+          if !selectedPlatform.isEmpty, !cachedPlatforms.contains(selectedPlatform) {
+            Text(selectedPlatform).tag(PlatformPickerOption.name(selectedPlatform))
           }
           Divider()
-          Text("New Platform...").tag("__new__")
+          Text("New Platform...").tag(PlatformPickerOption.create)
         }
         .transition(.opacity)
       }
@@ -59,15 +62,21 @@ struct PlatformPickerField: View {
     .animation(AnimationConstants.standard, value: showNewField)
   }
 
-  private var pickerBinding: Binding<String> {
+  private var pickerBinding: Binding<PlatformPickerOption> {
     Binding(
-      get: { selectedPlatform },
-      set: { newValue in
-        if newValue == "__new__" {
+      get: { selectedPlatform.isEmpty ? .none : .name(selectedPlatform) },
+      set: { option in
+        switch option {
+        case .create:
           showNewField = true
           newName = ""
-        } else {
-          selectedPlatform = newValue
+
+        case .none:
+          selectedPlatform = ""
+          onCommit?()
+
+        case .name(let name):
+          selectedPlatform = name
           onCommit?()
         }
       }
@@ -75,10 +84,12 @@ struct PlatformPickerField: View {
   }
 
   private func commitNew() {
-    let trimmed = newName.trimmingCharacters(in: .whitespaces)
+    let trimmed = newName.collapsingWhitespace
     guard !trimmed.isEmpty else { return }
 
-    if let match = cachedPlatforms.first(where: { $0.lowercased() == trimmed.lowercased() }) {
+    if let match = cachedPlatforms.first(where: {
+      $0.normalizedForIdentity == trimmed.normalizedForIdentity
+    }) {
       selectedPlatform = match
     } else {
       selectedPlatform = trimmed
