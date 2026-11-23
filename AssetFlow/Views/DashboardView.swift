@@ -15,6 +15,7 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+import AppKit
 import Charts
 import SwiftData
 import SwiftUI
@@ -36,6 +37,7 @@ struct DashboardView: View {
   @State private var twrChartRange: ChartTimeRange = .all
   @State private var categoryChartRange: ChartTimeRange = .all
   @State private var pieChartSelectedDate: Date?
+  @State private var scrollbarInsets = DashboardScrollbarReader.Insets()
 
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
@@ -104,6 +106,8 @@ struct DashboardView: View {
         recentSnapshotsSection
       }
       .padding()
+      .padding(.trailing, scrollbarInsets.content)
+      .background(DashboardScrollbarReader(insets: $scrollbarInsets).allowsHitTesting(false))
     }
     .background(alignment: .top) {
       if !reduceTransparency {
@@ -372,10 +376,12 @@ struct DashboardView: View {
 
         CategoryValueLineChart(
           categoryHistory: viewModel.categoryValueHistory,
-          timeRange: $categoryChartRange
+          timeRange: $categoryChartRange,
+          scrollbarInset: scrollbarInsets.viewport
         )
         .conversionUnavailable(assetConversionMessage)
       }
+      .zIndex(1)  // The category value tooltip can extend above this row.
     }
   }
 
@@ -581,6 +587,71 @@ private struct SnapshotRowButtonStyle: ButtonStyle {
       .onHoverWhenUnlocked { hovering in
         isHovered = hovering
       }
+  }
+}
+
+/// Reads the space occupied by the native scrollbar in the viewport and scroll content.
+private struct DashboardScrollbarReader: NSViewRepresentable {
+  struct Insets: Equatable {
+    var viewport: CGFloat = 0
+    var content: CGFloat = 0
+  }
+
+  @Binding var insets: Insets
+
+  func makeNSView(context: Context) -> ReaderView { ReaderView() }
+
+  func updateNSView(_ view: ReaderView, context: Context) {
+    view.onChange = { [insets = $insets] value in
+      if insets.wrappedValue != value {
+        insets.wrappedValue = value
+      }
+    }
+    view.reportAfterLayout()
+  }
+
+  final class ReaderView: NSView {
+    var onChange: ((Insets) -> Void)?
+
+    override func viewDidMoveToWindow() {
+      super.viewDidMoveToWindow()
+      let center = NotificationCenter.default
+      center.removeObserver(self)
+      guard window != nil, let scrollView = enclosingScrollView else { return }
+      scrollView.postsFrameChangedNotifications = true
+      center.addObserver(
+        self, selector: #selector(reportAfterLayout), name: NSView.frameDidChangeNotification,
+        object: scrollView)
+      center.addObserver(
+        self, selector: #selector(reportAfterLayout),
+        name: NSScroller.preferredScrollerStyleDidChangeNotification, object: nil)
+      reportAfterLayout()
+    }
+
+    override func layout() {
+      super.layout()
+      reportAfterLayout()
+    }
+
+    @objc func reportAfterLayout() {
+      DispatchQueue.main.async { [weak self] in
+        guard let self, window != nil, let scrollView = enclosingScrollView else { return }
+        let clipView = scrollView.contentView
+        guard scrollView.hasVerticalScroller, let scroller = scrollView.verticalScroller,
+          let documentView = scrollView.documentView,
+          documentView.frame.height > clipView.bounds.height
+        else {
+          onChange?(Insets())
+          return
+        }
+        let scrollbarEdge = scrollView.convert(scroller.bounds, from: scroller).minX
+        onChange?(
+          Insets(
+            viewport: max(0, scrollView.bounds.maxX - scrollbarEdge),
+            content: max(0, clipView.frame.maxX - scrollbarEdge)
+          ))
+      }
+    }
   }
 }
 

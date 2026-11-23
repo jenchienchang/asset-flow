@@ -25,6 +25,7 @@ import SwiftUI
 struct CategoryValueLineChart: View {
   let categoryHistory: [String: [DashboardDataPoint]]
   @Binding var timeRange: ChartTimeRange
+  let scrollbarInset: CGFloat
 
   @State private var disabledCategories: Set<String> = []
   @State private var hoveredDate: Date?
@@ -76,7 +77,7 @@ struct CategoryValueLineChart: View {
     }
     .padding()
     .frame(maxHeight: .infinity, alignment: .topLeading)
-    .glassCard()
+    .glassCard(allowsContentOverflow: true)
     .accessibilityLabel("Category value history chart")
   }
 
@@ -114,16 +115,6 @@ struct CategoryValueLineChart: View {
             RuleMark(x: .value("Date", hoveredDate))
               .foregroundStyle(.secondary.opacity(0.5))
               .lineStyle(StrokeStyle(dash: [4, 4]))
-              .annotation(
-                position: .top,
-                alignment: hoveredDate == firstDate
-                  ? .leading
-                  : hoveredDate == lastDate ? .trailing : .center,
-                spacing: 4,
-                overflowResolution: .init(x: .fit, y: .fit)
-              ) {
-                categoryTooltipView(for: hoveredDate, data: data)
-              }
           }
         }
         .chartXScale(
@@ -146,18 +137,40 @@ struct CategoryValueLineChart: View {
         }
         .chartLegend(.hidden)
         .chartOverlay { proxy in
-          Color.clear
-            .contentShape(Rectangle())
-            .onContinuousHoverWhenUnlocked { phase in
-              switch phase {
-              case .active(let location):
-                hoveredDate = ChartHelpers.findNearestDate(
-                  at: location, in: proxy, points: data, dateKeyPath: \.date)
+          GeometryReader { geometry in
+            Color.clear
+              .contentShape(Rectangle())
+              .onContinuousHoverWhenUnlocked { phase in
+                switch phase {
+                case .active(let location):
+                  hoveredDate = ChartHelpers.findNearestDate(
+                    at: location, in: proxy, points: data, dateKeyPath: \.date)
 
-              case .ended:
-                hoveredDate = nil
+                case .ended:
+                  hoveredDate = nil
+                }
               }
-            }
+              .overlay {
+                if let hoveredDate, let plotFrame = proxy.plotFrame,
+                  let x = proxy.position(forX: hoveredDate)
+                {
+                  let plot = geometry[plotFrame]
+                  let viewport =
+                    geometry.bounds(of: .scrollView(axis: .vertical))
+                    ?? CGRect(origin: .zero, size: geometry.size)
+                  CategoryTooltipLayout(
+                    anchor: CGPoint(x: plot.minX + x, y: plot.minY),
+                    leftEdge: viewport.minX,
+                    rightEdge: viewport.maxX - scrollbarInset,
+                    topEdge: viewport.minY,
+                    bottomEdge: viewport.maxY
+                  ) {
+                    categoryTooltipView(for: hoveredDate, data: data)
+                  }
+                  .allowsHitTesting(false)
+                }
+              }
+          }
         }
         .frame(height: ChartConstants.dashboardChartHeight)
       }
@@ -266,6 +279,38 @@ struct CategoryValueLineChart: View {
 
   private func colorForCategory(_ name: String) -> Color {
     categoryColorMap[name] ?? .gray
+  }
+}
+
+/// Places the tooltip relative to the plot and keeps it within the viewport when it fits.
+private struct CategoryTooltipLayout: Layout {
+  let anchor: CGPoint
+  let leftEdge: CGFloat
+  let rightEdge: CGFloat
+  let topEdge: CGFloat
+  let bottomEdge: CGFloat
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    proposal.replacingUnspecifiedDimensions()
+  }
+
+  func placeSubviews(
+    in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+  ) {
+    let tooltip = subviews[0]
+    let availableWidth = max(0, rightEdge - leftEdge)
+    let width = min(tooltip.sizeThatFits(.unspecified).width, availableWidth)
+    let x = max(leftEdge, min(anchor.x - width / 2, rightEdge - width))
+    let tooltipProposal = ProposedViewSize(width: width, height: nil)
+    let height = tooltip.sizeThatFits(tooltipProposal).height
+    let spacing: CGFloat = 4
+    let above = anchor.y - spacing - height
+    let fallback = max(topEdge, min(anchor.y + spacing, bottomEdge - height))
+    let y = above >= topEdge ? above : fallback
+    tooltip.place(
+      at: CGPoint(x: bounds.minX + x, y: bounds.minY + y),
+      anchor: .topLeading,
+      proposal: tooltipProposal)
   }
 }
 
