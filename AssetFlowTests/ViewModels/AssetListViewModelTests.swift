@@ -238,6 +238,7 @@ struct AssetListViewModelTests {
     let rows = allAssets(in: viewModel.groups)
     #expect(rows.count == 1)
     #expect(rows[0].latestValue == Decimal(15000))
+    #expect(rows[0].portfolioPercentage == 100)
   }
 
   @Test("Latest value is nil when asset has no snapshot values")
@@ -254,6 +255,120 @@ struct AssetListViewModelTests {
     let rows = allAssets(in: viewModel.groups)
     #expect(rows.count == 1)
     #expect(rows[0].latestValue == nil)
+  }
+
+  // MARK: - Portfolio Share
+
+  @Test("Compact portfolio shares use English suffixes and preserve the sign")
+  func compactPortfolioShareUsesEnglishNotation() {
+    let positive = AssetPortfolioSharePresentation(percentage: 123_456)
+    let negative = AssetPortfolioSharePresentation(percentage: -9_876_543)
+
+    #expect(positive.compact == "123K%")
+    #expect(negative.compact == "-9.88M%")
+    #expect(negative.full == Decimal(-9_876_543).formattedPercentage())
+  }
+
+  @Test("Scientific notation remains short for extreme portfolio shares")
+  func scientificPortfolioShareHandlesExtremeMagnitudes() throws {
+    let percentage = try #require(Decimal(string: "-1.234567E120"))
+    let share = AssetPortfolioSharePresentation(percentage: percentage)
+
+    #expect(share.scientific(significantDigits: 1...3) == "-1.23E120%")
+    #expect(share.scientific(significantDigits: 1...1) == "-1E120%")
+  }
+
+  @Test("Portfolio share uses latest snapshot rates and the full total across groups")
+  func portfolioShareUsesFullConvertedTotal() throws {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let snapshot = Snapshot(date: makeDate(year: 2025, month: 2, day: 1))
+    context.insert(snapshot)
+    let rate = ExchangeRate(
+      baseCurrency: "usd", ratesJSON: Data(#"{"twd":32}"#.utf8), fetchDate: snapshot.date)
+    context.insert(rate)
+    snapshot.exchangeRate = rate
+
+    let (foreign, _) = createAssetWithValue(
+      name: "Fund", platform: "Broker", marketValue: 8000, snapshot: snapshot, context: context)
+    foreign.currency = "twd"
+    let (domestic, _) = createAssetWithValue(
+      name: "Cash", platform: "Bank", marketValue: 750, snapshot: snapshot, context: context)
+    domestic.category = Category(name: "Cash")
+    let (zero, _) = createAssetWithValue(
+      name: "Empty", platform: "Broker", marketValue: 0, snapshot: snapshot, context: context)
+
+    let previous = Snapshot(date: makeDate(year: 2025, month: 1, day: 1))
+    context.insert(previous)
+    let (stale, _) = createAssetWithValue(
+      name: "Closed", platform: "Broker", marketValue: 4000, snapshot: previous, context: context)
+
+    let settings = SettingsService.createForTesting()
+    settings.mainCurrency = "usd"
+    settings.hideStaleAssets = false
+    let viewModel = AssetListViewModel(modelContext: context, settingsService: settings)
+    viewModel.loadAssets()
+
+    let rows = allAssets(in: viewModel.groups)
+    let foreignRow = try #require(rows.first { $0.asset.id == foreign.id })
+    let staleRow = try #require(rows.first { $0.asset.id == stale.id })
+    #expect(foreignRow.latestValue == 8000)
+    #expect(foreignRow.portfolioPercentage == 25)
+    #expect(rows.first { $0.asset.id == domestic.id }?.portfolioPercentage == 75)
+    #expect(rows.first { $0.asset.id == zero.id }?.portfolioPercentage == 0)
+    #expect(staleRow.portfolioPercentage == nil)
+
+    settings.hideStaleAssets = true
+    viewModel.groupingMode = .byCategory
+    viewModel.loadAssets()
+
+    let regroupedRows = allAssets(in: viewModel.groups)
+    #expect(regroupedRows.count == 3)
+    #expect(regroupedRows.first { $0.asset.id == foreign.id }?.portfolioPercentage == 25)
+    #expect(regroupedRows.first { $0.asset.id == domestic.id }?.portfolioPercentage == 75)
+    #expect(regroupedRows.first { $0.asset.id == zero.id }?.portfolioPercentage == 0)
+  }
+
+  @Test("A missing asset exchange rate makes all shares unavailable while amounts remain visible")
+  func missingRateLeavesNativeAmountsAvailable() {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let snapshot = Snapshot(date: makeDate(year: 2025, month: 2, day: 1))
+    context.insert(snapshot)
+    let (foreign, _) = createAssetWithValue(
+      name: "Foreign", platform: "Bank", marketValue: 1000, snapshot: snapshot, context: context)
+    foreign.currency = "twd"
+    createAssetWithValue(
+      name: "Domestic", platform: "Bank", marketValue: 500, snapshot: snapshot, context: context)
+
+    let settings = SettingsService.createForTesting()
+    settings.mainCurrency = "usd"
+    let viewModel = AssetListViewModel(modelContext: context, settingsService: settings)
+    viewModel.loadAssets()
+
+    let rows = allAssets(in: viewModel.groups)
+    #expect(rows.compactMap(\.latestValue) == [500, 1000])
+    #expect(rows.allSatisfy { $0.portfolioPercentage == nil })
+  }
+
+  @Test("Portfolio shares are unavailable for a nonpositive total", arguments: [0, -100])
+  func nonpositiveTotalLeavesShareUnavailable(total: Int) {
+    let container = TestDataManager.createInMemoryContainer()
+    let context = container.mainContext
+    let snapshot = Snapshot(date: makeDate(year: 2025, month: 2, day: 1))
+    context.insert(snapshot)
+    createAssetWithValue(
+      name: "Cash", platform: "Bank", marketValue: 100, snapshot: snapshot, context: context)
+    createAssetWithValue(
+      name: "Debt", platform: "Bank", marketValue: Decimal(total) - 100, snapshot: snapshot,
+      context: context)
+
+    let viewModel = makeViewModel(context: context)
+    viewModel.loadAssets()
+
+    let rows = allAssets(in: viewModel.groups)
+    #expect(rows.count == 2)
+    #expect(rows.allSatisfy { $0.portfolioPercentage == nil })
   }
 
   // MARK: - Deletion

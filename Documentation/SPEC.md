@@ -161,7 +161,7 @@ ______________________________________________________________________
 - Sort order: alphabetical by asset name (within each group when grouped)
 - **Hide Stale Assets** toolbar toggle is on by default and persists across sessions. A stale asset has no entry in the latest snapshot; an entry explicitly valued at zero is not stale. Hiding stale assets affects this list only. If all rows are hidden, explain how to show them again.
 - When grouped by platform, assets without a platform appear under a "(No Platform)" group at the end of the list.
-- Each row: Asset Name, Platform, Category, Latest Value
+- Each row shows the asset name, platform, category, latest value in its native currency, and share of the full latest-snapshot portfolio when available.
 
 **Asset detail view:**
 

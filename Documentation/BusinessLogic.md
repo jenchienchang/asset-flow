@@ -44,6 +44,10 @@ Availability depends on the calculation:
 
 A missing rate disables the affected converted result, not unrelated metrics. The service also retains native totals by currency for diagnosis. Exchange-rate fetching may fill missing records later; it does not justify substituting native amounts for converted amounts.
 
+### Asset Portfolio Share
+
+An asset's share is its converted value in the latest snapshot divided by that snapshot's full converted portfolio total, expressed as a percentage. Grouping and filtering the Assets list have no effect on the denominator. An asset absent from the latest snapshot has no share. A recorded zero yields 0% when the total is positive. All shares are unavailable when the total is zero or negative or a required asset exchange rate is unavailable.
+
 ### Category Allocation
 
 For a snapshot with a positive converted total:

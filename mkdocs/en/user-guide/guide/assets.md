@@ -15,6 +15,7 @@ Each row shows:
 - Platform
 - Category
 - Latest value (with a currency badge if the asset isn't in your main currency)
+- Share of the full portfolio next to the value, when exchange rates are available and the portfolio total is positive
 
 Right-click an asset for a context menu. The **Delete** option is only available if the asset has no values recorded in any snapshot.
 

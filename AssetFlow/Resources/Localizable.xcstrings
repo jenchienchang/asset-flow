@@ -614,6 +614,17 @@
         }
       }
     },
+    "%@ of portfolio" : {
+      "comment" : "Assets list tooltip and VoiceOver label. The percentage is already formatted.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "占投資組合 %@"
+          }
+        }
+      }
+    },
     "%@ — %@" : {
       "comment" : "A formatted string that includes both the localized name of a date format and a preview of how it would display a sample date. The first argument is the localized name of the date format. The second argument is a sample date formatted according to that date format.",
       "extractionState" : "stale",

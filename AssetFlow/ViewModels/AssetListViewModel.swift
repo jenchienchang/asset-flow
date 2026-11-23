@@ -28,6 +28,7 @@ enum AssetGroupingMode: CaseIterable {
 struct AssetRowData {
   let asset: Asset
   let latestValue: Decimal?
+  let portfolioPercentage: Decimal?
 }
 
 /// A group of assets with a header name.
@@ -52,7 +53,7 @@ struct AssetGroup: Identifiable {
 /// ViewModel for the Assets list screen.
 ///
 /// Manages asset listing with grouping (by platform or category),
-/// latest value computation from the most recent composite snapshot,
+/// latest values and portfolio shares from the most recent snapshot,
 /// and asset deletion with validation.
 @Observable
 @MainActor
@@ -89,7 +90,7 @@ final class AssetListViewModel {
 
   // MARK: - Loading
 
-  /// Fetches all assets, computes latest values from the most recent snapshot,
+  /// Fetches all assets, computes latest values and shares from the most recent snapshot,
   /// and groups them by the current grouping mode.
   ///
   /// Uses `ObservedRefresh` to track source reads and publish derived results. Any `@Observable`/`@Model`
@@ -105,15 +106,16 @@ final class AssetListViewModel {
   private func performLoadAssets() {
     do {
       let allAssets = try fetchAllAssets()
-      // Build latest value lookup from most recent snapshot
-      let latestValueLookup = buildLatestValueLookup(
-        latestSnapshot: try SnapshotSummaryService.fetchLatestSnapshot(using: fetcher))
+      let latestSnapshot = try SnapshotSummaryService.fetchLatestSnapshot(using: fetcher)
+      let latestValues = buildLatestValueLookup(latestSnapshot: latestSnapshot)
 
       // Build row data for each asset
       let allRows = allAssets.map { asset in
-        AssetRowData(
+        let values = latestValues[asset.id]
+        return AssetRowData(
           asset: asset,
-          latestValue: latestValueLookup[asset.id]
+          latestValue: values?.nativeValue,
+          portfolioPercentage: values?.portfolioPercentage
         )
       }
 
@@ -156,18 +158,35 @@ final class AssetListViewModel {
     return try fetchModels(descriptor, from: fetcher, operation: "fetch assets")
   }
 
-  /// Builds a lookup of asset ID → latest market value from the most recent snapshot.
+  /// Looks up native values and shares of the full snapshot total by asset ID.
   private func buildLatestValueLookup(
     latestSnapshot: Snapshot?
-  ) -> [UUID: Decimal] {
+  ) -> [UUID: (nativeValue: Decimal, portfolioPercentage: Decimal?)] {
     guard let latestSnapshot else { return [:] }
 
-    let assetValues = latestSnapshot.assetValues ?? []
+    let displayCurrency = settingsService.mainCurrency
+    let exchangeRate = latestSnapshot.exchangeRate
+    let total = CurrencyConversionService.totalValue(
+      for: latestSnapshot, displayCurrency: displayCurrency, exchangeRate: exchangeRate)
 
-    var lookup: [UUID: Decimal] = [:]
-    for sav in assetValues {
-      guard let asset = sav.asset else { continue }
-      lookup[asset.id] = sav.marketValue
+    var lookup: [UUID: (nativeValue: Decimal, portfolioPercentage: Decimal?)] = [:]
+    for assetValue in latestSnapshot.assetValues ?? [] {
+      guard let asset = assetValue.asset else { continue }
+      let nativeValue = assetValue.marketValue
+      let portfolioPercentage: Decimal? = total.flatMap { total in
+        guard total > 0 else { return nil }
+        let currency = asset.currency.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+          let convertedValue = CurrencyConversionService.convert(
+            value: nativeValue,
+            from: currency.isEmpty ? displayCurrency : currency,
+            to: displayCurrency,
+            using: exchangeRate,
+            forSnapshotDate: latestSnapshot.date)
+        else { return nil }
+        return convertedValue / total * 100
+      }
+      lookup[asset.id] = (nativeValue, portfolioPercentage)
     }
     return lookup
   }

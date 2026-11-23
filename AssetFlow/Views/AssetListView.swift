@@ -18,10 +18,31 @@
 import SwiftData
 import SwiftUI
 
+struct AssetPortfolioSharePresentation {
+  private static let englishPercent = Decimal.FormatStyle.Percent(
+    locale: Locale(identifier: "en_US")
+  )
+  .scale(1)
+
+  let percentage: Decimal
+
+  var full: String { percentage.formattedPercentage() }
+
+  var compact: String {
+    percentage.formatted(
+      Self.englishPercent.notation(.compactName).precision(.significantDigits(1...3)))
+  }
+
+  func scientific(significantDigits: ClosedRange<Int>) -> String {
+    percentage.formatted(
+      Self.englishPercent.notation(.scientific).precision(.significantDigits(significantDigits)))
+  }
+}
+
 /// Asset list view with grouping by platform or category.
 ///
 /// Displays all assets grouped by the selected mode, with each row showing
-/// the asset name, platform, category, and latest composite value.
+/// the asset name, platform, category, latest value, and portfolio share.
 struct AssetListView: View {
   @State private var viewModel: AssetListViewModel
   @Binding var selectedAsset: Asset?
@@ -31,6 +52,13 @@ struct AssetListView: View {
 
   @State private var showDeleteError = false
   @State private var deleteErrorMessage = ""
+  @State private var idealPortfolioPercentageWidth: CGFloat = 0
+  @State private var maximumPortfolioPercentageWidth: CGFloat = 0
+  @ScaledMetric(relativeTo: .body) private var minimumAssetIdentityWidth: CGFloat = 64
+
+  private var portfolioPercentageWidth: CGFloat {
+    min(idealPortfolioPercentageWidth, maximumPortfolioPercentageWidth)
+  }
 
   init(modelContext: ModelContext, selectedAsset: Binding<Asset?>) {
     _viewModel = State(wrappedValue: AssetListViewModel(modelContext: modelContext))
@@ -123,7 +151,43 @@ struct AssetListView: View {
     .onDeleteCommand {
       deleteSelectedAsset()
     }
+    .overlay(alignment: .topTrailing) {
+      portfolioPercentageSizingGrid
+    }
     .accessibilityIdentifier("Asset List")
+  }
+
+  private var portfolioPercentageSizingGrid: some View {
+    let percentages = viewModel.groups.flatMap(\.assets).compactMap {
+      $0.portfolioPercentage?.formattedPercentage()
+    }
+
+    // Size across groups and cap the column at the width of a regular signed percentage.
+    return Grid(verticalSpacing: 0) {
+      ForEach(Set(percentages).sorted(), id: \.self) { percentage in
+        GridRow {
+          portfolioPercentageText(percentage)
+            .frame(height: 0)
+        }
+      }
+    }
+    .fixedSize()
+    .onGeometryChange(for: CGFloat.self) { geometry in
+      geometry.size.width
+    } action: { width in
+      idealPortfolioPercentageWidth = width
+    }
+    .overlay {
+      portfolioPercentageText((Decimal(-99_999) / 100).formattedPercentage())
+        .onGeometryChange(for: CGFloat.self) { geometry in
+          geometry.size.width
+        } action: { width in
+          maximumPortfolioPercentageWidth = width
+        }
+    }
+    .hidden()
+    .accessibilityHidden(true)
+    .allowsHitTesting(false)
   }
 
   private func deleteSelectedAsset() {
@@ -148,29 +212,37 @@ struct AssetListView: View {
         .font(.caption)
         .foregroundStyle(.secondary)
       }
+      .frame(minWidth: minimumAssetIdentityWidth, maxWidth: .infinity, alignment: .leading)
 
-      Spacer()
-
-      if let value = rowData.latestValue {
-        let effectiveCurrency =
-          rowData.asset.currency.isEmpty
-          ? SettingsService.shared.mainCurrency : rowData.asset.currency
+      HStack(spacing: 8) {
         HStack(spacing: 4) {
-          if effectiveCurrency != SettingsService.shared.mainCurrency {
-            Text(effectiveCurrency.uppercased())
-              .font(.caption2)
-              .padding(.horizontal, 4)
-              .padding(.vertical, 1)
-              .background(.quaternary, in: Capsule())
+          if let value = rowData.latestValue {
+            let effectiveCurrency =
+              rowData.asset.currency.isEmpty
+              ? SettingsService.shared.mainCurrency : rowData.asset.currency
+            let amount = value.formatted(currency: effectiveCurrency)
+            if effectiveCurrency != SettingsService.shared.mainCurrency {
+              Text(effectiveCurrency.uppercased())
+                .font(.caption2)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(.quaternary, in: Capsule())
+            }
+            Text(amount)
+              .font(.body)
+              .monospacedDigit()
+              .minimumScaleFactor(0.85)
+              .helpWhenUnlocked(amount)
+          } else {
+            Text("\u{2014}")
+              .foregroundStyle(.secondary)
           }
-          Text(value.formatted(currency: effectiveCurrency))
-            .font(.body)
-            .monospacedDigit()
         }
-      } else {
-        Text("\u{2014}")
-          .foregroundStyle(.secondary)
+
+        portfolioPercentageCell(rowData.portfolioPercentage)
       }
+      .lineLimit(1)
+      .layoutPriority(1)
     }
     .contextMenu {
       Button("Delete", role: .destructive) {
@@ -178,6 +250,43 @@ struct AssetListView: View {
       }
       .disabled((rowData.asset.snapshotAssetValues?.count ?? 0) > 0)
     }
+  }
+
+  @ViewBuilder
+  private func portfolioPercentageCell(_ share: Decimal?) -> some View {
+    if portfolioPercentageWidth > 0 {
+      if let share {
+        let presentation = AssetPortfolioSharePresentation(percentage: share)
+        let full = presentation.full
+        let description = String(
+          localized: "\(full) of portfolio",
+          comment: "Assets list tooltip and VoiceOver label. The percentage is already formatted.")
+        ViewThatFits(in: .horizontal) {
+          portfolioPercentageText(full)
+          portfolioPercentageText(presentation.compact)
+          portfolioPercentageText(presentation.scientific(significantDigits: 1...3))
+          portfolioPercentageText(presentation.scientific(significantDigits: 1...1))
+          portfolioPercentageText("…")
+        }
+        .frame(width: portfolioPercentageWidth, alignment: .trailing)
+        .helpWhenUnlocked(description)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: description))
+      } else {
+        Color.clear
+          .frame(width: portfolioPercentageWidth, height: 0)
+          .accessibilityHidden(true)
+      }
+    }
+  }
+
+  private func portfolioPercentageText(_ percentage: String) -> some View {
+    Text(verbatim: percentage)
+      .font(.caption)
+      .foregroundStyle(.secondary)
+      .monospacedDigit()
+      .lineLimit(1)
+      .fixedSize(horizontal: true, vertical: false)
   }
 
   // MARK: - Empty State
