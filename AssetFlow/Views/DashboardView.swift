@@ -37,7 +37,7 @@ struct DashboardView: View {
   @State private var twrChartRange: ChartTimeRange = .all
   @State private var categoryChartRange: ChartTimeRange = .all
   @State private var pieChartSelectedDate: Date?
-  @State private var scrollbarInsets = DashboardScrollbarReader.Insets()
+  @State private var tooltipScrollbarInset: CGFloat = 0
 
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
@@ -107,8 +107,7 @@ struct DashboardView: View {
         recentSnapshotsSection
       }
       .padding()
-      .padding(.trailing, scrollbarInsets.content)
-      .background(DashboardScrollbarReader(insets: $scrollbarInsets).allowsHitTesting(false))
+      .background(DashboardScrollbarReader(inset: $tooltipScrollbarInset).allowsHitTesting(false))
     }
     .background(alignment: .top) {
       if !reduceTransparency {
@@ -380,7 +379,7 @@ struct DashboardView: View {
           allocationHistory: viewModel.categoryAllocationHistory,
           latestSnapshotDate: viewModel.snapshotDates.last,
           timeRange: $categoryChartRange,
-          scrollbarInset: scrollbarInsets.viewport
+          scrollbarInset: tooltipScrollbarInset
         )
         .conversionUnavailable(assetConversionMessage)
       }
@@ -593,28 +592,23 @@ private struct SnapshotRowButtonStyle: ButtonStyle {
   }
 }
 
-/// Reads the space occupied by the native scrollbar in the viewport and scroll content.
+/// Measures the space from the native scrollbar to the scroll view's right edge for the tooltip.
 private struct DashboardScrollbarReader: NSViewRepresentable {
-  struct Insets: Equatable {
-    var viewport: CGFloat = 0
-    var content: CGFloat = 0
-  }
-
-  @Binding var insets: Insets
+  @Binding var inset: CGFloat
 
   func makeNSView(context: Context) -> ReaderView { ReaderView() }
 
   func updateNSView(_ view: ReaderView, context: Context) {
-    view.onChange = { [insets = $insets] value in
-      if insets.wrappedValue != value {
-        insets.wrappedValue = value
+    view.onChange = { [inset = $inset] value in
+      if inset.wrappedValue != value {
+        inset.wrappedValue = value
       }
     }
     view.reportAfterLayout()
   }
 
   final class ReaderView: NSView {
-    var onChange: ((Insets) -> Void)?
+    var onChange: ((CGFloat) -> Void)?
 
     override func viewDidMoveToWindow() {
       super.viewDidMoveToWindow()
@@ -644,15 +638,11 @@ private struct DashboardScrollbarReader: NSViewRepresentable {
           let documentView = scrollView.documentView,
           documentView.frame.height > clipView.bounds.height
         else {
-          onChange?(Insets())
+          onChange?(0)
           return
         }
         let scrollbarEdge = scrollView.convert(scroller.bounds, from: scroller).minX
-        onChange?(
-          Insets(
-            viewport: max(0, scrollView.bounds.maxX - scrollbarEdge),
-            content: max(0, clipView.frame.maxX - scrollbarEdge)
-          ))
+        onChange?(max(0, scrollView.bounds.maxX - scrollbarEdge))
       }
     }
   }
