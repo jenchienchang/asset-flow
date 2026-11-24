@@ -33,7 +33,7 @@ The Dashboard includes several interactive charts to help you visualize your por
 - **Category Allocation Pie Chart** — see how your portfolio is divided across categories. Click a category slice to jump directly to that category's detail page.
 - **Portfolio Value Line Chart** — tracks your total portfolio value over time. Click any data point to navigate to that snapshot.
 - **Cumulative TWR Line Chart** — shows your time-weighted returns over time, so you can see how your investment performance has trended.
-- **Category Value Line Chart** — tracks how each category's value changes over time, making it easy to spot which parts of your portfolio are growing.
+- **Category History** — select **Value** to see each category's market value over time or **Allocation %** to see its share of the whole portfolio. Use the legend to show or hide individual categories.
 
 All charts support **hover tooltips** — just move your cursor over any data point to see the exact date and value.
 

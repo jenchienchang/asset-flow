@@ -775,9 +775,9 @@ struct DashboardViewModelTests {
     let history = viewModel.categoryValueHistory
     #expect(history.count == 2)
     #expect(history["Equities"] != nil)
-    #expect(history["Uncategorized"] != nil)
+    #expect(history[""] != nil)
     #expect(history["Equities"]?.first?.value == 75_000)
-    #expect(history["Uncategorized"]?.first?.value == 25_000)
+    #expect(history[""]?.first?.value == 25_000)
   }
 
   @Test("categoryValueHistory tracks values across multiple snapshots")
@@ -805,6 +805,81 @@ struct DashboardViewModelTests {
     #expect(equitySeries?.count == 2)
     #expect(equitySeries?[0].value == 100_000)
     #expect(equitySeries?[1].value == 120_000)
+  }
+
+  @Test("Category allocation history uses each snapshot's whole portfolio total")
+  func categoryAllocationHistoryUsesSnapshotTotals() {
+    let tc = createTestContext()
+    let equities = Category(name: "Equities")
+    tc.context.insert(equities)
+    let january = makeDate(year: 2025, month: 1, day: 1)
+    let february = makeDate(year: 2025, month: 2, day: 1)
+    let march = makeDate(year: 2025, month: 3, day: 1)
+
+    createSnapshot(
+      in: tc.context, date: january,
+      assets: [("AAPL", "Firstrade", 75, equities), ("Cash", "Bank", 25, nil)]
+    )
+    createSnapshot(
+      in: tc.context, date: february,
+      assets: [("AAPL", "Firstrade", 75, equities), ("Cash", "Bank", 225, nil)]
+    )
+    createSnapshot(in: tc.context, date: march, assets: [("AAPL", "Firstrade", 0, equities)])
+
+    let viewModel = DashboardViewModel(modelContext: tc.context)
+    viewModel.loadData()
+
+    let history = viewModel.categoryAllocationHistory
+    #expect(history["Equities"]?.map(\.date) == [january, february])
+    #expect(history["Equities"]?.map(\.value) == [75, 25])
+    #expect(history[""]?.map(\.value) == [25, 75])
+    #expect(viewModel.categoryValueHistory["Equities"]?.map(\.value) == [75, 75, 0])
+  }
+
+  @Test(
+    "Category allocation is zero when a positive-total snapshot has no holdings in that category")
+  func categoryAllocationHistoryIncludesZeroBetweenHoldings() {
+    let tc = createTestContext()
+    let equities = Category(name: "Equities")
+    tc.context.insert(equities)
+    let dates = (1...3).map { makeDate(year: 2025, month: $0, day: 1) }
+
+    for (index, date) in dates.enumerated() {
+      var assets: [(String, String, Decimal, AssetFlow.Category?)] = [
+        ("Cash", "Bank", index == 1 ? 100 : 60, nil)
+      ]
+      if index != 1 {
+        assets.append(("AAPL", "Firstrade", 40, equities))
+      }
+      createSnapshot(in: tc.context, date: date, assets: assets)
+    }
+
+    let viewModel = DashboardViewModel(modelContext: tc.context)
+    viewModel.loadData()
+
+    let points = viewModel.categoryAllocationHistory["Equities"]
+    #expect(points?.map(\.date) == dates)
+    #expect(points?.map(\.value) == [40, 0, 40])
+    #expect(viewModel.categoryValueHistory["Equities"]?.map(\.value) == [40, 40])
+  }
+
+  @Test("A category named Uncategorized has a separate history from unassigned assets")
+  func categoryHistoryDistinguishesUnassignedAssets() {
+    let tc = createTestContext()
+    let category = Category(name: "Uncategorized")
+    tc.context.insert(category)
+    createSnapshot(
+      in: tc.context, date: makeDate(year: 2025, month: 1, day: 1),
+      assets: [("AAPL", "Firstrade", 20, category), ("Cash", "Bank", 60, nil)]
+    )
+
+    let viewModel = DashboardViewModel(modelContext: tc.context)
+    viewModel.loadData()
+
+    #expect(viewModel.categoryAllocationHistory["Uncategorized"]?.map(\.value) == [25])
+    #expect(viewModel.categoryAllocationHistory[""]?.map(\.value) == [75])
+    #expect(viewModel.categoryValueHistory["Uncategorized"]?.map(\.value) == [20])
+    #expect(viewModel.categoryValueHistory[""]?.map(\.value) == [60])
   }
 
   // MARK: - Bidirectional Lookback

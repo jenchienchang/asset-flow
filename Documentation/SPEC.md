@@ -107,9 +107,9 @@ The dashboard provides a portfolio overview using the latest snapshot.
    - Portfolio-level cumulative time-weighted return over time (see Section 12.4)
    - Shows "Insufficient data (need at least 2 snapshots)" when fewer than 2 snapshots exist
 
-1. **Category value history chart:**
+1. **Category history chart:**
 
-   - Shows category values across snapshots with a legend that can hide individual categories
+   - Switches between category values and allocation percentages across snapshots (see Section 12.3)
 
 1. **Recent snapshots list:**
 
@@ -717,13 +717,17 @@ ______________________________________________________________________
 - Clicking a data point navigates to the corresponding snapshot's detail view.
 - Time range zoom controls (see above)
 
-### 12.3 Line Chart — Category Value Over Time
+### 12.3 Line Chart — Category Value and Allocation Over Time
 
 - Same format as portfolio chart
 - Multiple lines, one per category
 - Legend with category names
 - Toggle individual categories on/off
-- Hover identifies the date and available category values at that date. No click-to-navigate behavior.
+- Defaults to Value. Allocation % shows each category's share of the full converted portfolio at each snapshot with a positive total. Hiding categories only changes which lines are visible.
+- A snapshot with a positive total plots 0% for a category with no recorded holdings. The chart omits lines whose entire allocation history is zero.
+- Unassigned assets form their own series, including when a user-created category is named Uncategorized.
+- Both metrics measure the selected time range from the latest portfolio snapshot. Switching metrics preserves the selection and category visibility.
+- Hover identifies the date and shows available values or percentages for that date. No click-to-navigate behavior.
 - Time range zoom controls (see above)
 
 The category detail view also includes an allocation percentage line chart (same format as 12.3 but showing percentage instead of value, for a single category). Time range zoom controls apply.

@@ -534,6 +534,17 @@
         }
       }
     },
+    "%@ (%lld)" : {
+      "comment" : "A category display name followed by a number to distinguish it from names already in use.",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（%lld）"
+          }
+        }
+      }
+    },
     "%@ (%@)": {
       "comment": "Shared currency heading for one rebalancing help table. First placeholder is the localized section title; second is an ISO currency code.",
       "localizations": {
@@ -1044,6 +1055,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "配置"
+          }
+        }
+      }
+    },
+    "Allocation %" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置比例"
           }
         }
       }
@@ -1636,6 +1657,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "類別計算詳細資訊"
+          }
+        }
+      }
+    },
+    "Category Allocation History" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "類別配置比例走勢"
+          }
+        }
+      }
+    },
+    "Category allocation history chart" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "類別配置比例趨勢圖"
+          }
+        }
+      }
+    },
+    "Category chart metric" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "類別圖表指標"
           }
         }
       }
@@ -5049,6 +5100,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未分類"
+          }
+        }
+      }
+    },
+    "Uncategorized assets" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未分類資產"
           }
         }
       }

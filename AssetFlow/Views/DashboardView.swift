@@ -103,6 +103,7 @@ struct DashboardView: View {
         summaryCardsRow
         periodPerformanceRow
         chartsSection
+          .zIndex(1)  // The category history tooltip can overlap neighboring sections.
         recentSnapshotsSection
       }
       .padding()
@@ -365,7 +366,7 @@ struct DashboardView: View {
         .conversionUnavailable(assetConversionMessage)
       }
 
-      // Row 2: TWR line chart + Category value line chart
+      // Row 2: TWR and category history line charts
       HStack(alignment: .top, spacing: 12) {
         CumulativeTWRLineChart(
           dataPoints: viewModel.twrHistory,
@@ -375,13 +376,15 @@ struct DashboardView: View {
         .conversionUnavailable(dashboardConversionMessage)
 
         CategoryValueLineChart(
-          categoryHistory: viewModel.categoryValueHistory,
+          valueHistory: viewModel.categoryValueHistory,
+          allocationHistory: viewModel.categoryAllocationHistory,
+          latestSnapshotDate: viewModel.snapshotDates.last,
           timeRange: $categoryChartRange,
           scrollbarInset: scrollbarInsets.viewport
         )
         .conversionUnavailable(assetConversionMessage)
       }
-      .zIndex(1)  // The category value tooltip can extend above this row.
+      .zIndex(1)  // The category history tooltip can extend above this row.
     }
   }
 

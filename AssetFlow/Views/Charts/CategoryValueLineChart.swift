@@ -23,19 +23,31 @@ import SwiftUI
 /// Displays one line per category with a legend toggle to show/hide categories.
 /// No click-to-navigate behavior per SPEC 12.3.
 struct CategoryValueLineChart: View {
-  let categoryHistory: [String: [DashboardDataPoint]]
+  private enum Metric {
+    case value
+    case allocation
+  }
+
+  let valueHistory: [String: [DashboardDataPoint]]
+  let allocationHistory: [String: [DashboardDataPoint]]
+  let latestSnapshotDate: Date?
   @Binding var timeRange: ChartTimeRange
   let scrollbarInset: CGFloat
 
+  @State private var metric: Metric = .value
   @State private var disabledCategories: Set<String> = []
   @State private var hoveredDate: Date?
 
+  private var categoryHistory: [String: [DashboardDataPoint]] {
+    metric == .value ? valueHistory : allocationHistory
+  }
+
   /// Category names sorted alphabetically, with Uncategorized last.
   private var sortedCategoryNames: [String] {
-    let names = Array(categoryHistory.keys)
+    let names = Array(valueHistory.keys)
     return names.sorted { lhs, rhs in
-      if lhs == "Uncategorized" { return false }
-      if rhs == "Uncategorized" { return true }
+      if lhs.isEmpty { return false }
+      if rhs.isEmpty { return true }
       return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
     }
   }
@@ -48,12 +60,12 @@ struct CategoryValueLineChart: View {
 
   /// Flattened and filtered data points for the chart.
   private var chartData: [CategoryChartPoint] {
+    let startDate = latestSnapshotDate.flatMap { timeRange.startDate(from: $0) }
     var result: [CategoryChartPoint] = []
     for name in sortedCategoryNames {
       guard !disabledCategories.contains(name), hasData(name) else { continue }
       guard let points = categoryHistory[name] else { continue }
-      let filtered = ChartDataService.filter(points, range: timeRange)
-      for point in filtered {
+      for point in points where startDate.map({ point.date >= $0 }) ?? true {
         result.append(
           CategoryChartPoint(
             date: point.date, value: point.value, categoryName: name))
@@ -65,13 +77,27 @@ struct CategoryValueLineChart: View {
   var body: some View {
     let data = chartData
     VStack(alignment: .leading, spacing: 8) {
-      Text("Category Value History")
-        .font(.headline)
+      HStack {
+        Text(metric == .value ? "Category Value History" : "Category Allocation History")
+          .font(.headline)
+          .layoutPriority(1)
+        Spacer(minLength: 8)
+        Picker("Category chart metric", selection: $metric) {
+          Text("Value").tag(Metric.value)
+          Text("Allocation %").tag(Metric.allocation)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.small)
+        .fixedSize()
+      }
 
       ChartTimeRangeSelector(selection: $timeRange)
 
-      if categoryHistory.isEmpty {
+      if valueHistory.isEmpty {
         emptyMessage("Create categories to see allocation trends")
+      } else if categoryHistory.isEmpty {
+        emptyMessage("No allocation history")
       } else {
         chartWithLegend(data: data)
       }
@@ -100,7 +126,10 @@ struct CategoryValueLineChart: View {
         .allowsHitTesting(false)
       }
     }
-    .accessibilityLabel("Category value history chart")
+    .accessibilityLabel(
+      metric == .value ? "Category value history chart" : "Category allocation history chart"
+    )
+    .onChange(of: metric) { hoveredDate = nil }
   }
 
   private func chartWithLegend(data: [CategoryChartPoint]) -> some View {
@@ -116,17 +145,19 @@ struct CategoryValueLineChart: View {
         let yMin = yValues.min()!
         let yMax = yValues.max()!
         let yPadding = yMin == yMax ? max(abs(yMin) * 0.1, 1.0) : 0.0
+        let metricLabel =
+          metric == .value ? String(localized: "Value") : String(localized: "Allocation %")
         Chart {
           ForEach(data, id: \.id) { point in
             LineMark(
               x: .value("Date", point.date),
-              y: .value("Value", point.value.doubleValue)
+              y: .value(metricLabel, point.value.doubleValue)
             )
             .foregroundStyle(by: .value("Category", point.categoryName))
 
             PointMark(
               x: .value("Date", point.date),
-              y: .value("Value", point.value.doubleValue)
+              y: .value(metricLabel, point.value.doubleValue)
             )
             .foregroundStyle(by: .value("Category", point.categoryName))
             .symbolSize(15)
@@ -151,7 +182,11 @@ struct CategoryValueLineChart: View {
             AxisGridLine()
             AxisValueLabel {
               if let val = value.as(Double.self) {
-                Text(ChartDataService.abbreviatedLabel(for: val))
+                if metric == .value {
+                  Text(ChartDataService.abbreviatedLabel(for: val))
+                } else {
+                  Text((val / 100).formatted(.percent.precision(.fractionLength(0...2))))
+                }
               }
             }
           }
@@ -214,7 +249,7 @@ struct CategoryValueLineChart: View {
         Circle()
           .fill(isDisabled ? .gray.opacity(0.3) : colorForCategory(name))
           .frame(width: 8, height: 8)
-        Text(name)
+        Text(categoryDisplayName(name))
           .font(.caption2)
           .strikethrough(isDisabled)
         if noData {
@@ -239,7 +274,8 @@ struct CategoryValueLineChart: View {
         if lhs.value != rhs.value {
           return lhs.value > rhs.value
         }
-        let nameOrder = lhs.categoryName.localizedCaseInsensitiveCompare(rhs.categoryName)
+        let nameOrder = categoryDisplayName(lhs.categoryName)
+          .localizedCaseInsensitiveCompare(categoryDisplayName(rhs.categoryName))
         if nameOrder != .orderedSame {
           return nameOrder == .orderedAscending
         }
@@ -249,22 +285,23 @@ struct CategoryValueLineChart: View {
     return ChartTooltipView {
       Text(date.settingsFormatted())
         .font(.caption2)
-      Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 2) {
+      CategoryTooltipRows {
         ForEach(pointsAtDate, id: \.categoryName) { point in
-          GridRow {
-            HStack(spacing: 4) {
-              Circle()
-                .fill(colorForCategory(point.categoryName))
-                .frame(width: 6, height: 6)
-              Text(point.categoryName)
-                .font(.caption2)
-            }
-
-            Text(point.value.formatted(currency: SettingsService.shared.mainCurrency))
-              .font(.caption2.bold())
-              .monospacedDigit()
-              .gridColumnAlignment(.trailing)
+          HStack(spacing: 4) {
+            Circle()
+              .fill(colorForCategory(point.categoryName))
+              .frame(width: 6, height: 6)
+            Text(categoryDisplayName(point.categoryName))
+              .font(.caption2)
           }
+
+          Text(
+            metric == .value
+              ? point.value.formatted(currency: SettingsService.shared.mainCurrency)
+              : point.value.formattedPercentage()
+          )
+          .font(.caption2.bold())
+          .monospacedDigit()
         }
       }
     }
@@ -274,10 +311,29 @@ struct CategoryValueLineChart: View {
     ChartEmptyMessage(text: text, height: ChartConstants.dashboardChartHeight)
   }
 
+  private func categoryDisplayName(_ name: String) -> String {
+    guard name.isEmpty else { return name }
+    let options: String.CompareOptions = [.caseInsensitive, .widthInsensitive]
+    let usedNames = Set(valueHistory.keys.map { $0.folding(options: options, locale: .current) })
+    let label = String(localized: "Uncategorized")
+    guard usedNames.contains(label.folding(options: options, locale: .current)) else {
+      return label
+    }
+
+    let fallback = String(localized: "Uncategorized assets")
+    var candidate = fallback
+    var suffix = 2
+    while usedNames.contains(candidate.folding(options: options, locale: .current)) {
+      candidate = String(localized: "\(fallback) (\(suffix))")
+      suffix += 1
+    }
+    return candidate
+  }
+
   /// Category name → color dictionary, built in a single O(N) pass.
   private var categoryColorMap: [String: Color] {
-    var map: [String: Color] = ["Uncategorized": .gray]
-    let sorted = sortedCategoryNames.filter { $0 != "Uncategorized" }
+    var map: [String: Color] = ["": .gray]
+    let sorted = sortedCategoryNames.filter { !$0.isEmpty }
     for (index, name) in sorted.enumerated() {
       map[name] = ChartConstants.color(forIndex: index)
     }
@@ -302,6 +358,59 @@ nonisolated private enum CategoryTooltipAnchor: PreferenceKey {
   }
 }
 
+/// Measures each name and value separately so measurement and placement use the same row heights.
+private struct CategoryTooltipRows: Layout {
+  private let rowSpacing: CGFloat = 2
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let layout = measure(subviews, width: proposal.width)
+    let height = layout.rows.reduce(CGFloat(0)) { $0 + $1.height }
+    return CGSize(
+      width: layout.width, height: height + rowSpacing * CGFloat(max(0, layout.rows.count - 1)))
+  }
+
+  func placeSubviews(
+    in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+  ) {
+    let layout = measure(subviews, width: proposal.width)
+    var y = bounds.minY
+    for (index, row) in layout.rows.enumerated() {
+      let centerY = y + row.height / 2
+      subviews[index * 2].place(
+        at: CGPoint(x: bounds.minX, y: centerY), anchor: .leading, proposal: row.nameProposal)
+      subviews[index * 2 + 1].place(
+        at: CGPoint(x: bounds.maxX, y: centerY), anchor: .trailing, proposal: .unspecified)
+      y += row.height + rowSpacing
+    }
+  }
+
+  private struct Row {
+    let nameProposal: ProposedViewSize
+    let height: CGFloat
+  }
+
+  private func measure(_ subviews: Subviews, width: CGFloat?) -> (width: CGFloat, rows: [Row]) {
+    guard !subviews.isEmpty else { return (0, []) }
+    let nameIndices = stride(from: 0, to: subviews.count, by: 2)
+    let names = nameIndices.map { subviews[$0].sizeThatFits(.unspecified) }
+    let values = nameIndices.map { subviews[$0 + 1].sizeThatFits(.unspecified) }
+    let idealNameWidth = names.map(\.width).max() ?? 0
+    let valueWidth = values.map(\.width).max() ?? 0
+    let idealWidth = idealNameWidth + valueWidth + 8
+    let availableWidth = width ?? idealWidth
+    let spacing: CGFloat = max(4, min(8, availableWidth - idealNameWidth - valueWidth))
+    let nameWidth = max(0, min(idealNameWidth, availableWidth - valueWidth - spacing))
+    let rows = nameIndices.enumerated().map { index, nameIndex in
+      let fits = names[index].width <= nameWidth
+      let proposal: ProposedViewSize = fits ? .unspecified : .init(width: nameWidth, height: nil)
+      let nameHeight =
+        fits ? names[index].height : subviews[nameIndex].sizeThatFits(proposal).height
+      return Row(nameProposal: proposal, height: max(nameHeight, values[index].height))
+    }
+    return (nameWidth + spacing + valueWidth, rows)
+  }
+}
+
 /// Places the tooltip relative to the plot and keeps it within the viewport when it fits.
 private struct CategoryTooltipLayout: Layout {
   let anchor: CGPoint
@@ -319,13 +428,16 @@ private struct CategoryTooltipLayout: Layout {
   ) {
     let tooltip = subviews[0]
     let availableWidth = max(0, rightEdge - leftEdge)
-    let width = min(tooltip.sizeThatFits(.unspecified).width, availableWidth)
-    let x = max(leftEdge, min(anchor.x - width / 2, rightEdge - width))
-    let tooltipProposal = ProposedViewSize(width: width, height: nil)
-    let height = tooltip.sizeThatFits(tooltipProposal).height
+    let idealSize = tooltip.sizeThatFits(.unspecified)
+    let fitsViewport = idealSize.width <= availableWidth
+    // Keep the grid's natural column widths unless the viewport requires wrapping.
+    let tooltipProposal: ProposedViewSize =
+      fitsViewport ? .unspecified : .init(width: availableWidth, height: nil)
+    let size = fitsViewport ? idealSize : tooltip.sizeThatFits(tooltipProposal)
+    let x = max(leftEdge, min(anchor.x - size.width / 2, rightEdge - size.width))
     let spacing: CGFloat = 4
-    let above = anchor.y - spacing - height
-    let fallback = max(topEdge, min(anchor.y + spacing, bottomEdge - height))
+    let above = anchor.y - spacing - size.height
+    let fallback = max(topEdge, min(anchor.y + spacing, bottomEdge - size.height))
     let y = above >= topEdge ? above : fallback
     tooltip.place(
       at: CGPoint(x: bounds.minX + x, y: bounds.minY + y),

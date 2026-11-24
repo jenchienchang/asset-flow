@@ -104,8 +104,11 @@ class DashboardViewModel {
   /// Most recent 5 snapshots (newest first).
   var recentSnapshots: [RecentSnapshotData] = []
 
-  /// Per-category value at each snapshot, keyed by category name.
+  /// Recorded category values, keyed by category name. The empty key represents unassigned assets.
   var categoryValueHistory: [String: [DashboardDataPoint]] = [:]
+
+  /// Shares at positive-total snapshots, in percentage points. Uses the same keys as value history.
+  private(set) var categoryAllocationHistory: [String: [DashboardDataPoint]] = [:]
 
   /// Conversion status for the latest snapshot.
   var latestConversionStatus: CurrencyConversionStatus = .notNeeded
@@ -202,6 +205,7 @@ class DashboardViewModel {
         self.portfolioValueHistory = []
         self.twrHistory = []
         self.categoryValueHistory = [:]
+        self.categoryAllocationHistory = [:]
         self.recentSnapshots = []
         self.latestConversionStatus = .notNeeded
         self.latestNativeCurrencyTotals = [:]
@@ -296,7 +300,7 @@ class DashboardViewModel {
     computeCategoryAllocations(sortedSnapshots: sortedSnapshots)
     computePortfolioValueHistory(sortedSnapshots: sortedSnapshots)
     computeTWRHistory(sortedSnapshots: sortedSnapshots)
-    computeCategoryValueHistory(sortedSnapshots: sortedSnapshots)
+    computeCategoryHistories(sortedSnapshots: sortedSnapshots)
     computeRecentSnapshots(sortedSnapshots: sortedSnapshots)
     let loadedSnapshotDates: [Date] = sortedSnapshots.map(\.date)
     refresh.publish { self.snapshotDates = loadedSnapshotDates }
@@ -544,32 +548,46 @@ class DashboardViewModel {
       }.sorted { $0.value > $1.value }
   }
 
-  // MARK: - Private: Category Value History
+  // MARK: - Private: Category Histories
 
-  private func computeCategoryValueHistory(sortedSnapshots: [Snapshot]) {
+  private func computeCategoryHistories(sortedSnapshots: [Snapshot]) {
     guard
       sortedSnapshots.allSatisfy({
         snapshotSummariesCache[$0.id]?.conversionStatus.isComplete == true
       })
     else {
-      let loadedCategoryValueHistory: [String: [DashboardDataPoint]] = [:]
-      refresh.publish { self.categoryValueHistory = loadedCategoryValueHistory }
+      refresh.publish {
+        self.categoryValueHistory = [:]
+        self.categoryAllocationHistory = [:]
+      }
       return
     }
-    var result: [String: [DashboardDataPoint]] = [:]
-
+    var valueHistory: [String: [DashboardDataPoint]] = [:]
     for snapshot in sortedSnapshots {
       guard let catValues = categoryValuesCache[snapshot.id] else { continue }
-
+      let date = snapshot.date
       for (categoryName, value) in catValues {
-        let displayName = categoryName.isEmpty ? "Uncategorized" : categoryName
-        result[displayName, default: []].append(
-          DashboardDataPoint(date: snapshot.date, value: value))
+        valueHistory[categoryName, default: []].append(DashboardDataPoint(date: date, value: value))
       }
     }
 
-    let loadedCategoryValueHistory: [String: [DashboardDataPoint]] = result
-    refresh.publish { self.categoryValueHistory = loadedCategoryValueHistory }
+    var allocationHistory: [String: [DashboardDataPoint]] = [:]
+    for snapshot in sortedSnapshots {
+      let total = snapshotTotal(for: snapshot)
+      guard total > 0, let catValues = categoryValuesCache[snapshot.id] else { continue }
+      let date = snapshot.date
+      for categoryName in valueHistory.keys {
+        let percentage = CalculationService.categoryAllocation(
+          categoryValue: catValues[categoryName, default: 0], totalValue: total)
+        allocationHistory[categoryName, default: []].append(
+          DashboardDataPoint(date: date, value: percentage))
+      }
+    }
+
+    refresh.publish {
+      self.categoryValueHistory = valueHistory
+      self.categoryAllocationHistory = allocationHistory
+    }
   }
 
   // MARK: - Private: Portfolio Value History
