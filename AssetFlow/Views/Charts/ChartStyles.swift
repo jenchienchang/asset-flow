@@ -70,8 +70,6 @@ enum ChartConstants {
 // MARK: - Glass Card Modifier
 
 struct GlassCardModifier: ViewModifier {
-  let allowsContentOverflow: Bool
-
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
   func body(content: Content) -> some View {
@@ -79,7 +77,9 @@ struct GlassCardModifier: ViewModifier {
       content
         .glassEffect(in: RoundedRectangle(cornerRadius: ChartConstants.cardCornerRadius))
     } else {
-      legacyCardBackground(content)
+      content
+        .background(reduceTransparency ? .regularMaterial : .ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: ChartConstants.cardCornerRadius))
         .shadow(color: .black.opacity(0.08), radius: 1, y: 1)
         .shadow(color: .black.opacity(0.2), radius: 5, y: 4)
         .overlay(
@@ -93,23 +93,12 @@ struct GlassCardModifier: ViewModifier {
         )
     }
   }
-
-  @ViewBuilder
-  private func legacyCardBackground(_ content: Content) -> some View {
-    let material: Material = reduceTransparency ? .regularMaterial : .ultraThinMaterial
-    let shape = RoundedRectangle(cornerRadius: ChartConstants.cardCornerRadius)
-    if allowsContentOverflow {
-      content.background(material, in: shape)
-    } else {
-      content.background(material).clipShape(shape)
-    }
-  }
 }
 
 extension View {
   /// Applies the glass card treatment: material background, rounded corners, shadows, and border.
-  func glassCard(allowsContentOverflow: Bool = false) -> some View {
-    modifier(GlassCardModifier(allowsContentOverflow: allowsContentOverflow))
+  func glassCard() -> some View {
+    modifier(GlassCardModifier())
   }
 }
 

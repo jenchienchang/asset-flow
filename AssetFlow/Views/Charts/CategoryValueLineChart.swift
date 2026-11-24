@@ -63,6 +63,7 @@ struct CategoryValueLineChart: View {
   }
 
   var body: some View {
+    let data = chartData
     VStack(alignment: .leading, spacing: 8) {
       Text("Category Value History")
         .font(.headline)
@@ -72,18 +73,38 @@ struct CategoryValueLineChart: View {
       if categoryHistory.isEmpty {
         emptyMessage("Create categories to see allocation trends")
       } else {
-        chartWithLegend
+        chartWithLegend(data: data)
       }
     }
     .padding()
     .frame(maxHeight: .infinity, alignment: .topLeading)
-    .glassCard(allowsContentOverflow: true)
+    .glassCard()
+    // Keep the tooltip's material outside the card's glass effect.
+    .overlayPreferenceValue(CategoryTooltipAnchor.self) { position in
+      if let position, let hoveredDate {
+        GeometryReader { geometry in
+          let plot = geometry[position.plotFrame]
+          let viewport =
+            geometry.bounds(of: .scrollView(axis: .vertical))
+            ?? CGRect(origin: .zero, size: geometry.size)
+          CategoryTooltipLayout(
+            anchor: CGPoint(x: plot.minX + position.xInPlot, y: plot.minY),
+            leftEdge: viewport.minX,
+            rightEdge: viewport.maxX - scrollbarInset,
+            topEdge: viewport.minY,
+            bottomEdge: viewport.maxY
+          ) {
+            categoryTooltipView(for: hoveredDate, data: data)
+          }
+        }
+        .allowsHitTesting(false)
+      }
+    }
     .accessibilityLabel("Category value history chart")
   }
 
-  private var chartWithLegend: some View {
+  private func chartWithLegend(data: [CategoryChartPoint]) -> some View {
     VStack(alignment: .leading, spacing: 8) {
-      let data = chartData
       if data.isEmpty {
         emptyMessage("No data for selected period")
       } else {
@@ -137,46 +158,32 @@ struct CategoryValueLineChart: View {
         }
         .chartLegend(.hidden)
         .chartOverlay { proxy in
-          GeometryReader { geometry in
-            Color.clear
-              .contentShape(Rectangle())
-              .onContinuousHoverWhenUnlocked { phase in
-                switch phase {
-                case .active(let location):
-                  hoveredDate = ChartHelpers.findNearestDate(
-                    at: location, in: proxy, points: data, dateKeyPath: \.date)
+          Color.clear
+            .contentShape(Rectangle())
+            .onContinuousHoverWhenUnlocked { phase in
+              switch phase {
+              case .active(let location):
+                hoveredDate = ChartHelpers.findNearestDate(
+                  at: location, in: proxy, points: data, dateKeyPath: \.date)
 
-                case .ended:
-                  hoveredDate = nil
-                }
+              case .ended:
+                hoveredDate = nil
               }
-              .overlay {
-                if let hoveredDate, let plotFrame = proxy.plotFrame,
-                  let x = proxy.position(forX: hoveredDate)
-                {
-                  let plot = geometry[plotFrame]
-                  let viewport =
-                    geometry.bounds(of: .scrollView(axis: .vertical))
-                    ?? CGRect(origin: .zero, size: geometry.size)
-                  CategoryTooltipLayout(
-                    anchor: CGPoint(x: plot.minX + x, y: plot.minY),
-                    leftEdge: viewport.minX,
-                    rightEdge: viewport.maxX - scrollbarInset,
-                    topEdge: viewport.minY,
-                    bottomEdge: viewport.maxY
-                  ) {
-                    categoryTooltipView(for: hoveredDate, data: data)
-                  }
-                  .allowsHitTesting(false)
-                }
-              }
-          }
+            }
+            .preference(key: CategoryTooltipAnchor.self, value: tooltipPosition(in: proxy))
         }
         .frame(height: ChartConstants.dashboardChartHeight)
       }
 
       legendView
     }
+  }
+
+  private func tooltipPosition(in proxy: ChartProxy) -> CategoryTooltipAnchor.Position? {
+    guard let hoveredDate, let plotFrame = proxy.plotFrame,
+      let x = proxy.position(forX: hoveredDate)
+    else { return nil }
+    return .init(plotFrame: plotFrame, xInPlot: x)
   }
 
   /// Category names that are enabled (not disabled) and have data — used for chart color scale.
@@ -279,6 +286,19 @@ struct CategoryValueLineChart: View {
 
   private func colorForCategory(_ name: String) -> Color {
     categoryColorMap[name] ?? .gray
+  }
+}
+
+nonisolated private enum CategoryTooltipAnchor: PreferenceKey {
+  struct Position {
+    let plotFrame: Anchor<CGRect>
+    let xInPlot: CGFloat
+  }
+
+  static var defaultValue: Position? { nil }
+
+  static func reduce(value: inout Position?, nextValue: () -> Position?) {
+    value = nextValue() ?? value
   }
 }
 
