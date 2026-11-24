@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.0](https://github.com/jenchienchang/asset-flow/compare/v0.8.1...v0.9.0) (2026-11-24)
+
+### Features
+
+- **assets:** show portfolio share in the asset list ([498757d](https://github.com/jenchienchang/asset-flow/commit/498757d159a594059a28121ab43693d3ec10dbe5))
+- **dashboard:** add category allocation history toggle ([64d2024](https://github.com/jenchienchang/asset-flow/commit/64d2024da9f5b3942fc401a05828cd687af0dde2))
+
+### Bug Fixes
+
+- **dashboard:** keep the category chart background steady on hover ([edb6533](https://github.com/jenchienchang/asset-flow/commit/edb6533716bf62cea484dcec75b357fe135e7298))
+- **dashboard:** keep the category trend tooltip visible ([cff39d2](https://github.com/jenchienchang/asset-flow/commit/cff39d2578cfd337b153d400cac0dfa7b59a18e5))
+- **dashboard:** prevent content from shrinking on return ([7d76c84](https://github.com/jenchienchang/asset-flow/commit/7d76c84597ef22b99218d1f1ac40aa26405674f5))
+
 ## [0.8.1](https://github.com/jenchienchang/asset-flow/compare/v0.8.0...v0.8.1) (2026-11-02)
 
 ### Bug Fixes
